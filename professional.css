@@ -321,3 +321,111 @@ img { display: block; max-width: 100%; }
   .appointment-row .status { display: none; }
 }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; animation:none!important; } }
+
+/* Fluxos separados: agendamento e painel de senhas */
+.est-content { display: block; }
+.zone-title { margin: 34px 0 16px; display: flex; align-items: center; gap: 14px; }
+.zone-title .zone-number { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 12px; color: var(--blue); background: var(--blue-soft); font: 800 12px "Manrope",sans-serif; }
+.zone-title small { color: var(--blue); font-size: 9px; font-weight: 800; letter-spacing: 1.3px; }
+.zone-title h2 { margin: 2px 0; color: var(--navy); font: 800 22px "Manrope",sans-serif; }
+.zone-title p { margin: 0; color: var(--muted); font-size: 12px; }
+.booking-layout { display: grid; grid-template-columns: minmax(0,1.65fr) minmax(270px,.55fr); gap: 20px; align-items: start; }
+.hours-panel { position: sticky; top: 18px; }
+.queue-zone { margin-top: 48px; padding: 30px; border-radius: 24px; background: linear-gradient(135deg,#071b42,#0b3276); box-shadow: 0 20px 45px rgba(8,35,84,.18); }
+.queue-zone-title { margin: 0 0 20px; }
+.queue-zone-title .zone-number { color: var(--navy); background: var(--yellow); }
+.queue-zone-title small { color: #8bb1f5; }
+.queue-zone-title h2 { color: #fff; }
+.queue-zone-title p { color: #b8c9e7; }
+.queue-panel { overflow: hidden; border-color: rgba(255,255,255,.12); box-shadow: none; }
+.queue-panel-head { min-height: 78px; }
+.queue-head-actions { display: flex; align-items: center; gap: 9px; }
+.queue-board { display: grid; grid-template-columns: minmax(250px,.62fr) minmax(0,1.38fr); min-height: 260px; }
+.queue-current { padding: 35px 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(145deg,#edf4ff,#fff9df); }
+.queue-current strong { font-size: clamp(50px,7vw,78px); letter-spacing: -2px; }
+.service-point { margin: 4px 0 12px; color: var(--navy); font: 800 17px "Manrope",sans-serif; }
+.queue-customer { margin-top: 10px; color: var(--muted); font-size: 11px; }
+.priority-badge,.normal-badge { width: fit-content; padding: 5px 9px; border-radius: 999px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; }
+.priority-badge { color: #8a3b00; background: #ffdfb7; }
+.normal-badge { color: var(--blue); background: var(--blue-soft); }
+.queue-next { min-width: 0; padding: 20px 24px; background: #fff; }
+.queue-list-title { min-height: 35px; display: flex; justify-content: space-between; gap: 14px; border-bottom: 1px solid var(--line); color: var(--navy); font-size: 12px; }
+.queue-list-title span { color: var(--muted); font-size: 10px; font-weight: 700; }
+.queue-list { padding: 4px 0 0; }
+.queue-row { min-height: 59px; grid-template-columns: 31px 58px minmax(0,1fr) auto; }
+.queue-position { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); background: var(--canvas); font-size: 10px; font-weight: 800; }
+.queue-row-info { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.queue-row-info>strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-row .ticket { width: 52px; font-size: 11px; }
+.admin-grid .queue-board { grid-template-columns: 1fr; }
+.admin-grid .queue-current { min-height: 230px; }
+.admin-grid .queue-current strong { font-size: 55px; }
+.admin-grid .queue-panel-head { display: block; padding-top: 16px; padding-bottom: 14px; }
+.admin-grid .queue-head-actions { margin-top: 12px; justify-content: space-between; }
+.queue-admin-actions { grid-template-columns: 1fr 1fr; padding-top: 18px; border-top: 1px solid var(--line); }
+.queue-admin-actions [data-next-ticket] { grid-column: 1/-1; }
+.btn-priority { color: #7a3800; border: 1px solid #edbd7b; background: #fff2dc; }
+.btn-priority:hover { background: #ffe5ba; }
+.loading-page { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 22px; background: var(--canvas); color: var(--muted); font-size: 13px; }
+.loading-spinner { width: 34px; height: 34px; border: 3px solid #dce5f3; border-top-color: var(--blue); border-radius: 50%; animation: loading-spin .75s linear infinite; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+
+/* Modo dedicado para TV/monitor */
+.queue-display { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; color: #fff; background: radial-gradient(circle at 18% 15%,#174caa 0,#0a2b66 35%,#061936 100%); }
+.queue-display-header { min-height: 100px; padding: 20px clamp(28px,4vw,70px); display: flex; align-items: center; justify-content: space-between; gap: 25px; border-bottom: 1px solid rgba(255,255,255,.13); }
+.queue-display-brand { display: flex; align-items: center; gap: 24px; font: 700 clamp(16px,2vw,24px) "Manrope",sans-serif; }
+.queue-display-brand .brand { filter: brightness(0) invert(1); }
+.queue-display-status { display: flex; align-items: center; gap: 12px; color: #b8ccef; font-size: 12px; font-weight: 800; letter-spacing: .8px; }
+.queue-display-status strong { min-width: 82px; color: #fff; font-size: 16px; letter-spacing: 0; }
+.queue-display-content { min-height: 0; padding: clamp(28px,4vw,65px); display: grid; grid-template-columns: minmax(0,1.25fr) minmax(350px,.75fr); gap: clamp(24px,4vw,60px); align-items: stretch; }
+.queue-display-current { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.15); border-radius: 30px; background: rgba(255,255,255,.075); box-shadow: 0 24px 80px rgba(0,0,0,.18); }
+.queue-display-current>small { color: #a9c4f2; font-size: clamp(11px,1.4vw,18px); font-weight: 800; letter-spacing: 2px; }
+.queue-display-current>strong { margin: clamp(12px,2vw,28px) 0; color: var(--yellow); font: 800 clamp(100px,17vw,245px)/.85 "Manrope",sans-serif; letter-spacing: -10px; text-shadow: 0 12px 35px rgba(0,0,0,.25); }
+.monitor-service-point { display: grid; gap: 4px; text-align: center; }
+.monitor-service-point span { color: #a9c4f2; font-size: 13px; }
+.monitor-service-point b { font: 800 clamp(24px,3vw,42px) "Manrope",sans-serif; }
+.monitor-priority,.monitor-normal { margin-top: 17px; padding: 8px 14px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; }
+.monitor-priority { color: #512500; background: #ffc86f; }
+.monitor-normal { color: #d7e7ff; background: rgba(255,255,255,.13); }
+.queue-display-next { overflow: hidden; border-radius: 24px; background: #fff; color: var(--ink); }
+.monitor-next-title { min-height: 82px; padding: 0 25px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border-bottom: 1px solid var(--line); }
+.monitor-next-title span { color: var(--navy); font: 800 20px "Manrope",sans-serif; }
+.monitor-next-title b { color: var(--muted); font-size: 11px; }
+.monitor-waiting-list { padding: 7px 23px; }
+.monitor-waiting-row { min-height: 72px; display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 15px; border-bottom: 1px solid var(--line); }
+.monitor-waiting-row:last-child { border-bottom: 0; }
+.monitor-waiting-row>strong { color: var(--navy); font: 800 clamp(22px,2.5vw,34px) "Manrope",sans-serif; }
+.monitor-waiting-row .monitor-priority,.monitor-waiting-row .monitor-normal { margin: 0; }
+.monitor-position { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--blue); background: var(--blue-soft); font-size: 12px; font-weight: 800; }
+.monitor-empty { padding: 70px 20px; color: var(--muted); text-align: center; }
+.queue-display-footer { min-height: 78px; padding: 15px clamp(28px,4vw,70px); display: flex; align-items: center; justify-content: space-between; gap: 25px; border-top: 1px solid rgba(255,255,255,.13); color: #abc0e5; font-size: 12px; }
+.queue-display-footer>div { display: flex; gap: 9px; }
+.monitor-action { min-height: 40px; padding: 0 15px; display: inline-flex; align-items: center; border: 1px solid rgba(255,255,255,.24); border-radius: 9px; color: #fff; background: rgba(255,255,255,.08); font-size: 11px; font-weight: 800; }
+
+@media (max-width:980px) {
+  .booking-layout { grid-template-columns: 1fr; }
+  .hours-panel { position: static; }
+  .queue-display-content { grid-template-columns: 1fr; }
+  .queue-display-current { min-height: 430px; }
+}
+@media (max-width:720px) {
+  .queue-zone { margin: 38px -14px 0; padding: 24px 14px; border-radius: 0; }
+  .queue-board { grid-template-columns: 1fr; }
+  .queue-head-actions .btn { font-size: 0; }
+  .queue-head-actions .btn::after { content: "⛶"; font-size: 17px; }
+  .queue-row { grid-template-columns: 31px 55px minmax(0,1fr); }
+  .queue-row>small { display: none; }
+  .queue-row-info { display: grid; gap: 3px; }
+  .queue-display-header { min-height: 78px; padding: 15px 20px; }
+  .queue-display-brand>span { display: none; }
+  .queue-display-status { font-size: 0; }
+  .queue-display-status strong { font-size: 14px; }
+  .queue-display-content { padding: 18px; gap: 18px; }
+  .queue-display-current { min-height: 330px; border-radius: 20px; }
+  .queue-display-current>strong { font-size: clamp(90px,35vw,150px); letter-spacing: -6px; }
+  .queue-display-next { border-radius: 18px; }
+  .queue-display-footer { padding: 14px 20px; }
+  .queue-display-footer>span { display: none; }
+  .queue-display-footer>div { width: 100%; }
+  .monitor-action { flex: 1; justify-content: center; }
+}
