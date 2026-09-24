@@ -13,6 +13,7 @@ import {
   getDoc,
   getDocs,
   getFirestore,
+  onSnapshot,
   query,
   runTransaction,
   serverTimestamp,
@@ -89,65 +90,70 @@ export async function logout() {
   await signOut(auth);
 }
 
+export async function loadEstablishments() {
+  const establishmentsQuery = query(collection(db, "establishments"), where("active", "==", true));
+  const snapshot = await getDocs(establishmentsQuery);
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+}
+
 export async function loadPublicData(slug, date) {
   const stateRef = doc(db, "establishments", slug, "public", "state");
   const slotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", date));
-  const [stateSnapshot, slotsSnapshot] = await Promise.all([getDoc(stateRef), getDocs(slotsQuery)]);
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const todaySlotsQuery = date === today ? slotsQuery : query(collection(db, "establishments", slug, "slots"), where("date", "==", today));
+  const [stateSnapshot, slotsSnapshot, todaySlotsSnapshot] = await Promise.all([getDoc(stateRef), getDocs(slotsQuery), getDocs(todaySlotsQuery)]);
   if (!stateSnapshot.exists() && slotsSnapshot.empty) return null;
 
   const publicState = stateSnapshot.exists() ? stateSnapshot.data() : {};
-  const currentTicket = publicState.currentTicket || null;
-  const waitingTickets = Array.isArray(publicState.waitingTickets) ? publicState.waitingTickets : [];
+  const current = publicState.current || (publicState.currentTicket ? { ticket: publicState.currentTicket } : null);
+  const waiting = Array.isArray(publicState.waiting)
+    ? publicState.waiting
+    : (Array.isArray(publicState.waitingTickets) ? publicState.waitingTickets.map((ticket) => ({ ticket })) : []);
   return {
     slots: slotsSnapshot.docs.map((item) => item.data()),
-    todayAppointments: Number(publicState.todayAppointments || slotsSnapshot.size),
+    todayAppointments: todaySlotsSnapshot.size,
     queue: [
-      ...(currentTicket ? [{ ticket: currentTicket, status: "atendendo" }] : []),
-      ...waitingTickets.map((ticket) => ({ ticket, status: "aguardando" })),
+      ...(current ? [{ ...current, status: "atendendo" }] : []),
+      ...waiting.map((item, index) => ({ ...item, status: "aguardando", position: index + 1 })),
     ],
   };
 }
 
+export function observePublicState(slug, callback) {
+  const stateRef = doc(db, "establishments", slug, "public", "state");
+  return onSnapshot(stateRef, (snapshot) => {
+    const publicState = snapshot.exists() ? snapshot.data() : {};
+    const current = publicState.current || (publicState.currentTicket ? { ticket: publicState.currentTicket } : null);
+    const waiting = Array.isArray(publicState.waiting)
+      ? publicState.waiting
+      : (Array.isArray(publicState.waitingTickets) ? publicState.waitingTickets.map((ticket) => ({ ticket })) : []);
+    callback({
+      queue: [
+        ...(current ? [{ ...current, status: "atendendo" }] : []),
+        ...waiting.map((item, index) => ({ ...item, status: "aguardando", position: index + 1 })),
+      ],
+    });
+  });
+}
+
 export async function loadAdminData(slug, date) {
   const appointmentsQuery = query(collection(db, "establishments", slug, "appointments"), where("date", "==", date));
-  const [appointmentsSnapshot, queueSnapshot] = await Promise.all([
+  const slotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", date));
+  const [appointmentsSnapshot, queueSnapshot, slotsSnapshot] = await Promise.all([
     getDocs(appointmentsQuery),
     getDocs(collection(db, "establishments", slug, "queue")),
+    getDocs(slotsQuery),
   ]);
   return {
     appointments: appointmentsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
-    queue: queueSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
-    empty: appointmentsSnapshot.empty && queueSnapshot.empty,
+    queue: queueSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => {
+      if (a.status === "atendendo") return -1;
+      if (b.status === "atendendo") return 1;
+      const priorityDifference = Number(b.priority === "preferencial") - Number(a.priority === "preferencial");
+      return priorityDifference || (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
+    }),
+    slots: slotsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
   };
-}
-
-export async function bootstrapEstablishment(slug, data) {
-  const batch = writeBatch(db);
-  const publicStateRef = doc(db, "establishments", slug, "public", "state");
-  const current = data.queue.find((item) => item.status === "atendendo")?.ticket || null;
-  const waiting = data.queue.filter((item) => item.status === "aguardando").map((item) => item.ticket);
-
-  batch.set(doc(db, "establishments", slug), { slug, active: true, updatedAt: serverTimestamp() }, { merge: true });
-  batch.set(publicStateRef, {
-    currentTicket: current,
-    waitingTickets: waiting,
-    todayAppointments: data.appointments.length,
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
-
-  for (const appointment of data.appointments) {
-    const appointmentRef = doc(collection(db, "establishments", slug, "appointments"));
-    const professionalKey = appointment.professional.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
-    const slotRef = doc(db, "establishments", slug, "slots", `${appointment.date}_${appointment.time.replace(":", "")}_${professionalKey}`);
-    batch.set(appointmentRef, { ...appointment, createdAt: serverTimestamp() });
-    batch.set(slotRef, { date: appointment.date, time: appointment.time, service: appointment.service, professional: appointment.professional, createdAt: serverTimestamp() });
-  }
-
-  for (const queueItem of data.queue) {
-    const queueRef = doc(collection(db, "establishments", slug, "queue"));
-    batch.set(queueRef, { ...queueItem, createdAt: serverTimestamp() });
-  }
-  await batch.commit();
 }
 
 export async function createAppointment(slug, appointment) {
@@ -179,33 +185,52 @@ export async function createAppointment(slug, appointment) {
   return appointmentRef.id;
 }
 
-export async function addQueueTicket(slug, ticket, name) {
+export async function addQueueTicket(slug, ticket, name, priority = "normal", servicePoint = "Atendimento") {
   const queueRef = doc(collection(db, "establishments", slug, "queue"));
   const stateRef = doc(db, "establishments", slug, "public", "state");
-  const batch = writeBatch(db);
-  batch.set(queueRef, { ticket, name, status: "aguardando", createdAt: serverTimestamp() });
-  const stateSnapshot = await getDoc(stateRef);
-  const waiting = stateSnapshot.exists() && Array.isArray(stateSnapshot.data().waitingTickets)
-    ? stateSnapshot.data().waitingTickets
-    : [];
-  batch.set(stateRef, { waitingTickets: [...waiting, ticket], updatedAt: serverTimestamp() }, { merge: true });
-  await batch.commit();
+  await runTransaction(db, async (transaction) => {
+    const stateSnapshot = await transaction.get(stateRef);
+    const stateData = stateSnapshot.exists() ? stateSnapshot.data() : {};
+    const waiting = Array.isArray(stateData.waiting)
+      ? stateData.waiting
+      : (Array.isArray(stateData.waitingTickets) ? stateData.waitingTickets.map((item) => ({ ticket: item, priority: "normal" })) : []);
+    transaction.set(queueRef, { ticket, name, priority, servicePoint, status: "aguardando", createdAt: serverTimestamp() });
+    const nextWaiting = [...waiting];
+    const publicTicket = { ticket, priority };
+    if (priority === "preferencial") {
+      const insertAt = nextWaiting.filter((item) => item.priority === "preferencial").length;
+      nextWaiting.splice(insertAt, 0, publicTicket);
+    } else {
+      nextWaiting.push(publicTicket);
+    }
+    transaction.set(stateRef, {
+      waiting: nextWaiting,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  });
 }
 
-export async function callNextTicket(slug) {
+export async function callNextTicket(slug, defaultServicePoint = "Atendimento") {
   const queueSnapshot = await getDocs(collection(db, "establishments", slug, "queue"));
   const items = queueSnapshot.docs.map((item) => ({ id: item.id, ref: item.ref, ...item.data() }));
   const current = items.find((item) => item.status === "atendendo");
   const waiting = items
     .filter((item) => item.status === "aguardando")
-    .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+    .sort((a, b) => {
+      const priorityDifference = Number(b.priority === "preferencial") - Number(a.priority === "preferencial");
+      return priorityDifference || (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
+    });
   const next = waiting[0] || null;
   const batch = writeBatch(db);
   if (current) batch.update(current.ref, { status: "concluido", completedAt: serverTimestamp() });
   if (next) batch.update(next.ref, { status: "atendendo", calledAt: serverTimestamp() });
   batch.set(doc(db, "establishments", slug, "public", "state"), {
-    currentTicket: next?.ticket || null,
-    waitingTickets: waiting.slice(1).map((item) => item.ticket),
+    current: next ? {
+      ticket: next.ticket,
+      priority: next.priority || "normal",
+      servicePoint: next.servicePoint || defaultServicePoint,
+    } : null,
+    waiting: waiting.slice(1).map((item) => ({ ticket: item.ticket, priority: item.priority || "normal" })),
     updatedAt: serverTimestamp(),
   }, { merge: true });
   await batch.commit();

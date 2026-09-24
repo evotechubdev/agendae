@@ -5,46 +5,15 @@ const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "
 let firebaseApi = null;
 let firebaseSession = null;
 let firebaseConnected = false;
+let catalogLoaded = false;
 let authFlowInProgress = false;
+let queueSubscription = null;
+let queueSubscriptionSlug = null;
+let monitorClockTimer = null;
 const cloudCache = new Map();
 const cloudLoading = new Set();
 
-const establishments = {
-  barbeariadorenam: {
-    slug: "barbeariadorenam",
-    name: "Barbearia do Renam",
-    initials: "BARB",
-    category: "Barbearia",
-    address: "Rua das Palmeiras, 248 — Centro",
-    phone: "(11) 99999-1234",
-    description: "Cortes, barba e cuidado masculino com hora marcada.",
-    currentTicket: "R-023",
-    services: [
-      { id: "corte", icon: "✂", name: "Corte masculino", duration: 40, price: 45 },
-      { id: "barba", icon: "◒", name: "Barba completa", duration: 30, price: 35 },
-      { id: "combo", icon: "✦", name: "Corte + barba", duration: 60, price: 70 },
-      { id: "acabamento", icon: "⌁", name: "Acabamento", duration: 20, price: 20 },
-    ],
-    professionals: ["Renam Silva", "Bruno Alves", "Caio Santos"],
-  },
-  clinicaviva: {
-    slug: "clinicaviva",
-    name: "Clínica Viva",
-    initials: "CLIN",
-    category: "Clínica de saúde",
-    address: "Av. Brasil, 1260 — Jardim Paulista",
-    phone: "(11) 98888-5642",
-    description: "Consultas e avaliações com atendimento humanizado.",
-    currentTicket: "A-014",
-    services: [
-      { id: "consulta", icon: "+", name: "Consulta clínica", duration: 45, price: 180 },
-      { id: "retorno", icon: "↻", name: "Consulta de retorno", duration: 30, price: 0 },
-      { id: "avaliacao", icon: "♡", name: "Avaliação preventiva", duration: 60, price: 220 },
-      { id: "exame", icon: "⌁", name: "Coleta de exames", duration: 20, price: 85 },
-    ],
-    professionals: ["Dra. Marina Costa", "Dr. Lucas Freire", "Dra. Ana Melo"],
-  },
-};
+let establishments = {};
 
 const state = {
   booking: freshBooking(),
@@ -98,73 +67,39 @@ function session() {
   return firebaseSession;
 }
 
-function storageKey(slug) { return `agendae:v2:establishment:${slug}`; }
+function publicCacheKey(establishment, date = state.booking.date) {
+  return `public:${establishment.slug}:${date}`;
+}
 
-function seedData(establishment) {
-  const clinic = establishment.slug === "clinicaviva";
-  return {
-    appointments: clinic ? [
-      { id: crypto.randomUUID(), date: isoDate(), time: "08:00", client: "Fernanda Souza", service: "Consulta clínica", professional: "Dra. Marina Costa", status: "confirmado" },
-      { id: crypto.randomUUID(), date: isoDate(), time: "09:15", client: "Carlos Nunes", service: "Avaliação preventiva", professional: "Dr. Lucas Freire", status: "aguardando" },
-      { id: crypto.randomUUID(), date: isoDate(), time: "10:30", client: "Paula Ribeiro", service: "Consulta de retorno", professional: "Dra. Ana Melo", status: "confirmado" },
-      { id: crypto.randomUUID(), date: isoDate(), time: "14:00", client: "Roberto Dias", service: "Coleta de exames", professional: "Dra. Marina Costa", status: "confirmado" },
-    ] : [
-      { id: crypto.randomUUID(), date: isoDate(), time: "08:30", client: "Matheus Rocha", service: "Corte masculino", professional: "Renam Silva", status: "concluido" },
-      { id: crypto.randomUUID(), date: isoDate(), time: "09:20", client: "Diego Martins", service: "Corte + barba", professional: "Bruno Alves", status: "aguardando" },
-      { id: crypto.randomUUID(), date: isoDate(), time: "10:30", client: "André Ribeiro", service: "Barba completa", professional: "Caio Santos", status: "confirmado" },
-      { id: crypto.randomUUID(), date: isoDate(), time: "13:00", client: "Lucas Almeida", service: "Corte masculino", professional: "Renam Silva", status: "confirmado" },
-      { id: crypto.randomUUID(), date: isoDate(), time: "15:10", client: "João Pedro", service: "Acabamento", professional: "Bruno Alves", status: "confirmado" },
-    ],
-    queue: clinic ? [
-      { ticket: "A-014", name: "Elisa Prado", status: "atendendo" },
-      { ticket: "A-015", name: "Marcos Silva", status: "aguardando" },
-      { ticket: "A-016", name: "Nádia Alves", status: "aguardando" },
-    ] : [
-      { ticket: "R-023", name: "Felipe Cardoso", status: "atendendo" },
-      { ticket: "R-024", name: "Gustavo Melo", status: "aguardando" },
-      { ticket: "R-025", name: "Henrique Luz", status: "aguardando" },
-      { ticket: "R-026", name: "Samuel Reis", status: "aguardando" },
-    ],
-  };
+function invalidatePublicCache(slug) {
+  for (const key of cloudCache.keys()) {
+    if (key.startsWith(`public:${slug}:`)) cloudCache.delete(key);
+  }
 }
 
 function getData(establishment) {
   const adminMode = session()?.slug === establishment.slug && new URLSearchParams(location.search).get("public") !== "1";
-  const cloud = cloudCache.get(`${adminMode ? "admin" : "public"}:${establishment.slug}`);
-  if (cloud) return cloud;
-  try {
-    const saved = localStorage.getItem(storageKey(establishment.slug));
-    if (saved) return JSON.parse(saved);
-  } catch { /* inicia novamente */ }
-  const data = seedData(establishment);
-  saveData(establishment, data);
-  return data;
+  const cloud = cloudCache.get(adminMode ? `admin:${establishment.slug}` : publicCacheKey(establishment));
+  return cloud || { appointments: [], queue: [], slots: [], todayAppointments: 0 };
 }
 
-function saveData(establishment, data) {
-  localStorage.setItem(storageKey(establishment.slug), JSON.stringify(data));
-}
-
-async function refreshCloudData(establishment, mode) {
+async function refreshCloudData(establishment, mode, date = isoDate()) {
   if (!firebaseApi) return;
-  const key = `${mode}:${establishment.slug}`;
+  const key = mode === "admin" ? `admin:${establishment.slug}` : publicCacheKey(establishment, date);
   if (cloudLoading.has(key) || cloudCache.has(key)) return;
   cloudLoading.add(key);
   try {
     if (mode === "admin") {
-      let remote = await firebaseApi.loadAdminData(establishment.slug, isoDate());
-      if (remote.empty) {
-        await firebaseApi.bootstrapEstablishment(establishment.slug, seedData(establishment));
-        remote = await firebaseApi.loadAdminData(establishment.slug, isoDate());
-      }
-      cloudCache.set(key, { appointments: remote.appointments, queue: remote.queue });
+      const remote = await firebaseApi.loadAdminData(establishment.slug, isoDate());
+      cloudCache.set(key, { appointments: remote.appointments, queue: remote.queue, slots: remote.slots });
     } else {
-      const remote = await firebaseApi.loadPublicData(establishment.slug, isoDate());
+      const remote = await firebaseApi.loadPublicData(establishment.slug, date);
       if (remote) cloudCache.set(key, { appointments: [], ...remote });
     }
     if (route() === establishment.slug) render();
   } catch (error) {
-    console.warn("Agendae: usando dados locais porque o Firebase não respondeu.", error);
+    console.error("Agendae: não foi possível carregar os dados do Firebase.", error);
+    toast("Não foi possível carregar os dados do estabelecimento.", "!");
   } finally {
     cloudLoading.delete(key);
   }
@@ -188,6 +123,13 @@ function footer() {
 
 function renderHome() {
   document.title = "Agendae — Encontre seu estabelecimento";
+  const directory = Object.values(establishments);
+  const sample = directory[0];
+  const directoryHtml = !catalogLoaded
+    ? '<div class="empty">Carregando estabelecimentos…</div>'
+    : directory.length
+      ? directory.map((item) => `<button class="directory-item" data-open-establishment="${item.slug}"><span class="est-avatar ${item.type === "clinic" ? "green" : ""}">${escapeHTML(item.initials)}</span><span class="directory-meta"><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(item.category)} · ${escapeHTML(item.neighborhood)}</small></span><span class="open-tag">${item.openNow ? "ABERTO" : "FECHADO"}</span></button>`).join("")
+      : '<div class="empty">Nenhum estabelecimento disponível.</div>';
   app.innerHTML = `
     <header class="home-header"><div class="home-nav">
       <a href="${href("/")}" data-link>${logo()}</a>
@@ -204,12 +146,11 @@ function renderHome() {
             <input id="finder-input" autocomplete="off" placeholder="Digite o nome do estabelecimento" aria-label="Nome do estabelecimento">
             <button class="btn btn-yellow" type="submit">Encontrar</button>
           </form>
-          <div class="finder-note"><span>Exemplo:</span><a href="${href("/barbeariadorenam")}" data-link>Barbearia do Renam</a></div>
+          ${sample ? `<div class="finder-note"><span>Exemplo:</span><a href="${href(`/${sample.slug}`)}" data-link>${escapeHTML(sample.name)}</a></div>` : ""}
         </div>
         <aside class="directory-card">
           <div class="directory-label">Estabelecimentos disponíveis</div>
-          <button class="directory-item" data-open-establishment="barbeariadorenam"><span class="est-avatar">BARB</span><span class="directory-meta"><strong>Barbearia do Renam</strong><small>Barbearia · Centro</small></span><span class="open-tag">ABERTO</span></button>
-          <button class="directory-item" data-open-establishment="clinicaviva"><span class="est-avatar green">CLIN</span><span class="directory-meta"><strong>Clínica Viva</strong><small>Clínica de saúde · Jardim Paulista</small></span><span class="open-tag">ABERTO</span></button>
+          ${directoryHtml}
         </aside>
       </div></section>
       <section class="trust-strip"><div class="trust-inner"><div class="trust-item"><span class="trust-icon">✓</span>Agendamento confirmado na hora</div><div class="trust-item"><span class="trust-icon">◷</span>Horários livres atualizados</div><div class="trust-item"><span class="trust-icon">#</span>Fila de senhas online</div></div></section>
@@ -239,7 +180,7 @@ function progress(step) {
 function bookingContent(establishment) {
   const booking = state.booking;
   const service = establishment.services.find((item) => item.id === booking.serviceId);
-  const times = ["08:00", "08:40", "09:20", "10:00", "10:40", "11:20", "13:00", "13:40", "14:20", "15:10", "16:00", "17:20", "18:00"];
+  const times = establishment.availableTimes || [];
   const bookingData = getData(establishment);
   const busy = new Set(
     bookingData.slots
@@ -267,7 +208,42 @@ function bookingContent(establishment) {
 function queuePanel(data, showNames = true) {
   const current = data.queue.find((item) => item.status === "atendendo");
   const waiting = data.queue.filter((item) => item.status === "aguardando");
-  return `<section class="panel"><div class="panel-head"><div><h2>Senhas chamadas</h2><p>Atualização em tempo real</p></div><span class="open-tag">AO VIVO</span></div><div class="queue-current"><small>Atendendo agora</small><strong>${current?.ticket || "—"}</strong><span>${showNames ? escapeHTML(current?.name || "Fila livre") : current ? "Em atendimento" : "Fila livre"}</span></div><div class="queue-list">${waiting.slice(0,3).map((item,index) => `<div class="queue-row"><span class="ticket">${item.ticket}</span><strong>${showNames ? escapeHTML(item.name || "Cliente") : "Aguardando"}</strong><small>${index === 0 ? "Próximo" : `+${index}`}</small></div>`).join("") || '<div class="empty">Ninguém aguardando.</div>'}</div></section>`;
+  const priorityBadge = (item) => item?.priority === "preferencial" ? '<span class="priority-badge">Preferencial</span>' : '<span class="normal-badge">Normal</span>';
+  return `<section class="panel queue-panel"><div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Ordem de atendimento atualizada em tempo real</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>
+    <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small><strong>${escapeHTML(current?.ticket || "—")}</strong><div class="service-point">${current ? escapeHTML(current.servicePoint || "Atendimento") : "Fila livre"}</div>${current ? priorityBadge(current) : ""}${showNames && current?.name ? `<span class="queue-customer">${escapeHTML(current.name)}</span>` : ""}</div>
+    <div class="queue-next"><div class="queue-list-title"><strong>Próximas senhas</strong><span>${waiting.length} aguardando</span></div><div class="queue-list">${waiting.slice(0,6).map((item,index) => `<div class="queue-row"><span class="queue-position">${index + 1}º</span><span class="ticket">${escapeHTML(item.ticket)}</span><span class="queue-row-info"><strong>${showNames ? escapeHTML(item.name || "Cliente") : "Aguardando"}</strong>${priorityBadge(item)}</span><small>${index === 0 ? "Próxima" : "Na fila"}</small></div>`).join("") || '<div class="empty">Ninguém aguardando.</div>'}</div></div></div></section>`;
+}
+
+function ensureQueueSubscription(establishment) {
+  if (!firebaseApi || queueSubscriptionSlug === establishment.slug) return;
+  if (queueSubscription) queueSubscription();
+  queueSubscriptionSlug = establishment.slug;
+  queueSubscription = firebaseApi.observePublicState(establishment.slug, (live) => {
+    const prefix = `public:${establishment.slug}:`;
+    const keys = [...cloudCache.keys()].filter((key) => key.startsWith(prefix));
+    if (!keys.length) keys.push(publicCacheKey(establishment, isoDate()));
+    for (const key of keys) {
+      const cached = cloudCache.get(key) || { appointments: [], slots: [], todayAppointments: 0 };
+      cloudCache.set(key, { ...cached, ...live });
+    }
+    const params = new URLSearchParams(location.search);
+    if (route() === establishment.slug && (params.get("display") === "queue" || params.get("public") === "1" || session()?.slug !== establishment.slug)) render();
+  });
+}
+
+function availableTimesFor(establishment, data) {
+  const slots = data.slots || [];
+  return (establishment.availableTimes || []).filter((time) =>
+    (establishment.professionals || []).some((professional) =>
+      !slots.some((slot) => slot.time === time && slot.professional === professional)
+    )
+  );
+}
+
+function hoursMarkup(establishment) {
+  return (establishment.hours || []).map((item, index) =>
+    `<div class="hours-row ${index === 0 ? "today" : ""}"><span>${escapeHTML(item.label)}</span><${index === 0 ? "strong" : "span"}>${escapeHTML(item.value)}</${index === 0 ? "strong" : "span"}></div>`
+  ).join("");
 }
 
 function renderEstablishmentPublic(establishment) {
@@ -275,13 +251,18 @@ function renderEstablishmentPublic(establishment) {
   const data = getData(establishment);
   const todayAppointments = data.appointments.filter((item) => item.date === isoDate());
   const todayCount = Number.isFinite(data.todayAppointments) ? data.todayAppointments : todayAppointments.length;
+  const freeTimes = availableTimesFor(establishment, data);
+  const nextFree = freeTimes[0] || "—";
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions">${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href("/login")}" data-link>Área do estabelecimento</a>`}</div></div></header>
-    <section class="est-cover"><div class="est-cover-inner"><div class="est-identity"><div class="est-logo">${establishment.initials}</div><div><h1>${establishment.name}</h1><p>${establishment.description}</p><div class="est-facts"><span>⌖ ${establishment.address}</span><span>◷ Hoje, 08h às 19h</span><span>● Aberto agora</span></div></div></div><div class="live-ticket"><span class="live-dot"></span><span><small>Senha chamada agora</small><strong>${data.queue.find((item) => item.status === "atendendo")?.ticket || "—"}</strong></span></div></div></section>
-    <main class="est-content"><div><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>11:20</strong><em>Disponível hoje</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>9 min</strong><em>Fila em tempo real</em></article></div><section class="panel booking-panel" id="agendar"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Confirmação imediata, sem precisar ligar</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section></div><aside class="side-stack">${queuePanel(data, false)}<section class="panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body"><div class="hours-row today"><span>Hoje</span><strong>08:00 — 19:00</strong></div><div class="hours-row"><span>Segunda a sexta</span><span>08:00 — 19:00</span></div><div class="hours-row"><span>Sábado</span><span>08:00 — 17:00</span></div><div class="hours-row"><span>Domingo</span><span>Fechado</span></div></div></section></aside></main>
+    <section class="est-cover"><div class="est-cover-inner"><div class="est-identity"><div class="est-logo">${escapeHTML(establishment.initials)}</div><div><h1>${escapeHTML(establishment.name)}</h1><p>${escapeHTML(establishment.description)}</p><div class="est-facts"><span>⌖ ${escapeHTML(establishment.address)}</span><span>◷ ${escapeHTML(establishment.todayHours)}</span><span>● ${establishment.openNow ? "Aberto agora" : "Fechado"}</span></div></div></div><div class="live-ticket"><span class="live-dot"></span><span><small>Senha chamada agora</small><strong>${data.queue.find((item) => item.status === "atendendo")?.ticket || "—"}</strong></span></div></div></section>
+    <main class="est-content"><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>${nextFree}</strong><em>Disponível hoje</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>${establishment.averageWaitMinutes} min</strong><em>Fila em tempo real</em></article></div>
+      <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">01</span><div><small>AGENDAMENTO</small><h2>Reserve seu horário</h2><p>Escolha serviço, profissional, data e horário.</p></div></div><div class="booking-layout"><section class="panel booking-panel"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Confirmação imediata, sem precisar ligar</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section><aside class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></aside></div></section>
+      <section class="queue-zone" id="painel-senhas"><div class="zone-title queue-zone-title"><span class="zone-number">02</span><div><small>FILA DE ATENDIMENTO</small><h2>Acompanhe sua senha</h2><p>Veja quem está sendo atendido e sua posição na fila.</p></div></div>${queuePanel(data, false)}</section></main>
   </div>`;
-  void refreshCloudData(establishment, "public");
+  void refreshCloudData(establishment, "public", state.booking.date);
+  ensureQueueSubscription(establishment);
 }
 
 function appointmentRows(data) {
@@ -296,16 +277,45 @@ function renderAdmin(establishment) {
   const today = data.appointments.filter((item) => item.date === isoDate());
   const waiting = data.queue.filter((item) => item.status === "aguardando").length;
   const completed = today.filter((item) => item.status === "concluido").length;
-  const freeSlots = ["11:20","11:50","13:40","14:20","16:00","17:20"];
+  const freeSlots = availableTimesFor(establishment, data);
+  const currentUser = session();
+  const firstName = currentUser?.name?.split(" ")[0] || "gestor";
   app.innerHTML = `<div class="admin-shell">
-    <aside class="sidebar ${state.mobileMenu ? "mobile-open" : ""}"><a href="${href("/")}" data-link>${logo()}</a><div class="workspace"><span class="est-avatar">${establishment.initials}</span><span><strong>${establishment.name}</strong><small>${establishment.category}</small></span></div><div class="side-label">Gestão</div><nav class="side-nav"><button class="side-link active"><span class="side-icon">⌂</span>Visão geral</button><button class="side-link" data-coming><span class="side-icon">▣</span>Agenda</button><button class="side-link" data-coming><span class="side-icon">☷</span>Fila de senhas</button><button class="side-link" data-coming><span class="side-icon">♙</span>Clientes</button><button class="side-link" data-coming><span class="side-icon">⌁</span>Relatórios</button></nav><div class="side-spacer"></div><a class="side-link" href="${href(`/${establishment.slug}?public=1`)}" data-link><span class="side-icon">↗</span>Ver página pública</a><button class="side-link" data-logout><span class="side-icon">←</span>Sair</button><div class="sidebar-user"><span class="user-avatar">RS</span><span><strong>Renam Silva</strong><small>Administrador</small></span></div></aside>
-    <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, Renam</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}?public=1#agendar`)}" data-link>+ Novo agendamento</a></div></header>
-      <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às 11:20</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de 9 min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
+    <aside class="sidebar ${state.mobileMenu ? "mobile-open" : ""}"><a href="${href("/")}" data-link>${logo()}</a><div class="workspace"><span class="est-avatar">${escapeHTML(establishment.initials)}</span><span><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.category)}</small></span></div><div class="side-label">Gestão</div><nav class="side-nav"><button class="side-link active"><span class="side-icon">⌂</span>Visão geral</button><button class="side-link" data-coming><span class="side-icon">▣</span>Agenda</button><button class="side-link" data-coming><span class="side-icon">☷</span>Fila de senhas</button><button class="side-link" data-coming><span class="side-icon">♙</span>Clientes</button><button class="side-link" data-coming><span class="side-icon">⌁</span>Relatórios</button></nav><div class="side-spacer"></div><a class="side-link" href="${href(`/${establishment.slug}?public=1`)}" data-link><span class="side-icon">↗</span>Ver página pública</a><button class="side-link" data-logout><span class="side-icon">←</span>Sair</button><div class="sidebar-user"><span class="user-avatar">${initials(currentUser?.name || "Usuário")}</span><span><strong>${escapeHTML(currentUser?.name || "Usuário")}</strong><small>${currentUser?.role === "admin" ? "Administrador" : "Equipe"}</small></span></div></aside>
+    <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}?public=1#agendar`)}" data-link>+ Novo agendamento</a></div></header>
+      <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
       <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p>${today.length} horários confirmados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(data)}<section class="panel"><div class="panel-head"><div><h2>Horários livres</h2><p>Disponibilidade de hoje</p></div></div><div class="free-slots">${freeSlots.map((time) => `<span class="free-slot">${time}</span>`).join("")}</div></section></div></div>
     </main></div>`;
-  const queueSection = app.querySelector(".admin-grid .side-stack .panel");
-  if (queueSection) queueSection.insertAdjacentHTML("beforeend", `<div class="queue-admin-actions"><button class="btn btn-soft btn-sm" data-add-ticket>+ Nova senha</button><button class="btn btn-primary btn-sm" data-next-ticket>Chamar próxima</button></div>`);
+  const queueSection = app.querySelector(".admin-grid .queue-panel");
+  if (queueSection) queueSection.insertAdjacentHTML("beforeend", `<div class="queue-admin-actions"><button class="btn btn-soft btn-sm" data-add-ticket data-priority="normal">+ Senha normal</button><button class="btn btn-priority btn-sm" data-add-ticket data-priority="preferencial">+ Preferencial</button><button class="btn btn-primary btn-sm" data-next-ticket>Chamar próxima</button></div>`);
   void refreshCloudData(establishment, "admin");
+}
+
+function updateMonitorClock() {
+  const target = document.querySelector("[data-monitor-clock]");
+  if (target) target.textContent = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
+}
+
+function renderQueueDisplay(establishment) {
+  document.title = `Painel de senhas · ${establishment.name}`;
+  const data = cloudCache.get(publicCacheKey(establishment, isoDate())) || { queue: [], slots: [], todayAppointments: 0 };
+  const current = data.queue.find((item) => item.status === "atendendo");
+  const waiting = data.queue.filter((item) => item.status === "aguardando");
+  const badge = (item) => item?.priority === "preferencial" ? '<span class="monitor-priority">Preferencial</span>' : '<span class="monitor-normal">Normal</span>';
+  app.innerHTML = `<main class="queue-display"><header class="queue-display-header"><div class="queue-display-brand">${logo()}<span>${escapeHTML(establishment.name)}</span></div><div class="queue-display-status"><span class="live-dot"></span> AO VIVO <strong data-monitor-clock></strong></div></header>
+    <section class="queue-display-content"><div class="queue-display-current"><small>SENHA EM ATENDIMENTO</small><strong>${escapeHTML(current?.ticket || "—")}</strong><div class="monitor-service-point"><span>Dirija-se para</span><b>${escapeHTML(current?.servicePoint || "Aguardando chamada")}</b></div>${current ? badge(current) : ""}</div>
+    <aside class="queue-display-next"><div class="monitor-next-title"><span>Próximas senhas</span><b>${waiting.length} aguardando</b></div><div class="monitor-waiting-list">${waiting.slice(0,8).map((item, index) => `<div class="monitor-waiting-row"><span class="monitor-position">${index + 1}</span><strong>${escapeHTML(item.ticket)}</strong>${badge(item)}</div>`).join("") || '<div class="monitor-empty">Fila sem espera</div>'}</div></aside></section>
+    <footer class="queue-display-footer"><span>Acompanhe a ordem e aguarde sua senha ser chamada.</span><div><button class="monitor-action" data-request-fullscreen>⛶ Tela cheia</button><a class="monitor-action" href="${href(`/${establishment.slug}?public=1#painel-senhas`)}" data-link>Fechar painel</a></div></footer></main>`;
+  updateMonitorClock();
+  clearInterval(monitorClockTimer);
+  monitorClockTimer = setInterval(updateMonitorClock, 1000);
+  void refreshCloudData(establishment, "public", isoDate());
+  ensureQueueSubscription(establishment);
+}
+
+function renderLoading() {
+  document.title = "Carregando — Agendae";
+  app.innerHTML = `<main class="loading-page">${logo()}<span class="loading-spinner"></span><p>Carregando estabelecimento…</p></main>`;
 }
 
 function renderNotFound() {
@@ -314,11 +324,15 @@ function renderNotFound() {
 }
 
 function render() {
+  clearInterval(monitorClockTimer);
+  monitorClockTimer = null;
   const current = route();
   if (current === "home") return renderHome();
   if (current === "login") return renderLogin();
+  if (!catalogLoaded) return renderLoading();
   const establishment = establishments[current];
   if (!establishment) return renderNotFound();
+  if (new URLSearchParams(location.search).get("display") === "queue") return renderQueueDisplay(establishment);
   const authenticated = session()?.slug === establishment.slug;
   const publicPreview = new URLSearchParams(location.search).get("public") === "1";
   if (authenticated && !publicPreview) renderAdmin(establishment);
@@ -346,6 +360,8 @@ document.addEventListener("click", async (event) => {
     state.booking.dateMode = mode.dataset.dateMode;
     state.booking.date = mode.dataset.dateMode === "today" ? isoDate() : isoDate(1);
     state.booking.time = null;
+    const establishment = activeEstablishment();
+    if (establishment) cloudCache.delete(publicCacheKey(establishment));
     render();
     return;
   }
@@ -359,6 +375,15 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-mobile-admin]")) { state.mobileMenu = !state.mobileMenu; render(); return; }
   if (event.target.closest("[data-coming]")) { toast("Módulo preparado para a próxima etapa do sistema.", "ⓘ"); return; }
   if (event.target.closest("[data-notification]")) { toast("Nenhuma nova notificação.", "○"); return; }
+  if (event.target.closest("[data-open-queue-display]")) {
+    const establishment = activeEstablishment();
+    if (establishment) navigate(`/${establishment.slug}?display=queue`);
+    return;
+  }
+  if (event.target.closest("[data-request-fullscreen]")) {
+    try { await document.documentElement.requestFullscreen(); } catch { toast("O navegador não permitiu abrir a tela cheia.", "!"); }
+    return;
+  }
   if (event.target.closest("[data-logout]")) {
     try { if (firebaseApi) await firebaseApi.logout(); } catch { /* a interface encerra mesmo sem rede */ }
     firebaseSession = null;
@@ -368,12 +393,19 @@ document.addEventListener("click", async (event) => {
     toast("Sessão encerrada.");
     return;
   }
-  if (event.target.closest("[data-add-ticket]")) await addTicket();
+  const addTicketButton = event.target.closest("[data-add-ticket]");
+  if (addTicketButton) await addTicket(addTicketButton.dataset.priority || "normal");
   if (event.target.closest("[data-next-ticket]")) await callNext();
 });
 
 document.addEventListener("change", (event) => {
-  if (event.target.matches("[data-booking-date]")) { state.booking.date = event.target.value || isoDate(1); state.booking.time = null; render(); }
+  if (event.target.matches("[data-booking-date]")) {
+    state.booking.date = event.target.value || isoDate(1);
+    state.booking.time = null;
+    const establishment = activeEstablishment();
+    if (establishment) cloudCache.delete(publicCacheKey(establishment));
+    render();
+  }
   if (event.target.matches("[data-professional]")) { state.booking.professional = event.target.value; state.booking.time = null; render(); }
 });
 
@@ -383,9 +415,12 @@ document.addEventListener("submit", async (event) => {
     const query = new FormData(event.target).get("query") || document.querySelector("#finder-input")?.value || "";
     const normalized = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
     if (!normalized) return toast("Digite o nome do estabelecimento.", "!");
-    if (normalized.includes("clinica") || normalized.includes("viva")) navigate("/clinicaviva");
-    else if (normalized.includes("renam") || normalized.includes("barbearia")) navigate("/barbeariadorenam");
-    else toast("Não encontramos esse estabelecimento. Tente “Barbearia do Renam”.", "!");
+    const match = Object.values(establishments).find((item) => {
+      const searchable = `${item.name} ${item.category} ${item.slug}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+      return searchable.includes(normalized);
+    });
+    if (match) navigate(`/${match.slug}`);
+    else toast("Não encontramos esse estabelecimento.", "!");
     return;
   }
   if (event.target.id === "login-form") {
@@ -421,10 +456,7 @@ document.addEventListener("submit", async (event) => {
     try {
       if (firebaseApi) await firebaseApi.createAppointment(establishment.slug, appointment);
       else throw new Error("Firebase indisponível");
-      const data = getData(establishment);
-      data.appointments.push(appointment);
-      saveData(establishment, data);
-      cloudCache.delete(`public:${establishment.slug}`);
+      cloudCache.delete(publicCacheKey(establishment));
       state.booking.confirmation = appointment;
       state.booking.step = 3;
       render();
@@ -435,52 +467,44 @@ document.addEventListener("submit", async (event) => {
       if (error?.code === "agendae/slot-unavailable") {
         state.booking.step = 1;
         state.booking.time = null;
-        cloudCache.delete(`public:${establishment.slug}`);
+        cloudCache.delete(publicCacheKey(establishment));
         render();
       }
     }
   }
 });
 
-async function addTicket() {
+async function addTicket(priority = "normal") {
   const establishment = activeEstablishment();
   const data = getData(establishment);
-  const prefix = establishment.slug === "clinicaviva" ? "A" : "R";
+  const prefix = establishment.queuePrefix;
   const nextNumber = data.queue.reduce((max, item) => Math.max(max, Number(item.ticket.split("-")[1]) || 0), 0) + 1;
   const ticket = `${prefix}-${String(nextNumber).padStart(3,"0")}`;
   try {
     if (!firebaseApi || !session()) throw new Error("Firebase indisponível");
-    await firebaseApi.addQueueTicket(establishment.slug, ticket, "Cliente sem agendamento");
+    await firebaseApi.addQueueTicket(establishment.slug, ticket, "Cliente sem agendamento", priority, establishment.defaultServicePoint || "Atendimento");
   } catch (error) {
     toast(firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Entre novamente para alterar a fila.", "!");
     return;
   }
-  data.queue.push({ ticket, name: "Cliente sem agendamento", status: "aguardando" });
-  saveData(establishment, data);
   cloudCache.delete(`admin:${establishment.slug}`);
-  cloudCache.delete(`public:${establishment.slug}`);
-  toast(`Senha ${ticket} adicionada.`);
+  invalidatePublicCache(establishment.slug);
+  toast(`Senha ${ticket}${priority === "preferencial" ? " preferencial" : ""} adicionada.`);
   render();
 }
 
 async function callNext() {
   const establishment = activeEstablishment();
-  const data = getData(establishment);
   let remoteTicket;
   try {
     if (!firebaseApi || !session()) throw new Error("Firebase indisponível");
-    remoteTicket = await firebaseApi.callNextTicket(establishment.slug);
+    remoteTicket = await firebaseApi.callNextTicket(establishment.slug, establishment.defaultServicePoint || "Atendimento");
   } catch (error) {
     toast(firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Entre novamente para alterar a fila.", "!");
     return;
   }
-  const current = data.queue.find((item) => item.status === "atendendo");
-  if (current) current.status = "concluido";
-  const next = data.queue.find((item) => item.status === "aguardando");
-  if (next) next.status = "atendendo";
-  saveData(establishment, data);
   cloudCache.delete(`admin:${establishment.slug}`);
-  cloudCache.delete(`public:${establishment.slug}`);
+  invalidatePublicCache(establishment.slug);
   toast(remoteTicket ? `Senha ${remoteTicket} chamada.` : "Fila concluída.", remoteTicket ? "✓" : "○");
   render();
 }
@@ -492,20 +516,22 @@ async function initializeFirebase() {
   try {
     firebaseApi = await import("./firebase-service.js");
     firebaseConnected = true;
+    const directory = await firebaseApi.loadEstablishments();
+    establishments = Object.fromEntries(directory.map((item) => [item.slug || item.id, { ...item, slug: item.slug || item.id }]));
+    catalogLoaded = true;
     firebaseApi.observeSession((profile, error) => {
       firebaseSession = profile;
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
       if (profile && route() === "login" && !authFlowInProgress) navigate(`/${profile.slug}`);
       else render();
     });
-    if (route() === "login") render();
+    render();
   } catch (error) {
     console.error("Agendae: falha ao carregar o Firebase.", error);
-    if (route() === "login") {
-      render();
-      toast("Não foi possível carregar o Firebase. Verifique a conexão.", "!");
-    }
+    catalogLoaded = true;
+    render();
+    toast("Não foi possível carregar o Firebase. Verifique a conexão.", "!");
   }
 }
 
-void initializeFirebase();
+await initializeFirebase();
