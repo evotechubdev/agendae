@@ -518,13 +518,20 @@ document.addEventListener("submit", async (event) => {
     const employeeLogin = normalizedLogin(form.get("login"));
     if (!establishments[establishmentSlug]) return toast("Selecione um estabelecimento válido.", "!");
     if (!employeeLogin) return toast("Digite um login válido.", "!");
-    const internalEmail = `${employeeLogin}@agendae.com.br`;
+    const internalEmail = `${establishmentSlug}-${employeeLogin}@agendae.com.br`;
+    const legacyEmail = `${employeeLogin}@agendae.com.br`;
     const button = event.target.querySelector("button[type=submit]");
     button.disabled = true;
     button.textContent = "Entrando…";
     authFlowInProgress = true;
     try {
-      firebaseSession = await firebaseApi.login(internalEmail, form.get("password"), form.get("remember") === "on");
+      firebaseSession = await firebaseApi.login(
+        internalEmail,
+        form.get("password"),
+        form.get("remember") === "on",
+        legacyEmail,
+        establishmentSlug,
+      );
       if (firebaseSession.slug !== establishmentSlug) {
         await firebaseApi.logout();
         firebaseSession = null;
