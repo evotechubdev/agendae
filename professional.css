@@ -51,16 +51,12 @@ img { display: block; max-width: 100%; }
 .directory-item { width: 100%; padding: 15px; display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 13px; border: 1px solid var(--line); border-radius: 15px; background: #fff; text-align: left; }
 .directory-item+.directory-item { margin-top: 10px; }
 .directory-item:hover { border-color: #b8cbed; box-shadow: var(--shadow-sm); }
-.est-avatar { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 14px; color: #fff; background: var(--navy-2); font: 800 16px "Manrope",sans-serif; }
+.est-avatar { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 14px; color: #fff; background: var(--navy-2); font: 800 11px "Manrope",sans-serif; letter-spacing: .3px; }
 .est-avatar.green { background: #247d63; }
 .directory-meta strong,.directory-meta small { display: block; }
 .directory-meta strong { color: var(--navy); font-size: 14px; }
 .directory-meta small { margin-top: 4px; color: var(--muted); font-size: 11px; }
 .open-tag { padding: 6px 9px; border-radius: 999px; color: var(--green); background: var(--green-soft); font-size: 9px; font-weight: 800; }
-.queue-preview { margin-top: 16px; padding: 17px; display: flex; align-items: center; gap: 13px; border-radius: 14px; color: #fff; background: linear-gradient(125deg,var(--navy),var(--blue)); }
-.queue-preview-number { width: 48px; height: 48px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 12px; color: var(--navy); background: var(--yellow); font-weight: 800; }
-.queue-preview strong,.queue-preview small { display: block; }
-.queue-preview small { margin-top: 3px; color: #c8d8f6; font-size: 11px; }
 .trust-strip { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .trust-inner { width: min(1160px,calc(100% - 40px)); min-height: 94px; margin: auto; display: grid; grid-template-columns: repeat(3,1fr); align-items: center; }
 .trust-item { display: flex; justify-content: center; align-items: center; gap: 12px; color: #49566d; font-size: 13px; font-weight: 700; }
@@ -106,7 +102,7 @@ img { display: block; max-width: 100%; }
 .est-cover { color: #fff; background: linear-gradient(122deg,var(--navy),var(--blue)); }
 .est-cover-inner { width: min(1180px,calc(100% - 36px)); min-height: 238px; margin: auto; padding: 40px 0; display: flex; align-items: center; justify-content: space-between; gap: 45px; }
 .est-identity { display: flex; align-items: center; gap: 20px; }
-.est-logo { width: 82px; height: 82px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 21px; color: var(--navy); background: var(--yellow); font: 800 25px "Manrope",sans-serif; box-shadow: 0 12px 28px rgba(0,0,0,.15); }
+.est-logo { width: 82px; height: 82px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 21px; color: var(--navy); background: var(--yellow); font: 800 17px "Manrope",sans-serif; letter-spacing: .4px; box-shadow: 0 12px 28px rgba(0,0,0,.15); }
 .est-identity h1 { margin: 0 0 8px; font: 800 clamp(28px,4vw,42px) "Manrope",sans-serif; letter-spacing: -1px; }
 .est-identity p { margin: 0; color: #ccdaf4; }
 .est-facts { margin-top: 17px; display: flex; flex-wrap: wrap; gap: 17px; color: #e6edfa; font-size: 12px; }
