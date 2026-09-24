@@ -18,10 +18,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if ownsProfile(userId);
-      allow create: if ownsProfile(userId)
-        && request.auth.token.email == 'renam@agendae.com.br'
-        && request.resource.data.establishmentSlug == 'barbeariadorenam'
-        && request.resource.data.role == 'admin';
+      allow create: if false;
       allow update: if ownsProfile(userId)
         && request.resource.data.establishmentSlug == resource.data.establishmentSlug
         && request.resource.data.role == resource.data.role;
