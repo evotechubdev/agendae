@@ -1,0 +1,70 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsProfile(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function manages(slug) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.establishmentSlug == slug;
+    }
+
+    match /users/{userId} {
+      allow read: if ownsProfile(userId);
+      allow create: if ownsProfile(userId)
+        && request.auth.token.email == 'renam@agendae.com.br'
+        && request.resource.data.establishmentSlug == 'barbeariadorenam'
+        && request.resource.data.role == 'admin';
+      allow update: if ownsProfile(userId)
+        && request.resource.data.establishmentSlug == resource.data.establishmentSlug
+        && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    match /establishments/{slug} {
+      allow read: if true;
+      allow write: if manages(slug);
+
+      match /public/{documentId} {
+        allow read: if true;
+        allow write: if manages(slug);
+      }
+
+      match /slots/{slotId} {
+        allow read: if true;
+        allow create: if manages(slug)
+          || (request.resource.data.keys().hasOnly(['date', 'time', 'service', 'createdAt'])
+            && request.resource.data.date is string
+            && request.resource.data.time is string
+            && request.resource.data['service'] is string);
+        allow update, delete: if manages(slug);
+      }
+
+      match /appointments/{appointmentId} {
+        allow create: if manages(slug)
+          || (request.resource.data.keys().hasOnly([
+            'id', 'date', 'time', 'client', 'phone', 'service',
+            'professional', 'status', 'createdAt'
+          ])
+          && request.resource.data.date is string
+          && request.resource.data.time is string
+          && request.resource.data.client is string
+          && request.resource.data.phone is string
+          && request.resource.data['service'] is string
+          && request.resource.data.status == 'confirmado');
+        allow read, update, delete: if manages(slug);
+      }
+
+      match /queue/{queueId} {
+        allow read, write: if manages(slug);
+      }
+    }
+  }
+}

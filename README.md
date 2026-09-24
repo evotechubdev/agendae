@@ -34,6 +34,20 @@ No repositório do GitHub, abra **Settings → Pages** e selecione **GitHub Acti
 
 `https://evotechubdev.github.io/agendae/`
 
+## Firebase
+
+O frontend está conectado ao projeto `agendae-prod` usando Firebase Authentication e Cloud Firestore.
+
+Antes do primeiro acesso:
+
+1. Ative **Authentication → Sign-in method → E-mail/senha**.
+2. Adicione `evotechubdev.github.io` em **Authentication → Settings → Authorized domains**.
+3. Crie o usuário `renam@agendae.com.br` no Authentication.
+4. Crie o banco Cloud Firestore em modo de produção.
+5. Publique as regras com `npx firebase-tools deploy --only firestore --project agendae-prod` usando uma conta com acesso ao projeto.
+
+Os dados ficam organizados em `establishments/{slug}`. Agendamentos privados e filas só podem ser lidos por usuários cujo documento `users/{uid}` esteja vinculado ao mesmo `establishmentSlug`. Horários ocupados e o estado público da fila não expõem dados pessoais.
+
 ## Próxima etapa recomendada
 
 Criar a API multi-tenant com autenticação, autorização por estabelecimento, banco de dados, prevenção de conflito de horários, notificações e documentação OpenAPI. O frontend já separa os dados por identificador de estabelecimento para facilitar essa integração.
