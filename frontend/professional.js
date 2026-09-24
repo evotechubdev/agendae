@@ -4,7 +4,6 @@ const toastArea = document.querySelector("#toast-region");
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 let firebaseApi = null;
 let firebaseSession = null;
-let firebaseConnected = false;
 let catalogLoaded = false;
 let authFlowInProgress = false;
 let queueSubscription = null;
@@ -60,6 +59,15 @@ function scheduleFor(establishment, professionalName) {
 
 function usesEmployeeSchedules(establishment) {
   return establishment.scheduleMode !== "establishment";
+}
+
+function normalizedLogin(value) {
+  return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
+}
+
+function requestedEstablishment() {
+  const slug = new URLSearchParams(location.search).get("establishment");
+  return slug && establishments[slug] ? establishments[slug] : null;
 }
 
 function href(path = "/") {
@@ -176,11 +184,22 @@ function renderHome() {
 
 function renderLogin() {
   document.title = "Entrar — Agendae";
+  const requested = requestedEstablishment();
+  const directory = Object.values(establishments);
+  const establishmentOptions = directory.length
+    ? directory.map((item) => `<option value="${escapeHTML(item.slug)}" ${requested?.slug === item.slug ? "selected" : ""}>${escapeHTML(item.name)}</option>`).join("")
+    : '<option value="">Carregando estabelecimentos…</option>';
   app.innerHTML = `<main class="auth-page">
     <section class="auth-brand"><a href="${href("/")}" data-link>${logo()}</a><div class="auth-message"><h1>O controle do seu atendimento começa aqui.</h1><p>Acompanhe a agenda, veja os horários disponíveis e gerencie sua fila em tempo real.</p><div class="auth-points"><div class="auth-point"><span class="auth-check">✓</span>Dados exclusivos do seu estabelecimento</div><div class="auth-point"><span class="auth-check">✓</span>Agenda e senhas no mesmo painel</div><div class="auth-point"><span class="auth-check">✓</span>Acesso simples para toda a equipe</div></div></div></section>
-    <section class="auth-panel"><div class="auth-form-wrap"><a class="back-home" href="${href("/")}" data-link>← Voltar para o início</a><h2>Bem-vindo de volta</h2><p>Entre com os dados do seu estabelecimento.</p>
-      <form id="login-form"><div class="field"><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" required value="renam@agendae.com.br"></div><div class="field"><div class="password-line"><label for="password">Senha</label><a href="#" data-forgot>Esqueci minha senha</a></div><input id="password" name="password" type="password" autocomplete="current-password" required placeholder="Digite sua senha"></div><button class="btn btn-primary btn-block" type="submit">Entrar no painel</button></form>
-      <div class="demo-access"><strong>${firebaseConnected ? "Firebase conectado" : "Conectando ao Firebase"}</strong><br>Ative o provedor E-mail/senha e crie o usuário <b>renam@agendae.com.br</b> no Authentication.</div>
+    <section class="auth-panel"><div class="auth-form-wrap"><a class="back-home" href="${requested ? href(`/${requested.slug}`) : href("/")}" data-link>← ${requested ? `Voltar para ${escapeHTML(requested.name)}` : "Voltar para o início"}</a><h2>Acesso da equipe</h2><p>Entre com os dados fornecidos pelo seu estabelecimento.</p>
+      <form id="login-form">
+        <div class="field"><label for="establishment-login">Estabelecimento</label><select id="establishment-login" name="establishment" required ${requested || !directory.length ? "disabled" : ""}><option value="">Selecione o estabelecimento</option>${establishmentOptions}</select>${requested ? `<input type="hidden" name="establishment" value="${escapeHTML(requested.slug)}">` : ""}</div>
+        <div class="field"><label for="employee-login">Login</label><input id="employee-login" name="login" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="Digite seu login"></div>
+        <div class="field"><div class="password-line"><label for="password">Senha</label><a href="#" data-forgot>Esqueci minha senha</a></div><div class="password-input"><input id="password" name="password" type="password" autocomplete="current-password" required placeholder="Digite sua senha"><button type="button" class="password-toggle" data-toggle-password aria-label="Visualizar senha" title="Visualizar senha"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.7"></circle></svg></button></div></div>
+        <label class="remember-option"><input type="checkbox" name="remember" checked><span>Lembrar senha</span></label>
+        <button class="btn btn-primary btn-block" type="submit" ${directory.length ? "" : "disabled"}>Entrar no painel</button>
+      </form>
+      <div class="employee-access-note"><span>♙</span><p><strong>Acesso exclusivo para funcionários</strong><br>Clientes podem agendar normalmente sem criar uma conta.</p></div>
     </div></section>
   </main>`;
 }
@@ -292,7 +311,7 @@ function renderEstablishmentPublic(establishment) {
   const nextFree = freeTimes[0] || "—";
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
-    <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions">${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href("/login")}" data-link>Área do estabelecimento</a>`}</div></div></header>
+    <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions">${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
     <section class="est-cover"><div class="est-cover-inner"><div class="est-identity"><div class="est-logo">${escapeHTML(establishment.initials)}</div><div><h1>${escapeHTML(establishment.name)}</h1><p>${escapeHTML(establishment.description)}</p><div class="est-facts"><span>⌖ ${escapeHTML(establishment.address)}</span><span>◷ ${escapeHTML(establishment.todayHours)}</span><span>● ${establishment.openNow ? "Aberto agora" : "Fechado"}</span></div></div></div><div class="live-ticket"><span class="live-dot"></span><span><small>Senha chamada agora</small><strong>${data.queue.find((item) => item.status === "atendendo")?.ticket || "—"}</strong></span></div></div></section>
     <main class="est-content"><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>${nextFree}</strong><em>Disponível hoje</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>${establishment.averageWaitMinutes} min</strong><em>Fila em tempo real</em></article></div>
       <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">01</span><div><small>AGENDAMENTO</small><h2>Reserve seu horário</h2><p>Escolha serviço, profissional, data e horário.</p></div></div><div class="booking-layout"><section class="panel booking-panel"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Confirmação imediata, sem precisar ligar</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section><aside class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></aside></div></section>
@@ -394,7 +413,17 @@ document.addEventListener("click", async (event) => {
   }
   const open = event.target.closest("[data-open-establishment]");
   if (open) return navigate(`/${open.dataset.openEstablishment}`);
-  if (event.target.closest("[data-forgot]")) { event.preventDefault(); toast("A recuperação de senha será conectada ao backend.", "ⓘ"); return; }
+  if (event.target.closest("[data-forgot]")) { event.preventDefault(); toast("Solicite uma nova senha ao administrador do estabelecimento.", "ⓘ"); return; }
+  const passwordToggle = event.target.closest("[data-toggle-password]");
+  if (passwordToggle) {
+    const passwordInput = document.querySelector("#password");
+    const visible = passwordInput?.type === "text";
+    if (passwordInput) passwordInput.type = visible ? "password" : "text";
+    passwordToggle.classList.toggle("visible", !visible);
+    passwordToggle.setAttribute("aria-label", visible ? "Visualizar senha" : "Ocultar senha");
+    passwordToggle.title = visible ? "Visualizar senha" : "Ocultar senha";
+    return;
+  }
   const mode = event.target.closest("[data-date-mode]");
   if (mode) {
     state.booking.dateMode = mode.dataset.dateMode;
@@ -483,16 +512,28 @@ document.addEventListener("submit", async (event) => {
     return;
   }
   if (event.target.id === "login-form") {
-    if (!firebaseApi) return toast("O Firebase ainda não respondeu. Tente novamente em instantes.", "!");
+    if (!firebaseApi) return toast("O serviço de acesso ainda não respondeu. Tente novamente em instantes.", "!");
     const form = new FormData(event.target);
+    const establishmentSlug = String(form.get("establishment") || "");
+    const employeeLogin = normalizedLogin(form.get("login"));
+    if (!establishments[establishmentSlug]) return toast("Selecione um estabelecimento válido.", "!");
+    if (!employeeLogin) return toast("Digite um login válido.", "!");
+    const internalEmail = `${employeeLogin}@agendae.com.br`;
     const button = event.target.querySelector("button[type=submit]");
     button.disabled = true;
     button.textContent = "Entrando…";
     authFlowInProgress = true;
     try {
-      firebaseSession = await firebaseApi.login(form.get("email").trim(), form.get("password"));
+      firebaseSession = await firebaseApi.login(internalEmail, form.get("password"), form.get("remember") === "on");
+      if (firebaseSession.slug !== establishmentSlug) {
+        await firebaseApi.logout();
+        firebaseSession = null;
+        const mismatch = new Error("Funcionário vinculado a outro estabelecimento.");
+        mismatch.code = "agendae/establishment-mismatch";
+        throw mismatch;
+      }
       state.booking = freshBooking();
-      navigate(`/${firebaseSession.slug}`);
+      navigate(`/${establishmentSlug}`);
       toast(`Login realizado. Bem-vindo, ${firebaseSession.name.split(" ")[0]}!`);
     } catch (error) {
       button.disabled = false;
@@ -519,7 +560,7 @@ document.addEventListener("submit", async (event) => {
         establishment.scheduleMode || "employee",
         professionalDirectory(establishment).map((professional) => professional.name),
       );
-      else throw new Error("Firebase indisponível");
+      else throw new Error("Serviço de agendamento indisponível.");
       cloudCache.delete(publicCacheKey(establishment));
       state.booking.confirmation = appointment;
       state.booking.step = 3;
@@ -527,7 +568,7 @@ document.addEventListener("submit", async (event) => {
     } catch (error) {
       button.disabled = false;
       button.textContent = "Confirmar agendamento";
-      toast(firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Não foi possível conectar ao Firebase.", "!");
+      toast(firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Não foi possível conectar ao serviço de agendamento.", "!");
       if (error?.code === "agendae/slot-unavailable") {
         state.booking.step = 1;
         state.booking.time = null;
@@ -545,7 +586,7 @@ async function addTicket(priority = "normal") {
   const nextNumber = data.queue.reduce((max, item) => Math.max(max, Number(item.ticket.split("-")[1]) || 0), 0) + 1;
   const ticket = `${prefix}-${String(nextNumber).padStart(3,"0")}`;
   try {
-    if (!firebaseApi || !session()) throw new Error("Firebase indisponível");
+    if (!firebaseApi || !session()) throw new Error("Sessão indisponível.");
     await firebaseApi.addQueueTicket(establishment.slug, ticket, "Cliente sem agendamento", priority, establishment.defaultServicePoint || "Atendimento");
   } catch (error) {
     toast(firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Entre novamente para alterar a fila.", "!");
@@ -561,7 +602,7 @@ async function callNext() {
   const establishment = activeEstablishment();
   let remoteTicket;
   try {
-    if (!firebaseApi || !session()) throw new Error("Firebase indisponível");
+    if (!firebaseApi || !session()) throw new Error("Sessão indisponível.");
     remoteTicket = await firebaseApi.callNextTicket(establishment.slug, establishment.defaultServicePoint || "Atendimento");
   } catch (error) {
     toast(firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Entre novamente para alterar a fila.", "!");
@@ -579,22 +620,27 @@ render();
 async function initializeFirebase() {
   try {
     firebaseApi = await import("./firebase-service.js");
-    firebaseConnected = true;
     const directory = await firebaseApi.loadEstablishments();
     establishments = Object.fromEntries(directory.map((item) => [item.slug || item.id, { ...item, slug: item.slug || item.id }]));
     catalogLoaded = true;
     firebaseApi.observeSession((profile, error) => {
       firebaseSession = profile;
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
-      if (profile && route() === "login" && !authFlowInProgress) navigate(`/${profile.slug}`);
-      else render();
+      if (profile && route() === "login" && !authFlowInProgress) {
+        const requestedSlug = new URLSearchParams(location.search).get("establishment");
+        if (requestedSlug && requestedSlug !== profile.slug) {
+          void firebaseApi.logout();
+          return;
+        }
+        navigate(`/${profile.slug}`);
+      } else render();
     });
     render();
   } catch (error) {
     console.error("Agendae: falha ao carregar o Firebase.", error);
     catalogLoaded = true;
     render();
-    toast("Não foi possível carregar o Firebase. Verifique a conexão.", "!");
+      toast("Não foi possível carregar o sistema. Verifique sua conexão.", "!");
   }
 }
 

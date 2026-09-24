@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {
   browserLocalPersistence,
+  browserSessionPersistence,
   getAuth,
   onAuthStateChanged,
   setPersistence,
@@ -35,7 +36,6 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
-const persistenceReady = setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 async function profileFor(user) {
   if (!user) return null;
@@ -81,10 +81,15 @@ export function observeSession(callback) {
   });
 }
 
-export async function login(email, password) {
-  await persistenceReady;
+export async function login(email, password, remember = true) {
+  await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence).catch(() => {});
   const credential = await signInWithEmailAndPassword(auth, email, password);
-  return profileFor(credential.user);
+  try {
+    return await profileFor(credential.user);
+  } catch (error) {
+    await signOut(auth);
+    throw error;
+  }
 }
 
 export async function logout() {
@@ -255,15 +260,16 @@ export async function callNextTicket(slug, defaultServicePoint = "Atendimento") 
 
 export function firebaseErrorMessage(error) {
   const messages = {
-    "auth/invalid-credential": "E-mail ou senha inválidos.",
-    "auth/user-not-found": "Usuário não encontrado.",
-    "auth/wrong-password": "E-mail ou senha inválidos.",
+    "auth/invalid-credential": "Login ou senha inválidos.",
+    "auth/user-not-found": "Login não encontrado.",
+    "auth/wrong-password": "Login ou senha inválidos.",
     "auth/too-many-requests": "Muitas tentativas. Aguarde alguns minutos.",
-    "auth/operation-not-allowed": "Ative o login por e-mail e senha no Firebase Authentication.",
-    "auth/network-request-failed": "Não foi possível conectar ao Firebase.",
+    "auth/operation-not-allowed": "O acesso por login e senha ainda não está disponível.",
+    "auth/network-request-failed": "Não foi possível conectar ao serviço de acesso.",
     "agendae/profile-not-found": "Este usuário ainda não está vinculado a um estabelecimento.",
+    "agendae/establishment-mismatch": "Este funcionário não pertence ao estabelecimento selecionado.",
     "agendae/slot-unavailable": error?.message,
-    "permission-denied": "As regras do Firestore ainda não permitem esta operação.",
+    "permission-denied": "Seu usuário não possui permissão para esta operação.",
   };
   return messages[error?.code] || error?.message || "Não foi possível concluir a operação.";
 }
