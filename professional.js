@@ -16,6 +16,8 @@ let establishments = {};
 
 const state = {
   booking: freshBooking(),
+  appointmentQuery: "",
+  publicLookup: { query: "", loading: false, searched: false, results: [] },
   mobileMenu: false,
 };
 
@@ -63,6 +65,10 @@ function usesEmployeeSchedules(establishment) {
 
 function normalizedLogin(value) {
   return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
+}
+
+function normalizedSearch(value) {
+  return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
 }
 
 function requestedEstablishment() {
@@ -215,33 +221,52 @@ function progress(step) {
 function bookingContent(establishment) {
   const booking = state.booking;
   const service = establishment.services.find((item) => item.id === booking.serviceId);
-  const professionals = professionalDirectory(establishment);
-  const employeeMode = usesEmployeeSchedules(establishment);
-  const times = employeeMode
-    ? (booking.professional ? scheduleFor(establishment, booking.professional) : [])
-    : (establishment.availableTimes || []);
-  const bookingData = getData(establishment);
-  const busy = new Set(
-    bookingData.slots
-      ? bookingData.slots.filter((item) => !employeeMode || item.id?.endsWith("_establishment") || item.professional === booking.professional).map((item) => item.time)
-      : bookingData.appointments
-        .filter((item) => item.date === booking.date && item.professional === booking.professional)
-        .map((item) => item.time)
-  );
 
-  if (booking.step === 1) return `${progress(1)}<h2 class="booking-title">Quando você quer ser atendido?</h2><p class="booking-lead">Escolha o dia, o serviço e um horário disponível.</p>
-    <div class="date-choice"><button class="choice-btn ${booking.dateMode === "today" ? "selected" : ""}" data-date-mode="today"><span class="choice-radio"></span><span><strong>Agendar para hoje</strong><small>${prettyDate(isoDate())} · horários disponíveis</small></span></button><button class="choice-btn ${booking.dateMode === "other" ? "selected" : ""}" data-date-mode="other"><span class="choice-radio"></span><span><strong>Escolher outro dia</strong><small>Consulte os próximos dias</small></span></button></div>
-    ${booking.dateMode === "other" ? `<div class="field"><label for="booking-date">Data do atendimento</label><input id="booking-date" type="date" min="${isoDate()}" value="${booking.date}" data-booking-date></div>` : ""}
-    <div class="time-label">Selecione o serviço</div><div class="service-grid">${establishment.services.map((item) => `<button class="service-btn ${booking.serviceId === item.id ? "selected" : ""}" data-service="${item.id}"><span class="service-icon">${item.icon}</span><span><strong>${item.name}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></button>`).join("")}</div>
-    <div class="field" style="margin-top:20px"><label for="booking-professional">Quem vai atender você?</label><select id="booking-professional" data-professional><option value="">Selecione um profissional</option>${professionals.map((professional) => `<option value="${escapeHTML(professional.name)}" ${booking.professional === professional.name ? "selected" : ""}>${escapeHTML(professional.name)}${professional.role ? ` · ${escapeHTML(professional.role)}` : ""}</option>`).join("")}</select></div>
-    <div class="time-label">${employeeMode ? `Horários de ${booking.professional ? escapeHTML(booking.professional) : "cada profissional"}` : "Horários do estabelecimento"} em ${prettyDate(booking.date)}</div>${!employeeMode || booking.professional ? `<div class="time-grid">${times.map((time) => `<button class="time-btn ${booking.time === time ? "selected" : ""}" data-time="${time}" ${busy.has(time) ? "disabled" : ""}>${time}</button>`).join("") || `<div class="schedule-empty">${employeeMode ? "Este profissional não possui horários configurados para este dia." : "O estabelecimento não possui horários configurados para este dia."}</div>`}</div>` : '<div class="select-professional-note">Selecione um profissional para consultar a agenda dele.</div>'}
-    <div class="booking-actions"><span></span><button class="btn btn-primary" data-booking-next ${service && booking.professional && booking.time ? "" : "disabled"}>Continuar →</button></div>`;
+  if (booking.step === 1) return `${progress(1)}<div class="selected-slot-card"><span class="selected-slot-icon">✓</span><div><small>HORÁRIO SELECIONADO</small><strong>${prettyDate(booking.date, true)} · ${escapeHTML(booking.time)}</strong><span>${escapeHTML(booking.professional)}</span></div><button type="button" data-change-slot>Alterar</button></div><h2 class="booking-title">Escolha o serviço</h2><p class="booking-lead">Selecione o atendimento desejado para continuar.</p>
+    <div class="service-grid">${establishment.services.map((item) => `<button type="button" class="service-btn ${booking.serviceId === item.id ? "selected" : ""}" data-service="${item.id}"><span class="service-icon">${item.icon}</span><span><strong>${item.name}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></button>`).join("")}</div>
+    <div class="booking-actions"><button class="btn btn-outline" type="button" data-change-slot>Escolher outro horário</button><button class="btn btn-primary" type="button" data-booking-next ${service ? "" : "disabled"}>Continuar →</button></div>`;
 
-  if (booking.step === 2) return `${progress(2)}<h2 class="booking-title">Seus dados</h2><p class="booking-lead">Usaremos estas informações somente para confirmar o agendamento.</p>
-    <form id="booking-form"><div class="mini-field-grid"><div class="field full"><label for="customer-name">Nome completo</label><input id="customer-name" name="name" autocomplete="name" required placeholder="Digite seu nome"></div><div class="field full"><label for="customer-phone">Celular</label><input id="customer-phone" name="phone" autocomplete="tel" required placeholder="(00) 00000-0000"></div></div><div class="confirmation-data"><div class="confirmation-row"><span>Profissional escolhido</span><strong>${escapeHTML(booking.professional)}</strong></div></div><div class="booking-actions"><button class="btn btn-outline" type="button" data-booking-back>← Voltar</button><button class="btn btn-yellow" type="submit">Confirmar agendamento</button></div></form>`;
+  if (booking.step === 2) return `<div class="booking-modal-backdrop" data-booking-modal-backdrop>
+    <section class="booking-modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
+      <div class="booking-modal-head"><div><small>FINALIZAR AGENDAMENTO</small><h2 id="booking-modal-title">Seus dados e confirmação</h2></div><button class="booking-modal-close" type="button" data-booking-back aria-label="Fechar janela">×</button></div>
+      <form id="booking-form" class="booking-modal-form">
+        <p class="booking-modal-lead">Confira os dados escolhidos abaixo e informe seu nome para confirmar.</p>
+        <div class="mini-field-grid"><div class="field full"><label for="customer-name">Nome completo</label><input id="customer-name" name="name" type="text" autocomplete="name" required placeholder="Digite seu nome"></div><div class="field full"><label for="customer-phone">Telefone <span class="optional-label">(opcional)</span></label><input id="customer-phone" name="phone" type="tel" autocomplete="tel" placeholder="(00) 00000-0000"></div></div>
+        <div class="confirmation-data booking-review"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(service.name)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(booking.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(booking.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(booking.professional)}</strong></div></div>
+        <div class="booking-actions"><button class="btn btn-outline" type="button" data-booking-back>Voltar</button><button class="btn btn-yellow" type="submit">Confirmar agendamento</button></div>
+      </form>
+    </section>
+  </div>`;
 
   const item = booking.confirmation;
   return `${progress(3)}<div class="confirmation"><div class="confirmation-icon">✓</div><h2 class="booking-title">Agendamento confirmado</h2><p class="booking-lead">Seu horário na ${establishment.name} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${item.time}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div></div><div class="booking-actions"><span></span><button class="btn btn-primary" data-new-booking>Fazer outro agendamento</button></div></div>`;
+}
+
+function publicSchedule(establishment) {
+  const data = getData(establishment);
+  const employeeMode = usesEmployeeSchedules(establishment);
+  const professionals = professionalDirectory(establishment);
+  const schedules = professionals.map((professional) => {
+    const times = employeeMode ? (professional.availableTimes || []) : (establishment.availableTimes || []);
+    const busy = new Set((data.slots || []).filter((slot) => slot.id?.endsWith("_establishment") || slot.professional === professional.name).map((slot) => slot.time));
+    const freeCount = times.filter((time) => !busy.has(time)).length;
+    const buttons = times.map((time) => busy.has(time)
+      ? `<button class="schedule-slot occupied" type="button" disabled aria-label="${escapeHTML(time)} ocupado"><strong>${escapeHTML(time)}</strong><small>Ocupado</small></button>`
+      : `<button class="schedule-slot available ${state.booking.professional === professional.name && state.booking.time === time ? "selected" : ""}" type="button" data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}"><strong>${escapeHTML(time)}</strong><small>Disponível</small></button>`
+    ).join("");
+    return `<article class="public-professional-schedule"><header><span class="client-avatar">${initials(professional.name)}</span><div><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></div><em>${freeCount} ${freeCount === 1 ? "livre" : "livres"}</em></header><div class="public-slot-grid">${buttons || '<div class="schedule-empty">Nenhum horário configurado para esta data.</div>'}</div></article>`;
+  }).join("");
+  return `<div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button><button type="button" class="${state.booking.dateMode === "tomorrow" ? "active" : ""}" data-date-mode="tomorrow"><strong>Amanhã</strong><small>${prettyDate(isoDate(1))}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate()}" value="${state.booking.date}" data-booking-date></label></div><div class="schedule-legend"><span><i class="available"></i>Disponível para agendar</span><span><i class="occupied"></i>Horário ocupado</span></div><div class="public-schedules">${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div>`;
+}
+
+function publicAppointmentLookup() {
+  const lookup = state.publicLookup;
+  const results = lookup.loading
+    ? '<div class="lookup-message">Buscando seu agendamento…</div>'
+    : lookup.searched && !lookup.results.length
+      ? '<div class="lookup-message">Nenhum agendamento foi encontrado com esse nome completo.</div>'
+      : lookup.results.map((item) => `<article class="lookup-result"><div><small>${prettyDate(item.date, true)}</small><strong>${escapeHTML(item.time)} · ${escapeHTML(item.service)}</strong></div><div><span>${escapeHTML(item.professional)}</span><em>${escapeHTML(item.status || "confirmado")}</em></div></article>`).join("");
+  return `<div class="public-lookup-panel" id="consultar-agendamento"><h2 class="booking-title">Consultar meu agendamento</h2><p class="booking-lead">Digite exatamente o nome completo informado na reserva. Você não precisa iniciar um novo agendamento.</p><form id="public-appointment-search-form"><label for="public-appointment-name">Nome completo</label><div class="public-lookup-field"><input id="public-appointment-name" name="client" type="text" value="${escapeHTML(lookup.query)}" autocomplete="name" required placeholder="Digite seu nome completo"><button class="btn btn-primary" type="submit" ${lookup.loading ? "disabled" : ""}>${lookup.loading ? "Pesquisando…" : "Pesquisar agendamento"}</button></div></form><div class="public-lookup-results" aria-live="polite">${results}</div></div>`;
 }
 
 function queuePanel(data, showNames = true) {
@@ -314,16 +339,21 @@ function renderEstablishmentPublic(establishment) {
     <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions">${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
     <section class="est-cover"><div class="est-cover-inner"><div class="est-identity"><div class="est-logo">${escapeHTML(establishment.initials)}</div><div><h1>${escapeHTML(establishment.name)}</h1><p>${escapeHTML(establishment.description)}</p><div class="est-facts"><span>⌖ ${escapeHTML(establishment.address)}</span><span>◷ ${escapeHTML(establishment.todayHours)}</span><span>● ${establishment.openNow ? "Aberto agora" : "Fechado"}</span></div></div></div><div class="live-ticket"><span class="live-dot"></span><span><small>Senha chamada agora</small><strong>${data.queue.find((item) => item.status === "atendendo")?.ticket || "—"}</strong></span></div></div></section>
     <main class="est-content"><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>${nextFree}</strong><em>Disponível hoje</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>${establishment.averageWaitMinutes} min</strong><em>Fila em tempo real</em></article></div>
-      <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">01</span><div><small>AGENDAMENTO</small><h2>Reserve seu horário</h2><p>Escolha serviço, profissional, data e horário.</p></div></div><div class="booking-layout"><section class="panel booking-panel"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Confirmação imediata, sem precisar ligar</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section><aside class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></aside></div></section>
+      <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">01</span><div><small>AGENDAMENTOS</small><h2>Horários de atendimento</h2><p>Veja a agenda por profissional, escolha outra data ou consulte uma reserva.</p></div></div><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="panel-head"><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-lookup-card">${publicAppointmentLookup()}</section><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section>
       <section class="queue-zone" id="painel-senhas"><div class="zone-title queue-zone-title"><span class="zone-number">02</span><div><small>FILA DE ATENDIMENTO</small><h2>Acompanhe sua senha</h2><p>Veja quem está sendo atendido e sua posição na fila.</p></div></div>${queuePanel(data, false)}</section></main>
   </div>`;
   void refreshCloudData(establishment, "public", state.booking.date);
   ensureQueueSubscription(establishment);
 }
 
-function appointmentRows(data) {
-  const appointments = data.appointments.filter((item) => item.date === isoDate()).sort((a,b) => a.time.localeCompare(b.time));
-  if (!appointments.length) return '<div class="empty">Nenhum atendimento marcado para hoje.</div>';
+function appointmentRows(data, query = state.appointmentQuery) {
+  const todayAppointments = data.appointments.filter((item) => item.date === isoDate()).sort((a,b) => a.time.localeCompare(b.time));
+  const normalizedQuery = normalizedSearch(query);
+  const appointments = normalizedQuery
+    ? todayAppointments.filter((item) => normalizedSearch(item.client).includes(normalizedQuery))
+    : todayAppointments;
+  if (!todayAppointments.length) return '<div class="empty">Nenhum atendimento marcado para hoje.</div>';
+  if (!appointments.length) return `<div class="empty">Nenhum agendamento encontrado para <strong>${escapeHTML(query.trim())}</strong>.</div>`;
   return appointments.map((item) => `<div class="appointment-row"><span class="appt-time">${item.time}</span><span class="client"><span class="client-avatar">${initials(item.client)}</span><span><strong>${escapeHTML(item.client)}</strong><small>${escapeHTML(item.service)}</small></span></span><span class="professional">${escapeHTML(item.professional)}</span><span class="status ${item.status}">${item.status[0].toUpperCase()+item.status.slice(1)}</span></div>`).join("");
 }
 
@@ -343,7 +373,7 @@ function renderAdmin(establishment) {
     <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}?public=1#agendar`)}" data-link>+ Novo agendamento</a></div></header>
       <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
       <section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Essa configuração vale para todos os novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="employee"><span>♙</span><strong>Agenda por funcionário</strong><small>Cada profissional tem seus próprios horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="establishment"><span>▣</span><strong>Agenda do estabelecimento</strong><small>Uma única grade compartilhada pela equipe.</small></button></div></section>
-      <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p>${today.length} horários confirmados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(data)}<section class="panel staff-availability-panel"><div class="panel-head"><div><h2>${usesEmployeeSchedules(establishment) ? "Agenda por profissional" : "Agenda do estabelecimento"}</h2><p>${usesEmployeeSchedules(establishment) ? "Disponibilidade individual de hoje" : "Disponibilidade compartilhada de hoje"}</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></div>
+      <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p><span data-appointment-count>${today.length}</span> horários confirmados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-search"><span class="appointment-search-icon" aria-hidden="true">⌕</span><input type="search" value="${escapeHTML(state.appointmentQuery)}" data-appointment-search aria-label="Pesquisar agendamento pelo nome completo" placeholder="Pesquisar por nome completo"><button type="button" data-clear-appointment-search aria-label="Limpar pesquisa" ${state.appointmentQuery ? "" : "hidden"}>×</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(data)}<section class="panel staff-availability-panel"><div class="panel-head"><div><h2>${usesEmployeeSchedules(establishment) ? "Agenda por profissional" : "Agenda do estabelecimento"}</h2><p>${usesEmployeeSchedules(establishment) ? "Disponibilidade individual de hoje" : "Disponibilidade compartilhada de hoje"}</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></div>
     </main></div>`;
   const queueSection = app.querySelector(".admin-grid .queue-panel");
   if (queueSection) queueSection.insertAdjacentHTML("beforeend", `<div class="queue-admin-actions"><button class="btn btn-soft btn-sm" data-add-ticket data-priority="normal">+ Senha normal</button><button class="btn btn-priority btn-sm" data-add-ticket data-priority="preferencial">+ Preferencial</button><button class="btn btn-primary btn-sm" data-next-ticket>Chamar próxima</button></div>`);
@@ -413,6 +443,17 @@ document.addEventListener("click", async (event) => {
   }
   const open = event.target.closest("[data-open-establishment]");
   if (open) return navigate(`/${open.dataset.openEstablishment}`);
+  const publicSlot = event.target.closest("[data-public-slot]");
+  if (publicSlot) {
+    state.booking.professional = publicSlot.dataset.professionalName;
+    state.booking.time = publicSlot.dataset.slotTime;
+    state.booking.step = 1;
+    state.booking.confirmation = null;
+    render();
+    requestAnimationFrame(() => document.querySelector("#novo-agendamento")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    return;
+  }
+  if (event.target.closest("[data-change-slot]")) { state.booking.time = null; state.booking.step = 1; render(); return; }
   if (event.target.closest("[data-forgot]")) { event.preventDefault(); toast("Solicite uma nova senha ao administrador do estabelecimento.", "ⓘ"); return; }
   const passwordToggle = event.target.closest("[data-toggle-password]");
   if (passwordToggle) {
@@ -438,8 +479,14 @@ document.addEventListener("click", async (event) => {
   if (service) { state.booking.serviceId = service.dataset.service; render(); return; }
   const time = event.target.closest("[data-time]");
   if (time) { state.booking.time = time.dataset.time; render(); return; }
-  if (event.target.closest("[data-booking-next]")) { state.booking.step = 2; render(); return; }
-  if (event.target.closest("[data-booking-back]")) { state.booking.step = 1; render(); return; }
+  if (event.target.closest("[data-booking-next]")) {
+    event.preventDefault();
+    state.booking.step = 2;
+    render();
+    requestAnimationFrame(() => document.querySelector("#customer-name")?.focus());
+    return;
+  }
+  if (event.target.closest("[data-booking-back]") || event.target.matches("[data-booking-modal-backdrop]")) { event.preventDefault(); state.booking.step = 1; render(); return; }
   if (event.target.closest("[data-new-booking]")) { state.booking = freshBooking(); render(); return; }
   if (event.target.closest("[data-mobile-admin]")) { state.mobileMenu = !state.mobileMenu; render(); return; }
   if (event.target.closest("[data-coming]")) { toast("Módulo preparado para a próxima etapa do sistema.", "ⓘ"); return; }
@@ -481,6 +528,12 @@ document.addEventListener("click", async (event) => {
     toast("Sessão encerrada.");
     return;
   }
+  if (event.target.closest("[data-clear-appointment-search]")) {
+    state.appointmentQuery = "";
+    render();
+    requestAnimationFrame(() => document.querySelector("[data-appointment-search]")?.focus());
+    return;
+  }
   const addTicketButton = event.target.closest("[data-add-ticket]");
   if (addTicketButton) await addTicket(addTicketButton.dataset.priority || "normal");
   if (event.target.closest("[data-next-ticket]")) await callNext();
@@ -489,6 +542,7 @@ document.addEventListener("click", async (event) => {
 document.addEventListener("change", (event) => {
   if (event.target.matches("[data-booking-date]")) {
     state.booking.date = event.target.value || isoDate(1);
+    state.booking.dateMode = state.booking.date === isoDate() ? "today" : state.booking.date === isoDate(1) ? "tomorrow" : "other";
     state.booking.time = null;
     const establishment = activeEstablishment();
     if (establishment) cloudCache.delete(publicCacheKey(establishment));
@@ -497,8 +551,38 @@ document.addEventListener("change", (event) => {
   if (event.target.matches("[data-professional]")) { state.booking.professional = event.target.value; state.booking.time = null; render(); }
 });
 
+document.addEventListener("input", (event) => {
+  if (!event.target.matches("[data-appointment-search]")) return;
+  state.appointmentQuery = event.target.value;
+  const establishment = activeEstablishment();
+  if (!establishment) return;
+  const data = getData(establishment);
+  const list = document.querySelector(".appointment-list");
+  if (list) list.innerHTML = appointmentRows(data);
+  const clearButton = document.querySelector("[data-clear-appointment-search]");
+  if (clearButton) clearButton.hidden = !state.appointmentQuery;
+});
+
 document.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (event.target.id === "public-appointment-search-form") {
+    const establishment = activeEstablishment();
+    const fullName = String(new FormData(event.target).get("client") || "").trim();
+    if (!establishment || normalizedSearch(fullName).split(" ").length < 2) return toast("Digite seu nome completo para consultar.", "!");
+    state.publicLookup = { query: fullName, loading: true, searched: false, results: [] };
+    render();
+    try {
+      const results = await firebaseApi.findPublicAppointments(establishment.slug, fullName);
+      state.publicLookup = { query: fullName, loading: false, searched: true, results };
+    } catch (error) {
+      console.error("Agendae: falha ao consultar agendamento.", error);
+      state.publicLookup = { query: fullName, loading: false, searched: false, results: [] };
+      toast("Não foi possível consultar agora. Tente novamente.", "!");
+    }
+    render();
+    requestAnimationFrame(() => document.querySelector("#consultar-agendamento")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    return;
+  }
   if (event.target.id === "finder-form") {
     const query = new FormData(event.target).get("query") || document.querySelector("#finder-input")?.value || "";
     const normalized = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
@@ -622,6 +706,12 @@ async function callNext() {
 }
 
 window.addEventListener("popstate", render);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.booking.step === 2) {
+    state.booking.step = 1;
+    render();
+  }
+});
 render();
 
 async function initializeFirebase() {
