@@ -99,7 +99,7 @@ export async function loadPublicData(slug, date) {
   const currentTicket = publicState.currentTicket || null;
   const waitingTickets = Array.isArray(publicState.waitingTickets) ? publicState.waitingTickets : [];
   return {
-    busySlots: slotsSnapshot.docs.map((item) => item.data().time),
+    slots: slotsSnapshot.docs.map((item) => item.data()),
     todayAppointments: Number(publicState.todayAppointments || slotsSnapshot.size),
     queue: [
       ...(currentTicket ? [{ ticket: currentTicket, status: "atendendo" }] : []),
@@ -137,9 +137,10 @@ export async function bootstrapEstablishment(slug, data) {
 
   for (const appointment of data.appointments) {
     const appointmentRef = doc(collection(db, "establishments", slug, "appointments"));
-    const slotRef = doc(db, "establishments", slug, "slots", `${appointment.date}_${appointment.time.replace(":", "")}`);
+    const professionalKey = appointment.professional.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
+    const slotRef = doc(db, "establishments", slug, "slots", `${appointment.date}_${appointment.time.replace(":", "")}_${professionalKey}`);
     batch.set(appointmentRef, { ...appointment, createdAt: serverTimestamp() });
-    batch.set(slotRef, { date: appointment.date, time: appointment.time, service: appointment.service, createdAt: serverTimestamp() });
+    batch.set(slotRef, { date: appointment.date, time: appointment.time, service: appointment.service, professional: appointment.professional, createdAt: serverTimestamp() });
   }
 
   for (const queueItem of data.queue) {
@@ -151,7 +152,8 @@ export async function bootstrapEstablishment(slug, data) {
 
 export async function createAppointment(slug, appointment) {
   const appointmentRef = doc(collection(db, "establishments", slug, "appointments"));
-  const slotId = `${appointment.date}_${appointment.time.replace(":", "")}`;
+  const professionalKey = appointment.professional.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
+  const slotId = `${appointment.date}_${appointment.time.replace(":", "")}_${professionalKey}`;
   const slotRef = doc(db, "establishments", slug, "slots", slotId);
 
   await runTransaction(db, async (transaction) => {
@@ -165,6 +167,7 @@ export async function createAppointment(slug, appointment) {
       date: appointment.date,
       time: appointment.time,
       service: appointment.service,
+      professional: appointment.professional,
       createdAt: serverTimestamp(),
     });
     transaction.set(appointmentRef, {

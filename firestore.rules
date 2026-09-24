@@ -40,10 +40,11 @@ service cloud.firestore {
       match /slots/{slotId} {
         allow read: if true;
         allow create: if manages(slug)
-          || (request.resource.data.keys().hasOnly(['date', 'time', 'service', 'createdAt'])
+          || (request.resource.data.keys().hasOnly(['date', 'time', 'service', 'professional', 'createdAt'])
             && request.resource.data.date is string
             && request.resource.data.time is string
-            && request.resource.data['service'] is string);
+            && request.resource.data['service'] is string
+            && request.resource.data.professional is string);
         allow update, delete: if manages(slug);
       }
 

@@ -13,7 +13,7 @@ const establishments = {
   barbeariadorenam: {
     slug: "barbeariadorenam",
     name: "Barbearia do Renam",
-    initials: "BR",
+    initials: "BARB",
     category: "Barbearia",
     address: "Rua das Palmeiras, 248 — Centro",
     phone: "(11) 99999-1234",
@@ -30,7 +30,7 @@ const establishments = {
   clinicaviva: {
     slug: "clinicaviva",
     name: "Clínica Viva",
-    initials: "CV",
+    initials: "CLIN",
     category: "Clínica de saúde",
     address: "Av. Brasil, 1260 — Jardim Paulista",
     phone: "(11) 98888-5642",
@@ -208,9 +208,8 @@ function renderHome() {
         </div>
         <aside class="directory-card">
           <div class="directory-label">Estabelecimentos disponíveis</div>
-          <button class="directory-item" data-open-establishment="barbeariadorenam"><span class="est-avatar">BR</span><span class="directory-meta"><strong>Barbearia do Renam</strong><small>Barbearia · Centro</small></span><span class="open-tag">ABERTO</span></button>
-          <button class="directory-item" data-open-establishment="clinicaviva"><span class="est-avatar green">CV</span><span class="directory-meta"><strong>Clínica Viva</strong><small>Clínica de saúde · Jardim Paulista</small></span><span class="open-tag">ABERTO</span></button>
-          <div class="queue-preview"><span class="queue-preview-number">R-23</span><span><strong>Senhas em tempo real</strong><small>Acompanhe sem precisar esperar no local</small></span></div>
+          <button class="directory-item" data-open-establishment="barbeariadorenam"><span class="est-avatar">BARB</span><span class="directory-meta"><strong>Barbearia do Renam</strong><small>Barbearia · Centro</small></span><span class="open-tag">ABERTO</span></button>
+          <button class="directory-item" data-open-establishment="clinicaviva"><span class="est-avatar green">CLIN</span><span class="directory-meta"><strong>Clínica Viva</strong><small>Clínica de saúde · Jardim Paulista</small></span><span class="open-tag">ABERTO</span></button>
         </aside>
       </div></section>
       <section class="trust-strip"><div class="trust-inner"><div class="trust-item"><span class="trust-icon">✓</span>Agendamento confirmado na hora</div><div class="trust-item"><span class="trust-icon">◷</span>Horários livres atualizados</div><div class="trust-item"><span class="trust-icon">#</span>Fila de senhas online</div></div></section>
@@ -242,17 +241,24 @@ function bookingContent(establishment) {
   const service = establishment.services.find((item) => item.id === booking.serviceId);
   const times = ["08:00", "08:40", "09:20", "10:00", "10:40", "11:20", "13:00", "13:40", "14:20", "15:10", "16:00", "17:20", "18:00"];
   const bookingData = getData(establishment);
-  const busy = new Set(bookingData.busySlots || bookingData.appointments.filter((item) => item.date === booking.date).map((item) => item.time));
+  const busy = new Set(
+    bookingData.slots
+      ? bookingData.slots.filter((item) => item.professional === booking.professional).map((item) => item.time)
+      : bookingData.appointments
+        .filter((item) => item.date === booking.date && item.professional === booking.professional)
+        .map((item) => item.time)
+  );
 
   if (booking.step === 1) return `${progress(1)}<h2 class="booking-title">Quando você quer ser atendido?</h2><p class="booking-lead">Escolha o dia, o serviço e um horário disponível.</p>
     <div class="date-choice"><button class="choice-btn ${booking.dateMode === "today" ? "selected" : ""}" data-date-mode="today"><span class="choice-radio"></span><span><strong>Agendar para hoje</strong><small>${prettyDate(isoDate())} · horários disponíveis</small></span></button><button class="choice-btn ${booking.dateMode === "other" ? "selected" : ""}" data-date-mode="other"><span class="choice-radio"></span><span><strong>Escolher outro dia</strong><small>Consulte os próximos dias</small></span></button></div>
     ${booking.dateMode === "other" ? `<div class="field"><label for="booking-date">Data do atendimento</label><input id="booking-date" type="date" min="${isoDate()}" value="${booking.date}" data-booking-date></div>` : ""}
     <div class="time-label">Selecione o serviço</div><div class="service-grid">${establishment.services.map((item) => `<button class="service-btn ${booking.serviceId === item.id ? "selected" : ""}" data-service="${item.id}"><span class="service-icon">${item.icon}</span><span><strong>${item.name}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></button>`).join("")}</div>
+    <div class="field" style="margin-top:20px"><label for="booking-professional">Quem vai atender você?</label><select id="booking-professional" data-professional><option value="">Selecione um profissional</option>${establishment.professionals.map((name) => `<option value="${name}" ${booking.professional === name ? "selected" : ""}>${name}</option>`).join("")}</select></div>
     <div class="time-label">Horários livres em ${prettyDate(booking.date)}</div><div class="time-grid">${times.map((time) => `<button class="time-btn ${booking.time === time ? "selected" : ""}" data-time="${time}" ${busy.has(time) ? "disabled" : ""}>${time}</button>`).join("")}</div>
-    <div class="booking-actions"><span></span><button class="btn btn-primary" data-booking-next ${service && booking.time ? "" : "disabled"}>Continuar →</button></div>`;
+    <div class="booking-actions"><span></span><button class="btn btn-primary" data-booking-next ${service && booking.professional && booking.time ? "" : "disabled"}>Continuar →</button></div>`;
 
   if (booking.step === 2) return `${progress(2)}<h2 class="booking-title">Seus dados</h2><p class="booking-lead">Usaremos estas informações somente para confirmar o agendamento.</p>
-    <form id="booking-form"><div class="mini-field-grid"><div class="field full"><label for="customer-name">Nome completo</label><input id="customer-name" name="name" autocomplete="name" required placeholder="Digite seu nome"></div><div class="field"><label for="customer-phone">Celular</label><input id="customer-phone" name="phone" autocomplete="tel" required placeholder="(00) 00000-0000"></div><div class="field"><label for="professional">Profissional</label><select id="professional" name="professional"><option value="">Sem preferência</option>${establishment.professionals.map((name) => `<option>${name}</option>`).join("")}</select></div></div><div class="booking-actions"><button class="btn btn-outline" type="button" data-booking-back>← Voltar</button><button class="btn btn-yellow" type="submit">Confirmar agendamento</button></div></form>`;
+    <form id="booking-form"><div class="mini-field-grid"><div class="field full"><label for="customer-name">Nome completo</label><input id="customer-name" name="name" autocomplete="name" required placeholder="Digite seu nome"></div><div class="field full"><label for="customer-phone">Celular</label><input id="customer-phone" name="phone" autocomplete="tel" required placeholder="(00) 00000-0000"></div></div><div class="confirmation-data"><div class="confirmation-row"><span>Profissional escolhido</span><strong>${escapeHTML(booking.professional)}</strong></div></div><div class="booking-actions"><button class="btn btn-outline" type="button" data-booking-back>← Voltar</button><button class="btn btn-yellow" type="submit">Confirmar agendamento</button></div></form>`;
 
   const item = booking.confirmation;
   return `${progress(3)}<div class="confirmation"><div class="confirmation-icon">✓</div><h2 class="booking-title">Agendamento confirmado</h2><p class="booking-lead">Seu horário na ${establishment.name} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${item.time}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div></div><div class="booking-actions"><span></span><button class="btn btn-primary" data-new-booking>Fazer outro agendamento</button></div></div>`;
@@ -271,7 +277,7 @@ function renderEstablishmentPublic(establishment) {
   const todayCount = Number.isFinite(data.todayAppointments) ? data.todayAppointments : todayAppointments.length;
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
-    <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions"><a class="btn btn-outline btn-sm" href="${href("/")}" data-link>Trocar estabelecimento</a><span class="divider"></span>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href("/login")}" data-link>Área do estabelecimento</a>`}</div></div></header>
+    <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions">${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href("/login")}" data-link>Área do estabelecimento</a>`}</div></div></header>
     <section class="est-cover"><div class="est-cover-inner"><div class="est-identity"><div class="est-logo">${establishment.initials}</div><div><h1>${establishment.name}</h1><p>${establishment.description}</p><div class="est-facts"><span>⌖ ${establishment.address}</span><span>◷ Hoje, 08h às 19h</span><span>● Aberto agora</span></div></div></div><div class="live-ticket"><span class="live-dot"></span><span><small>Senha chamada agora</small><strong>${data.queue.find((item) => item.status === "atendendo")?.ticket || "—"}</strong></span></div></div></section>
     <main class="est-content"><div><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>11:20</strong><em>Disponível hoje</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>9 min</strong><em>Fila em tempo real</em></article></div><section class="panel booking-panel" id="agendar"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Confirmação imediata, sem precisar ligar</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section></div><aside class="side-stack">${queuePanel(data, false)}<section class="panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body"><div class="hours-row today"><span>Hoje</span><strong>08:00 — 19:00</strong></div><div class="hours-row"><span>Segunda a sexta</span><span>08:00 — 19:00</span></div><div class="hours-row"><span>Sábado</span><span>08:00 — 17:00</span></div><div class="hours-row"><span>Domingo</span><span>Fechado</span></div></div></section></aside></main>
   </div>`;
@@ -368,6 +374,7 @@ document.addEventListener("click", async (event) => {
 
 document.addEventListener("change", (event) => {
   if (event.target.matches("[data-booking-date]")) { state.booking.date = event.target.value || isoDate(1); state.booking.time = null; render(); }
+  if (event.target.matches("[data-professional]")) { state.booking.professional = event.target.value; state.booking.time = null; render(); }
 });
 
 document.addEventListener("submit", async (event) => {
@@ -407,7 +414,7 @@ document.addEventListener("submit", async (event) => {
     if (!establishment) return;
     const form = new FormData(event.target);
     const service = establishment.services.find((item) => item.id === state.booking.serviceId);
-    const appointment = { id: crypto.randomUUID(), date: state.booking.date, time: state.booking.time, client: form.get("name").trim(), phone: form.get("phone").trim(), service: service.name, professional: form.get("professional") || establishment.professionals[0], status: "confirmado" };
+    const appointment = { id: crypto.randomUUID(), date: state.booking.date, time: state.booking.time, client: form.get("name").trim(), phone: form.get("phone").trim(), service: service.name, professional: state.booking.professional, status: "confirmado" };
     const button = event.target.querySelector("button[type=submit]");
     button.disabled = true;
     button.textContent = "Confirmando…";
