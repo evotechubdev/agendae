@@ -18,7 +18,6 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  setDoc,
   updateDoc,
   where,
   writeBatch,
@@ -40,19 +39,7 @@ const db = getFirestore(firebaseApp);
 async function profileFor(user) {
   if (!user) return null;
   const profileRef = doc(db, "users", user.uid);
-  let profileSnapshot = await getDoc(profileRef);
-
-  // Inicialização controlada da conta demonstrativa da Barbearia do Renam.
-  if (!profileSnapshot.exists() && user.email?.toLowerCase() === "renam@agendae.com.br") {
-    await setDoc(profileRef, {
-      email: user.email,
-      name: user.displayName || "Renam Silva",
-      role: "admin",
-      establishmentSlug: "barbeariadorenam",
-      createdAt: serverTimestamp(),
-    });
-    profileSnapshot = await getDoc(profileRef);
-  }
+  const profileSnapshot = await getDoc(profileRef);
 
   if (!profileSnapshot.exists()) {
     const error = new Error("Usuário sem estabelecimento vinculado.");
