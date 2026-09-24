@@ -46,6 +46,22 @@ function initials(name) {
   return name.split(" ").slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
 
+function professionalDirectory(establishment) {
+  return (establishment.professionals || []).map((professional) => typeof professional === "string"
+    ? { name: professional, availableTimes: establishment.availableTimes || [] }
+    : professional
+  );
+}
+
+function scheduleFor(establishment, professionalName) {
+  const professional = professionalDirectory(establishment).find((item) => item.name === professionalName);
+  return professional?.availableTimes || [];
+}
+
+function usesEmployeeSchedules(establishment) {
+  return establishment.scheduleMode !== "establishment";
+}
+
 function href(path = "/") {
   return `${BASE}${path === "/" ? "/" : path}`;
 }
@@ -180,11 +196,15 @@ function progress(step) {
 function bookingContent(establishment) {
   const booking = state.booking;
   const service = establishment.services.find((item) => item.id === booking.serviceId);
-  const times = establishment.availableTimes || [];
+  const professionals = professionalDirectory(establishment);
+  const employeeMode = usesEmployeeSchedules(establishment);
+  const times = employeeMode
+    ? (booking.professional ? scheduleFor(establishment, booking.professional) : [])
+    : (establishment.availableTimes || []);
   const bookingData = getData(establishment);
   const busy = new Set(
     bookingData.slots
-      ? bookingData.slots.filter((item) => item.professional === booking.professional).map((item) => item.time)
+      ? bookingData.slots.filter((item) => !employeeMode || item.id?.endsWith("_establishment") || item.professional === booking.professional).map((item) => item.time)
       : bookingData.appointments
         .filter((item) => item.date === booking.date && item.professional === booking.professional)
         .map((item) => item.time)
@@ -194,8 +214,8 @@ function bookingContent(establishment) {
     <div class="date-choice"><button class="choice-btn ${booking.dateMode === "today" ? "selected" : ""}" data-date-mode="today"><span class="choice-radio"></span><span><strong>Agendar para hoje</strong><small>${prettyDate(isoDate())} · horários disponíveis</small></span></button><button class="choice-btn ${booking.dateMode === "other" ? "selected" : ""}" data-date-mode="other"><span class="choice-radio"></span><span><strong>Escolher outro dia</strong><small>Consulte os próximos dias</small></span></button></div>
     ${booking.dateMode === "other" ? `<div class="field"><label for="booking-date">Data do atendimento</label><input id="booking-date" type="date" min="${isoDate()}" value="${booking.date}" data-booking-date></div>` : ""}
     <div class="time-label">Selecione o serviço</div><div class="service-grid">${establishment.services.map((item) => `<button class="service-btn ${booking.serviceId === item.id ? "selected" : ""}" data-service="${item.id}"><span class="service-icon">${item.icon}</span><span><strong>${item.name}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></button>`).join("")}</div>
-    <div class="field" style="margin-top:20px"><label for="booking-professional">Quem vai atender você?</label><select id="booking-professional" data-professional><option value="">Selecione um profissional</option>${establishment.professionals.map((name) => `<option value="${name}" ${booking.professional === name ? "selected" : ""}>${name}</option>`).join("")}</select></div>
-    <div class="time-label">Horários livres em ${prettyDate(booking.date)}</div><div class="time-grid">${times.map((time) => `<button class="time-btn ${booking.time === time ? "selected" : ""}" data-time="${time}" ${busy.has(time) ? "disabled" : ""}>${time}</button>`).join("")}</div>
+    <div class="field" style="margin-top:20px"><label for="booking-professional">Quem vai atender você?</label><select id="booking-professional" data-professional><option value="">Selecione um profissional</option>${professionals.map((professional) => `<option value="${escapeHTML(professional.name)}" ${booking.professional === professional.name ? "selected" : ""}>${escapeHTML(professional.name)}${professional.role ? ` · ${escapeHTML(professional.role)}` : ""}</option>`).join("")}</select></div>
+    <div class="time-label">${employeeMode ? `Horários de ${booking.professional ? escapeHTML(booking.professional) : "cada profissional"}` : "Horários do estabelecimento"} em ${prettyDate(booking.date)}</div>${!employeeMode || booking.professional ? `<div class="time-grid">${times.map((time) => `<button class="time-btn ${booking.time === time ? "selected" : ""}" data-time="${time}" ${busy.has(time) ? "disabled" : ""}>${time}</button>`).join("") || `<div class="schedule-empty">${employeeMode ? "Este profissional não possui horários configurados para este dia." : "O estabelecimento não possui horários configurados para este dia."}</div>`}</div>` : '<div class="select-professional-note">Selecione um profissional para consultar a agenda dele.</div>'}
     <div class="booking-actions"><span></span><button class="btn btn-primary" data-booking-next ${service && booking.professional && booking.time ? "" : "disabled"}>Continuar →</button></div>`;
 
   if (booking.step === 2) return `${progress(2)}<h2 class="booking-title">Seus dados</h2><p class="booking-lead">Usaremos estas informações somente para confirmar o agendamento.</p>
@@ -231,13 +251,30 @@ function ensureQueueSubscription(establishment) {
   });
 }
 
-function availableTimesFor(establishment, data) {
+function professionalAvailability(establishment, data) {
   const slots = data.slots || [];
-  return (establishment.availableTimes || []).filter((time) =>
-    (establishment.professionals || []).some((professional) =>
-      !slots.some((slot) => slot.time === time && slot.professional === professional)
-    )
-  );
+  return professionalDirectory(establishment).map((professional) => ({
+    ...professional,
+    freeTimes: (professional.availableTimes || []).filter((time) =>
+      !slots.some((slot) => slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name))
+    ),
+  }));
+}
+
+function availableTimesFor(establishment, data) {
+  if (!usesEmployeeSchedules(establishment)) {
+    const busy = new Set((data.slots || []).map((slot) => slot.time));
+    return (establishment.availableTimes || []).filter((time) => !busy.has(time));
+  }
+  return [...new Set(professionalAvailability(establishment, data).flatMap((professional) => professional.freeTimes))].sort();
+}
+
+function staffSchedulesMarkup(establishment, data) {
+  if (!usesEmployeeSchedules(establishment)) {
+    const freeTimes = availableTimesFor(establishment, data);
+    return `<section class="staff-schedule"><div class="staff-schedule-head"><span class="client-avatar">EST</span><span><strong>Agenda do estabelecimento</strong><small>Grade compartilhada · ${freeTimes.length} livres</small></span></div><div class="staff-time-list">${freeTimes.length ? freeTimes.map((time) => `<span class="free-slot">${time}</span>`).join("") : '<span class="staff-full">Agenda preenchida</span>'}</div></section>`;
+  }
+  return professionalAvailability(establishment, data).map((professional) => `<section class="staff-schedule"><div class="staff-schedule-head"><span class="client-avatar">${initials(professional.name)}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")} · ${professional.freeTimes.length} livres</small></span></div><div class="staff-time-list">${professional.freeTimes.length ? professional.freeTimes.map((time) => `<span class="free-slot">${time}</span>`).join("") : '<span class="staff-full">Agenda preenchida</span>'}</div></section>`).join("");
 }
 
 function hoursMarkup(establishment) {
@@ -277,14 +314,17 @@ function renderAdmin(establishment) {
   const today = data.appointments.filter((item) => item.date === isoDate());
   const waiting = data.queue.filter((item) => item.status === "aguardando").length;
   const completed = today.filter((item) => item.status === "concluido").length;
-  const freeSlots = availableTimesFor(establishment, data);
+  const freeSlots = usesEmployeeSchedules(establishment)
+    ? professionalAvailability(establishment, data).flatMap((professional) => professional.freeTimes).sort()
+    : availableTimesFor(establishment, data);
   const currentUser = session();
   const firstName = currentUser?.name?.split(" ")[0] || "gestor";
   app.innerHTML = `<div class="admin-shell">
     <aside class="sidebar ${state.mobileMenu ? "mobile-open" : ""}"><a href="${href("/")}" data-link>${logo()}</a><div class="workspace"><span class="est-avatar">${escapeHTML(establishment.initials)}</span><span><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.category)}</small></span></div><div class="side-label">Gestão</div><nav class="side-nav"><button class="side-link active"><span class="side-icon">⌂</span>Visão geral</button><button class="side-link" data-coming><span class="side-icon">▣</span>Agenda</button><button class="side-link" data-coming><span class="side-icon">☷</span>Fila de senhas</button><button class="side-link" data-coming><span class="side-icon">♙</span>Clientes</button><button class="side-link" data-coming><span class="side-icon">⌁</span>Relatórios</button></nav><div class="side-spacer"></div><a class="side-link" href="${href(`/${establishment.slug}?public=1`)}" data-link><span class="side-icon">↗</span>Ver página pública</a><button class="side-link" data-logout><span class="side-icon">←</span>Sair</button><div class="sidebar-user"><span class="user-avatar">${initials(currentUser?.name || "Usuário")}</span><span><strong>${escapeHTML(currentUser?.name || "Usuário")}</strong><small>${currentUser?.role === "admin" ? "Administrador" : "Equipe"}</small></span></div></aside>
     <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}?public=1#agendar`)}" data-link>+ Novo agendamento</a></div></header>
       <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
-      <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p>${today.length} horários confirmados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(data)}<section class="panel"><div class="panel-head"><div><h2>Horários livres</h2><p>Disponibilidade de hoje</p></div></div><div class="free-slots">${freeSlots.map((time) => `<span class="free-slot">${time}</span>`).join("")}</div></section></div></div>
+      <section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Essa configuração vale para todos os novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="employee"><span>♙</span><strong>Agenda por funcionário</strong><small>Cada profissional tem seus próprios horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="establishment"><span>▣</span><strong>Agenda do estabelecimento</strong><small>Uma única grade compartilhada pela equipe.</small></button></div></section>
+      <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p>${today.length} horários confirmados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(data)}<section class="panel staff-availability-panel"><div class="panel-head"><div><h2>${usesEmployeeSchedules(establishment) ? "Agenda por profissional" : "Agenda do estabelecimento"}</h2><p>${usesEmployeeSchedules(establishment) ? "Disponibilidade individual de hoje" : "Disponibilidade compartilhada de hoje"}</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></div>
     </main></div>`;
   const queueSection = app.querySelector(".admin-grid .queue-panel");
   if (queueSection) queueSection.insertAdjacentHTML("beforeend", `<div class="queue-admin-actions"><button class="btn btn-soft btn-sm" data-add-ticket data-priority="normal">+ Senha normal</button><button class="btn btn-priority btn-sm" data-add-ticket data-priority="preferencial">+ Preferencial</button><button class="btn btn-primary btn-sm" data-next-ticket>Chamar próxima</button></div>`);
@@ -375,6 +415,25 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-mobile-admin]")) { state.mobileMenu = !state.mobileMenu; render(); return; }
   if (event.target.closest("[data-coming]")) { toast("Módulo preparado para a próxima etapa do sistema.", "ⓘ"); return; }
   if (event.target.closest("[data-notification]")) { toast("Nenhuma nova notificação.", "○"); return; }
+  const scheduleModeButton = event.target.closest("[data-schedule-mode]");
+  if (scheduleModeButton) {
+    const establishment = activeEstablishment();
+    const scheduleMode = scheduleModeButton.dataset.scheduleMode;
+    if (!establishment || establishment.scheduleMode === scheduleMode) return;
+    scheduleModeButton.disabled = true;
+    try {
+      await firebaseApi.updateScheduleMode(establishment.slug, scheduleMode);
+      establishment.scheduleMode = scheduleMode;
+      state.booking.time = null;
+      invalidatePublicCache(establishment.slug);
+      render();
+      toast(scheduleMode === "employee" ? "Agenda por funcionário ativada." : "Agenda do estabelecimento ativada.");
+    } catch (error) {
+      scheduleModeButton.disabled = false;
+      toast(firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Não foi possível salvar a configuração.", "!");
+    }
+    return;
+  }
   if (event.target.closest("[data-open-queue-display]")) {
     const establishment = activeEstablishment();
     if (establishment) navigate(`/${establishment.slug}?display=queue`);
@@ -454,7 +513,12 @@ document.addEventListener("submit", async (event) => {
     button.disabled = true;
     button.textContent = "Confirmando…";
     try {
-      if (firebaseApi) await firebaseApi.createAppointment(establishment.slug, appointment);
+      if (firebaseApi) await firebaseApi.createAppointment(
+        establishment.slug,
+        appointment,
+        establishment.scheduleMode || "employee",
+        professionalDirectory(establishment).map((professional) => professional.name),
+      );
       else throw new Error("Firebase indisponível");
       cloudCache.delete(publicCacheKey(establishment));
       state.booking.confirmation = appointment;
