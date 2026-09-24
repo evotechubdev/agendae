@@ -208,6 +208,20 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .hours-row.today { color: var(--blue); font-weight: 800; }
 .public-agenda-layout { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(300px,.65fr); gap: 20px; align-items: start; }
 .public-schedule-panel { overflow: hidden; }
+.public-services { padding: 20px; background: linear-gradient(180deg,#f8fbff,#fff); }
+.public-services-head { margin-bottom: 14px; display: flex; align-items: center; gap: 11px; }
+.public-services-head>span,.schedule-step-number { width: 30px; height: 30px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 9px; color: #fff; background: var(--blue); font: 800 11px "Manrope",sans-serif; }
+.public-services-head strong,.public-services-head small { display: block; }
+.public-services-head strong { color: var(--navy); font: 800 15px "Manrope",sans-serif; }
+.public-services-head small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.service-carousel-controls { margin-left: auto; display: flex; gap: 6px; }
+.service-carousel-controls button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 9px; color: var(--blue); background: #fff; font-size: 15px; }
+.service-carousel-controls button:hover { border-color: #9db7e1; background: var(--blue-soft); }
+.service-carousel { display: grid; grid-auto-flow: column; grid-auto-columns: calc(50% - 5px); gap: 10px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-behavior: smooth; scroll-snap-type: inline mandatory; scrollbar-width: thin; scrollbar-color: #c5d2e5 transparent; }
+.service-carousel .service-btn { width: 100%; scroll-snap-align: start; }
+.public-schedule-head>div { display: flex; align-items: center; gap: 11px; }
+.public-schedule-head>div>div { display: block; }
+.public-schedule-head .schedule-step-number { color: var(--navy); background: var(--yellow); }
 .public-schedule-body { padding: 20px; }
 .schedule-date-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
 .quick-dates { display: flex; gap: 8px; }
@@ -251,6 +265,12 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .selected-slot-card strong { margin: 3px 0; color: var(--navy); font-size: 13px; }
 .selected-slot-card span { color: var(--muted); font-size: 10px; }
 .selected-slot-card button { border: 0; color: var(--blue); background: transparent; font-size: 10px; font-weight: 800; }
+.booking-selection-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.booking-selection-summary>div { padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); }
+.booking-selection-summary span,.booking-selection-summary strong,.booking-selection-summary small { display: block; }
+.booking-selection-summary span { color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; }
+.booking-selection-summary strong { margin: 7px 0 4px; color: var(--navy); font-size: 13px; }
+.booking-selection-summary small { color: var(--muted); font-size: 10px; }
 .public-lookup-panel form>label { display: block; margin-bottom: 9px; color: #35435a; font-size: 12px; font-weight: 800; }
 .public-lookup-field { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
 .public-lookup-field input { min-width: 0; height: 48px; padding: 0 14px; border: 1px solid #d7dfeb; border-radius: 11px; outline: 0; color: var(--ink); background: #fff; }
@@ -417,7 +437,10 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .booking-modal-form .booking-actions { flex-direction: column-reverse; }
   .booking-modal-form .btn { width: 100%; }
   .public-agenda-layout { grid-template-columns: 1fr; }
-  .public-schedule-body,.public-lookup-card { padding: 16px; }
+  .public-services,.public-schedule-body,.public-lookup-card { padding: 16px; }
+  .service-carousel { grid-auto-columns: 88%; }
+  .public-services-head>div:nth-child(2) { min-width: 0; }
+  .public-services-head small { max-width: 190px; }
   .schedule-date-toolbar { align-items: stretch; flex-direction: column; }
   .quick-dates { display: grid; grid-template-columns: 1fr 1fr; }
   .quick-dates button { min-width: 0; }
@@ -425,6 +448,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .public-slot-grid { grid-template-columns: repeat(4,1fr); }
   .selected-slot-card { grid-template-columns: 38px 1fr; }
   .selected-slot-card button { grid-column: 2; justify-self: start; padding: 0; }
+  .booking-selection-summary { grid-template-columns: 1fr; }
   .public-lookup-field { grid-template-columns: 1fr; }
   .public-lookup-field .btn { width: 100%; }
   .admin-main { padding: 0 14px 35px; }
