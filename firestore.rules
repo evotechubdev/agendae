@@ -60,6 +60,32 @@ service cloud.firestore {
         allow read, update, delete: if manages(slug);
       }
 
+      match /appointmentLookups/{lookupKey} {
+        function validPublicAppointment(item) {
+          let appointment = getAfter(/databases/$(database)/documents/establishments/$(slug)/appointments/$(item.appointmentId)).data;
+          return item.keys().hasOnly(['appointmentId', 'date', 'time', 'service', 'professional', 'status'])
+            && item.date == appointment.date
+            && item.time == appointment.time
+            && item['service'] == appointment['service']
+            && item.professional == appointment.professional
+            && item.status == appointment.status;
+        }
+
+        allow get: if true;
+        allow list: if false;
+        allow create: if request.resource.data.keys().hasOnly(['appointments', 'updatedAt'])
+          && request.resource.data.appointments is list
+          && request.resource.data.appointments.size() == 1
+          && validPublicAppointment(request.resource.data.appointments[0]);
+        allow update: if manages(slug)
+          || (request.resource.data.keys().hasOnly(['appointments', 'updatedAt'])
+            && request.resource.data.appointments is list
+            && request.resource.data.appointments.size() == resource.data.appointments.size() + 1
+            && request.resource.data.appointments.hasAll(resource.data.appointments)
+            && validPublicAppointment(request.resource.data.appointments[resource.data.appointments.size()]));
+        allow delete: if manages(slug);
+      }
+
       match /queue/{queueId} {
         allow read, write: if manages(slug);
       }

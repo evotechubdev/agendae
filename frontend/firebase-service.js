@@ -37,6 +37,16 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
+function normalizedAppointmentName(value) {
+  return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+}
+
+async function appointmentLookupKey(slug, name) {
+  const source = new TextEncoder().encode(`${slug}:${normalizedAppointmentName(name)}`);
+  const digest = await crypto.subtle.digest("SHA-256", source);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function profileFor(user) {
   if (!user) return null;
   const profileRef = doc(db, "users", user.uid);
@@ -150,6 +160,13 @@ export async function loadPublicData(slug, date) {
   };
 }
 
+export async function findPublicAppointments(slug, fullName) {
+  const lookupKey = await appointmentLookupKey(slug, fullName);
+  const lookupSnapshot = await getDoc(doc(db, "establishments", slug, "appointmentLookups", lookupKey));
+  if (!lookupSnapshot.exists()) return [];
+  return (lookupSnapshot.data().appointments || []).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+}
+
 export function observePublicState(slug, callback) {
   const stateRef = doc(db, "establishments", slug, "public", "state");
   return onSnapshot(stateRef, (snapshot) => {
@@ -189,6 +206,8 @@ export async function loadAdminData(slug, date) {
 
 export async function createAppointment(slug, appointment, scheduleMode = "employee", professionalNames = []) {
   const appointmentRef = doc(collection(db, "establishments", slug, "appointments"));
+  const lookupKey = await appointmentLookupKey(slug, appointment.client);
+  const lookupRef = doc(db, "establishments", slug, "appointmentLookups", lookupKey);
   const keyFor = (name) => name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
   const professionalKey = keyFor(appointment.professional);
   const scheduleKey = scheduleMode === "establishment" ? "establishment" : professionalKey;
@@ -201,7 +220,10 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
     : [slotRef, sharedSlotRef];
 
   await runTransaction(db, async (transaction) => {
-    const existingSlots = await Promise.all(refsToCheck.map((reference) => transaction.get(reference)));
+    const [existingSlots, lookupSnapshot] = await Promise.all([
+      Promise.all(refsToCheck.map((reference) => transaction.get(reference))),
+      transaction.get(lookupRef),
+    ]);
     if (existingSlots.some((snapshot) => snapshot.exists())) {
       const error = new Error("Este horário acabou de ser reservado. Escolha outro.");
       error.code = "agendae/slot-unavailable";
@@ -218,6 +240,18 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
       ...appointment,
       status: "confirmado",
       createdAt: serverTimestamp(),
+    });
+    const publicAppointment = {
+      appointmentId: appointmentRef.id,
+      date: appointment.date,
+      time: appointment.time,
+      service: appointment.service,
+      professional: appointment.professional,
+      status: "confirmado",
+    };
+    transaction.set(lookupRef, {
+      appointments: [...(lookupSnapshot.exists() ? lookupSnapshot.data().appointments || [] : []), publicAppointment],
+      updatedAt: serverTimestamp(),
     });
   });
   return appointmentRef.id;
