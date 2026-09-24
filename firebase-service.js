@@ -7,6 +7,7 @@ import {
   setPersistence,
   signInWithEmailAndPassword,
   signOut,
+  updateEmail,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
   collection,
@@ -68,11 +69,40 @@ export function observeSession(callback) {
   });
 }
 
-export async function login(email, password, remember = true) {
+export async function login(email, password, remember = true, legacyEmail = "", expectedSlug = "") {
   await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence).catch(() => {});
-  const credential = await signInWithEmailAndPassword(auth, email, password);
+  let credential;
+  let migrateLegacyEmail = false;
+
   try {
-    return await profileFor(credential.user);
+    credential = await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    const canTryLegacyAccount = legacyEmail
+      && legacyEmail !== email
+      && ["auth/invalid-credential", "auth/user-not-found", "auth/wrong-password"].includes(error.code);
+    if (!canTryLegacyAccount) throw error;
+    credential = await signInWithEmailAndPassword(auth, legacyEmail, password);
+    migrateLegacyEmail = true;
+  }
+
+  try {
+    const profile = await profileFor(credential.user);
+    if (expectedSlug && profile.slug !== expectedSlug) {
+      const mismatch = new Error("Funcionário vinculado a outro estabelecimento.");
+      mismatch.code = "agendae/establishment-mismatch";
+      throw mismatch;
+    }
+
+    if (migrateLegacyEmail) {
+      await updateEmail(credential.user, email);
+      await updateDoc(doc(db, "users", credential.user.uid), {
+        email,
+        updatedAt: serverTimestamp(),
+      });
+      profile.email = email;
+    }
+
+    return profile;
   } catch (error) {
     await signOut(auth);
     throw error;
@@ -250,6 +280,8 @@ export function firebaseErrorMessage(error) {
     "auth/invalid-credential": "Login ou senha inválidos.",
     "auth/user-not-found": "Login não encontrado.",
     "auth/wrong-password": "Login ou senha inválidos.",
+    "auth/email-already-in-use": "Este login já está em uso neste estabelecimento.",
+    "auth/requires-recent-login": "Entre novamente para concluir a atualização do acesso.",
     "auth/too-many-requests": "Muitas tentativas. Aguarde alguns minutos.",
     "auth/operation-not-allowed": "O acesso por login e senha ainda não está disponível.",
     "auth/network-request-failed": "Não foi possível conectar ao serviço de acesso.",
