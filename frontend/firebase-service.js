@@ -18,6 +18,7 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
   writeBatch,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
@@ -96,6 +97,14 @@ export async function loadEstablishments() {
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
 }
 
+export async function updateScheduleMode(slug, scheduleMode) {
+  if (!['employee', 'establishment'].includes(scheduleMode)) throw new Error("Modelo de agenda inválido.");
+  await updateDoc(doc(db, "establishments", slug), {
+    scheduleMode,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function loadPublicData(slug, date) {
   const stateRef = doc(db, "establishments", slug, "public", "state");
   const slotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", date));
@@ -110,7 +119,7 @@ export async function loadPublicData(slug, date) {
     ? publicState.waiting
     : (Array.isArray(publicState.waitingTickets) ? publicState.waitingTickets.map((ticket) => ({ ticket })) : []);
   return {
-    slots: slotsSnapshot.docs.map((item) => item.data()),
+    slots: slotsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
     todayAppointments: todaySlotsSnapshot.size,
     queue: [
       ...(current ? [{ ...current, status: "atendendo" }] : []),
@@ -156,15 +165,22 @@ export async function loadAdminData(slug, date) {
   };
 }
 
-export async function createAppointment(slug, appointment) {
+export async function createAppointment(slug, appointment, scheduleMode = "employee", professionalNames = []) {
   const appointmentRef = doc(collection(db, "establishments", slug, "appointments"));
-  const professionalKey = appointment.professional.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
-  const slotId = `${appointment.date}_${appointment.time.replace(":", "")}_${professionalKey}`;
+  const keyFor = (name) => name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
+  const professionalKey = keyFor(appointment.professional);
+  const scheduleKey = scheduleMode === "establishment" ? "establishment" : professionalKey;
+  const slotBase = `${appointment.date}_${appointment.time.replace(":", "")}`;
+  const slotId = `${slotBase}_${scheduleKey}`;
   const slotRef = doc(db, "establishments", slug, "slots", slotId);
+  const sharedSlotRef = doc(db, "establishments", slug, "slots", `${slotBase}_establishment`);
+  const refsToCheck = scheduleMode === "establishment"
+    ? [sharedSlotRef, ...professionalNames.map((name) => doc(db, "establishments", slug, "slots", `${slotBase}_${keyFor(name)}`))]
+    : [slotRef, sharedSlotRef];
 
   await runTransaction(db, async (transaction) => {
-    const existingSlot = await transaction.get(slotRef);
-    if (existingSlot.exists()) {
+    const existingSlots = await Promise.all(refsToCheck.map((reference) => transaction.get(reference)));
+    if (existingSlots.some((snapshot) => snapshot.exists())) {
       const error = new Error("Este horário acabou de ser reservado. Escolha outro.");
       error.code = "agendae/slot-unavailable";
       throw error;
