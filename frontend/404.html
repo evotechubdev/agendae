@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agendae</title>
+    <script>
+      (function (location) {
+        var projectSegments = 1;
+        var base = location.pathname.split("/").slice(0, 1 + projectSegments).join("/");
+        var route = location.pathname.split("/").slice(1 + projectSegments).join("/");
+        var query = location.search ? "&" + location.search.slice(1).replace(/&/g, "~and~") : "";
+        location.replace(location.protocol + "//" + location.host + base + "/?/" + route + query + location.hash);
+      })(window.location);
+    </script>
+  </head>
+  <body></body>
+</html>

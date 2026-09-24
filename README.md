@@ -6,15 +6,15 @@ Plataforma especializada em agendamentos e gestão de filas para estabelecimento
 
 O frontend está em `frontend/` e não precisa de instalação ou compilação. Ele inclui:
 
-- site institucional responsivo;
-- fluxo de agendamento em três etapas;
-- painel do estabelecimento;
-- agenda diária;
-- fila de senhas com chamada do próximo cliente;
+- página principal para localizar um estabelecimento;
+- login e painel vinculado ao estabelecimento;
+- página pública própria, como `/barbeariadorenam`;
+- agendamento para hoje ou outra data;
+- painel com atendimentos, horários livres e senhas chamadas;
 - dois estabelecimentos de demonstração com dados separados;
 - apresentação da futura API de integração.
 
-Nesta fase, os dados ficam no `localStorage` do navegador. As chaves seguem o formato `agendae:v1:tenant:{establishmentId}:data`, evitando mistura acidental entre os ambientes da demonstração. O isolamento seguro entre empresas, autenticação, permissões e sincronização entre dispositivos exigem o backend.
+Nesta fase, os dados ficam no `localStorage` do navegador. As chaves seguem o formato `agendae:v2:establishment:{slug}`, evitando mistura acidental entre os ambientes da demonstração. O isolamento seguro entre empresas, autenticação, permissões e sincronização entre dispositivos exigem o backend.
 
 ## Executar localmente
 
