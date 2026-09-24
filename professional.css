@@ -91,7 +91,18 @@ img { display: block; max-width: 100%; }
 .field input:focus,.field select:focus { border-color: var(--blue-2); box-shadow: 0 0 0 3px var(--blue-soft); }
 .password-line { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .password-line a { color: var(--blue); font-size: 11px; font-weight: 700; }
-.demo-access { margin-top: 19px; padding: 13px 15px; border: 1px solid #efda91; border-radius: 11px; color: #705711; background: var(--yellow-soft); font-size: 11px; line-height: 1.5; }
+.password-input { position: relative; }
+.password-input input { padding-right: 48px; }
+.password-toggle { position: absolute; top: 50%; right: 8px; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; transform: translateY(-50%); border: 0; border-radius: 9px; color: #738099; background: transparent; }
+.password-toggle:hover,.password-toggle.visible { color: var(--blue); background: var(--blue-soft); }
+.password-toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.remember-option { width: fit-content; margin: 2px 0 20px; display: flex; align-items: center; gap: 9px; color: #4e5b70; font-size: 11px; font-weight: 700; cursor: pointer; }
+.remember-option input { width: 16px; height: 16px; accent-color: var(--blue); }
+.employee-access-note { margin-top: 20px; padding: 13px 15px; display: flex; align-items: center; gap: 11px; border: 1px solid #d9e3f2; border-radius: 11px; color: #526078; background: #f7faff; }
+.employee-access-note>span { width: 30px; height: 30px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 9px; color: var(--blue); background: var(--blue-soft); }
+.employee-access-note p { margin: 0; font-size: 10px; line-height: 1.5; }
+.employee-access-note strong { color: var(--navy); font-size: 11px; }
+#establishment-login:disabled { opacity: 1; color: var(--navy); background: #f4f7fb; cursor: not-allowed; }
 
 /* Portal do estabelecimento */
 .est-page { min-height: 100vh; background: var(--canvas); }
