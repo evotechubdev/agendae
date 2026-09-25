@@ -16,6 +16,12 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.establishmentSlug == slug;
     }
 
+    function validCheckInToken(slug, token) {
+      return token is string
+        && exists(/databases/$(database)/documents/establishments/$(slug)/checkIn/config)
+        && get(/databases/$(database)/documents/establishments/$(slug)/checkIn/config).data.token == token;
+    }
+
     match /users/{userId} {
       allow read: if ownsProfile(userId);
       allow create: if false;
@@ -49,15 +55,27 @@ service cloud.firestore {
         allow create: if manages(slug)
           || (request.resource.data.keys().hasOnly([
             'id', 'date', 'time', 'client', 'phone', 'service',
-            'professional', 'status', 'createdAt'
+            'professional', 'status', 'checkInCode', 'createdAt'
           ])
           && request.resource.data.date is string
           && request.resource.data.time is string
           && request.resource.data.client is string
           && request.resource.data.phone is string
           && request.resource.data['service'] is string
+          && request.resource.data.checkInCode is string
+          && request.resource.data.checkInCode.size() == 6
           && request.resource.data.status == 'confirmado');
-        allow read, update, delete: if manages(slug);
+        allow read, delete: if manages(slug);
+        allow update: if manages(slug)
+          || (resource.data.status == 'confirmado'
+            && request.resource.data.status == 'presente'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'checkedInAt', 'checkInMethod', 'checkInToken'
+            ])
+            && request.resource.data.checkedInAt == request.time
+            && request.resource.data.checkInMethod == 'qr'
+            && validCheckInToken(slug, request.resource.data.checkInToken)
+            && getAfter(/databases/$(database)/documents/establishments/$(slug)/appointmentPresence/$(appointmentId)).data.status == 'presente');
       }
 
       match /appointmentLookups/{lookupKey} {
@@ -84,6 +102,66 @@ service cloud.firestore {
             && request.resource.data.appointments.hasAll(resource.data.appointments)
             && validPublicAppointment(request.resource.data.appointments[resource.data.appointments.size()]));
         allow delete: if manages(slug);
+      }
+
+      match /appointmentCodeLookups/{lookupKey} {
+        function validCodeAppointment(item) {
+          let appointment = getAfter(/databases/$(database)/documents/establishments/$(slug)/appointments/$(item.appointmentId)).data;
+          return item.keys().hasOnly(['appointmentId', 'date', 'time', 'service', 'professional', 'status'])
+            && item.date == appointment.date
+            && item.time == appointment.time
+            && item['service'] == appointment['service']
+            && item.professional == appointment.professional
+            && item.status == appointment.status;
+        }
+
+        allow get: if true;
+        allow list: if false;
+        allow create: if request.resource.data.keys().hasOnly(['appointments', 'updatedAt'])
+          && request.resource.data.appointments is list
+          && request.resource.data.appointments.size() == 1
+          && validCodeAppointment(request.resource.data.appointments[0]);
+        allow update, delete: if manages(slug);
+      }
+
+      match /appointmentPresence/{appointmentId} {
+        function matchingAppointment() {
+          return getAfter(/databases/$(database)/documents/establishments/$(slug)/appointments/$(appointmentId)).data;
+        }
+
+        allow get: if true;
+        allow list: if false;
+        allow create: if manages(slug)
+          || (request.resource.data.keys().hasOnly(['appointmentId', 'date', 'status', 'createdAt'])
+            && request.resource.data.appointmentId == appointmentId
+            && request.resource.data.date == matchingAppointment().date
+            && request.resource.data.status == 'confirmado'
+            && matchingAppointment().status == 'confirmado')
+          || (request.resource.data.keys().hasOnly([
+              'appointmentId', 'date', 'status', 'checkedInAt', 'checkInMethod'
+            ])
+            && request.resource.data.appointmentId == appointmentId
+            && request.resource.data.date == matchingAppointment().date
+            && request.resource.data.status == 'presente'
+            && request.resource.data.checkedInAt == request.time
+            && request.resource.data.checkInMethod == 'qr'
+            && validCheckInToken(slug, matchingAppointment().checkInToken)
+            && matchingAppointment().status == 'presente');
+        allow update: if manages(slug)
+          || (resource.data.status == 'confirmado'
+            && request.resource.data.status == 'presente'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'checkedInAt', 'checkInMethod'
+            ])
+            && request.resource.data.checkedInAt == request.time
+            && request.resource.data.checkInMethod == 'qr'
+            && validCheckInToken(slug, matchingAppointment().checkInToken)
+            && matchingAppointment().status == 'presente');
+        allow delete: if manages(slug);
+      }
+
+      match /checkIn/{documentId} {
+        allow read, write: if manages(slug);
       }
 
       match /queue/{queueId} {

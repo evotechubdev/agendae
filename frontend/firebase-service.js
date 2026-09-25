@@ -47,6 +47,13 @@ async function appointmentLookupKey(slug, name) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+async function appointmentCodeLookupKey(slug, code) {
+  const normalizedCode = String(code || "").trim().toUpperCase().replace(/\s+/g, "");
+  const source = new TextEncoder().encode(`${slug}:code:${normalizedCode}`);
+  const digest = await crypto.subtle.digest("SHA-256", source);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function profileFor(user) {
   if (!user) return null;
   const profileRef = doc(db, "users", user.uid);
@@ -160,11 +167,22 @@ export async function loadPublicData(slug, date) {
   };
 }
 
-export async function findPublicAppointments(slug, fullName) {
-  const lookupKey = await appointmentLookupKey(slug, fullName);
-  const lookupSnapshot = await getDoc(doc(db, "establishments", slug, "appointmentLookups", lookupKey));
+export async function findPublicAppointments(slug, credential, method = "name") {
+  const lookupKey = method === "code"
+    ? await appointmentCodeLookupKey(slug, credential)
+    : await appointmentLookupKey(slug, credential);
+  const lookupCollection = method === "code" ? "appointmentCodeLookups" : "appointmentLookups";
+  const lookupSnapshot = await getDoc(doc(db, "establishments", slug, lookupCollection, lookupKey));
   if (!lookupSnapshot.exists()) return [];
-  return (lookupSnapshot.data().appointments || []).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  const appointments = lookupSnapshot.data().appointments || [];
+  const presenceSnapshots = await Promise.all(appointments.map((item) => getDoc(doc(db, "establishments", slug, "appointmentPresence", item.appointmentId))));
+  return appointments
+    .map((item, index) => ({
+      ...item,
+      presenceExists: presenceSnapshots[index].exists(),
+      status: presenceSnapshots[index].exists() ? presenceSnapshots[index].data().status : item.status,
+    }))
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
 }
 
 export function observePublicState(slug, callback) {
@@ -193,7 +211,7 @@ export async function loadAdminData(slug, date) {
     getDocs(slotsQuery),
   ]);
   return {
-    appointments: appointmentsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
+    appointments: appointmentsSnapshot.docs.map((item) => ({ ...item.data(), id: item.id })),
     queue: queueSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => {
       if (a.status === "atendendo") return -1;
       if (b.status === "atendendo") return 1;
@@ -207,7 +225,10 @@ export async function loadAdminData(slug, date) {
 export async function createAppointment(slug, appointment, scheduleMode = "employee", professionalNames = []) {
   const appointmentRef = doc(collection(db, "establishments", slug, "appointments"));
   const lookupKey = await appointmentLookupKey(slug, appointment.client);
+  const codeLookupKey = await appointmentCodeLookupKey(slug, appointment.checkInCode);
   const lookupRef = doc(db, "establishments", slug, "appointmentLookups", lookupKey);
+  const codeLookupRef = doc(db, "establishments", slug, "appointmentCodeLookups", codeLookupKey);
+  const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentRef.id);
   const keyFor = (name) => name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
   const professionalKey = keyFor(appointment.professional);
   const scheduleKey = scheduleMode === "establishment" ? "establishment" : professionalKey;
@@ -220,13 +241,19 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
     : [slotRef, sharedSlotRef];
 
   await runTransaction(db, async (transaction) => {
-    const [existingSlots, lookupSnapshot] = await Promise.all([
+    const [existingSlots, lookupSnapshot, codeLookupSnapshot] = await Promise.all([
       Promise.all(refsToCheck.map((reference) => transaction.get(reference))),
       transaction.get(lookupRef),
+      transaction.get(codeLookupRef),
     ]);
     if (existingSlots.some((snapshot) => snapshot.exists())) {
       const error = new Error("Este horário acabou de ser reservado. Escolha outro.");
       error.code = "agendae/slot-unavailable";
+      throw error;
+    }
+    if (codeLookupSnapshot.exists()) {
+      const error = new Error("Não foi possível gerar uma senha única. Tente confirmar novamente.");
+      error.code = "agendae/checkin-code-collision";
       throw error;
     }
     transaction.set(slotRef, {
@@ -253,8 +280,67 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
       appointments: [...(lookupSnapshot.exists() ? lookupSnapshot.data().appointments || [] : []), publicAppointment],
       updatedAt: serverTimestamp(),
     });
+    transaction.set(codeLookupRef, {
+      appointments: [publicAppointment],
+      updatedAt: serverTimestamp(),
+    });
+    transaction.set(presenceRef, {
+      appointmentId: appointmentRef.id,
+      date: appointment.date,
+      status: "confirmado",
+      createdAt: serverTimestamp(),
+    });
   });
   return appointmentRef.id;
+}
+
+export async function getOrCreateCheckInConfig(slug) {
+  const configRef = doc(db, "establishments", slug, "checkIn", "config");
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(configRef);
+    if (snapshot.exists() && snapshot.data().token) return snapshot.data();
+    const token = crypto.randomUUID().replace(/-/g, "");
+    transaction.set(configRef, { token, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    return { token };
+  });
+}
+
+export async function confirmPresenceWithQr(slug, appointmentId, checkInToken, date, presenceExists = true) {
+  const appointmentRef = doc(db, "establishments", slug, "appointments", appointmentId);
+  const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentId);
+  const batch = writeBatch(db);
+  batch.update(appointmentRef, {
+    status: "presente",
+    checkedInAt: serverTimestamp(),
+    checkInMethod: "qr",
+    checkInToken,
+  });
+  const presenceData = {
+    status: "presente",
+    checkedInAt: serverTimestamp(),
+    checkInMethod: "qr",
+  };
+  if (presenceExists) batch.update(presenceRef, presenceData);
+  else batch.set(presenceRef, { appointmentId, date, ...presenceData });
+  await batch.commit();
+}
+
+export async function confirmPresenceManually(slug, appointmentId) {
+  const appointmentRef = doc(db, "establishments", slug, "appointments", appointmentId);
+  const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentId);
+  const batch = writeBatch(db);
+  batch.update(appointmentRef, {
+    status: "presente",
+    checkedInAt: serverTimestamp(),
+    checkInMethod: "employee",
+  });
+  batch.set(presenceRef, {
+    appointmentId,
+    status: "presente",
+    checkedInAt: serverTimestamp(),
+    checkInMethod: "employee",
+  }, { merge: true });
+  await batch.commit();
 }
 
 export async function addQueueTicket(slug, ticket, name, priority = "normal", servicePoint = "Atendimento") {
@@ -322,6 +408,9 @@ export function firebaseErrorMessage(error) {
     "agendae/profile-not-found": "Este usuário ainda não está vinculado a um estabelecimento.",
     "agendae/establishment-mismatch": "Este funcionário não pertence ao estabelecimento selecionado.",
     "agendae/slot-unavailable": error?.message,
+    "agendae/checkin-code-collision": error?.message,
+    "not-found": "Este agendamento não está disponível para confirmação por QR. Peça ajuda à equipe.",
+    "failed-precondition": "Esta presença já foi confirmada ou o agendamento ainda não está disponível.",
     "permission-denied": "Seu usuário não possui permissão para esta operação.",
   };
   return messages[error?.code] || error?.message || "Não foi possível concluir a operação.";

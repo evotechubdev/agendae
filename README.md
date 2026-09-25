@@ -10,6 +10,10 @@ O frontend está em `frontend/` e não precisa de instalação ou compilação. 
 - login e painel vinculado ao estabelecimento;
 - página pública própria, como `/barbeariadorenam`;
 - agendamento para hoje ou outra data;
+- confirmação de presença pelo cliente com nome ou senha e leitura do QR code do estabelecimento;
+- confirmação manual da chegada pela equipe para clientes sem celular ou internet;
+- bloqueio automático dos horários de hoje que já passaram;
+- navegação lateral entre as agendas dos profissionais, com setas e avanço automático a cada cinco segundos;
 - painel com atendimentos, horários livres e senhas chamadas;
 - dois estabelecimentos de demonstração com dados separados;
 - apresentação da futura API de integração.
@@ -47,6 +51,12 @@ Antes do primeiro acesso:
 5. Publique as regras com `npx firebase-tools deploy --only firestore --project agendae-prod` usando uma conta com acesso ao projeto.
 
 Os dados ficam organizados em `establishments/{slug}`. Agendamentos privados e filas só podem ser lidos por usuários cujo documento `users/{uid}` esteja vinculado ao mesmo `establishmentSlug`. Horários ocupados e o estado público da fila não expõem dados pessoais.
+
+### Confirmação de presença
+
+Ao criar um agendamento, o cliente recebe uma senha de seis caracteres. Na página pública ele pode localizar o horário pelo nome completo ou por essa senha e, ao chegar, ler o QR code exibido no balcão. O painel da equipe gera o QR exclusivo do estabelecimento e também permite confirmar a chegada manualmente pela lista de atendimentos.
+
+As bibliotecas de QR ficam versionadas em `frontend/vendor/`, portanto a geração e a leitura não dependem de serviços externos de imagens. Para usar a câmera, o site precisa estar em HTTPS (ou em `localhost`) e o navegador deve receber permissão de acesso.
 
 ## Próxima etapa recomendada
 
