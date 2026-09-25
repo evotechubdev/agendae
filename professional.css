@@ -802,6 +802,18 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .public-professional-schedule header .schedule-booking-button { grid-column: 1/-1; max-width: none; }
 }
 .public-agenda-side { display: grid; grid-template-rows: 1fr; gap: 16px; }
+@media (min-width: 900px) and (min-height: 650px) {
+  .est-page:has(.public-direct-content) { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .public-direct-content { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 12px; }
+  .public-direct-content .booking-zone, .public-direct-content .public-agenda-layout { flex: 1; min-height: 0; }
+  .public-direct-content .public-agenda-layout { height: 100%; }
+  .public-direct-content .public-schedule-panel, .public-direct-content .public-services-panel { min-height: 0; }
+  .public-schedule-body .public-professional-schedule { padding: 12px; }
+  .public-schedule-body .public-professional-schedule header { margin-bottom: 9px; }
+  .public-schedule-body .public-slot-grid { grid-template-columns: repeat(6,minmax(0,1fr)); gap: 6px; }
+  .public-schedule-body .schedule-slot { min-height: clamp(38px,5.2dvh,50px); }
+  .public-schedule-body .schedule-command-bar { margin-bottom: 10px; }
+}
 .public-services-panel { overflow: hidden; display: flex; flex-direction: column; }
 .public-services-panel .compact-panel-head { min-height: 72px; padding: 10px 14px; }
 .compact-business-hours { margin-top: 5px; display: grid; gap: 2px; color: var(--muted); font-size: 9px; line-height: 1.35; }

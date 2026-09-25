@@ -426,6 +426,28 @@ function publicSchedule(establishment) {
   return `<div class="schedule-command-bar"><div class="schedule-command-title"><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div><div class="schedule-legend"><div><span><i class="available"></i>Livre</span><span><i class="in-service"></i>Em atendimento</span><span><i class="past"></i>Encerrado</span></div></div>${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
 }
 
+function navigateProfessionalCarousel(direction) {
+  const carousel = document.querySelector("[data-professional-carousel]");
+  const cards = [...(carousel?.querySelectorAll(".public-professional-schedule") || [])];
+  if (!carousel || cards.length < 2) return;
+
+  if (professionalScheduleTimer) {
+    clearInterval(professionalScheduleTimer);
+    professionalScheduleTimer = null;
+  }
+
+  const savedIndex = Number(carousel.dataset.carouselIndex);
+  const visibleIndex = cards.reduce((best, card, index) =>
+    Math.abs(card.getBoundingClientRect().left - carousel.getBoundingClientRect().left)
+      < Math.abs(cards[best].getBoundingClientRect().left - carousel.getBoundingClientRect().left) ? index : best, 0);
+  const currentIndex = carousel.dataset.carouselIndex === undefined ? visibleIndex : savedIndex;
+  const nextIndex = (currentIndex + direction + cards.length) % cards.length;
+  carousel.dataset.carouselIndex = String(nextIndex);
+  carousel.scrollTo({ left: cards[nextIndex].offsetLeft - cards[0].offsetLeft, behavior: "smooth" });
+  const position = document.querySelector("[data-professional-carousel-position]");
+  if (position) position.textContent = `${nextIndex + 1} de ${cards.length}`;
+}
+
 function publicServiceCards(establishment) {
   return `<section class="public-services" id="servicos-agendamento"><div class="service-list">${establishment.services.map((item) => `<article class="service-card-display"><span class="service-icon">${item.icon}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("")}</div></section>`;
 }
@@ -889,8 +911,8 @@ document.addEventListener("click", async (event) => {
   if (open) return navigate(`/${open.dataset.openEstablishment}`);
   if (event.target.closest("[data-service-carousel-prev]")) { moveServiceCarousel(-1); return; }
   if (event.target.closest("[data-service-carousel-next]")) { moveServiceCarousel(1); return; }
-  if (event.target.closest("[data-professional-carousel-prev]")) { moveProfessionalCarousel(-1); startProfessionalCarousel(); return; }
-  if (event.target.closest("[data-professional-carousel-next]")) { moveProfessionalCarousel(1); startProfessionalCarousel(); return; }
+  if (event.target.closest("[data-professional-carousel-prev]")) { navigateProfessionalCarousel(-1); return; }
+  if (event.target.closest("[data-professional-carousel-next]")) { navigateProfessionalCarousel(1); return; }
   const publicSlot = event.target.closest("[data-public-slot]");
   if (publicSlot) {
     state.booking.professional = publicSlot.dataset.professionalName;
