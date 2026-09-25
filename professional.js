@@ -10,20 +10,53 @@ let queueSubscription = null;
 let queueSubscriptionSlug = null;
 let monitorClockTimer = null;
 let serviceCarouselTimer = null;
+let professionalScheduleTimer = null;
+let qrScanner = null;
 const cloudCache = new Map();
 const cloudLoading = new Set();
+const checkInConfigs = new Map();
+const checkInConfigLoading = new Set();
 
 let establishments = {};
 
 const state = {
   booking: freshBooking(),
   appointmentQuery: "",
-  publicLookup: { query: "", loading: false, searched: false, results: [] },
+  publicLookup: freshPublicLookup(),
   mobileMenu: false,
 };
 
 function freshBooking() {
   return { step: 1, dateMode: "today", date: isoDate(0), serviceId: null, time: null, professional: "", confirmation: null };
+}
+
+function freshPublicLookup(method = "name") {
+  return { method, query: "", loading: false, searched: false, results: [], selectedId: null, scanning: false, scanError: "", success: null };
+}
+
+function generateCheckInCode() {
+  const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+}
+
+function statusLabel(status = "confirmado") {
+  return ({ confirmado: "Confirmado", presente: "Presença confirmada", concluido: "Concluído", aguardando: "Aguardando" })[status] || status;
+}
+
+function checkInQrUrl(establishment, token) {
+  const url = new URL(href(`/${establishment.slug}`), location.origin);
+  url.searchParams.set("checkin", token);
+  url.hash = "confirmar-presenca";
+  return url.toString();
+}
+
+function qrCodeMarkup(value, className = "") {
+  if (!value || typeof window.qrcode !== "function") return '<div class="qr-placeholder">Preparando QR code…</div>';
+  const code = window.qrcode(0, "M");
+  code.addData(value);
+  code.make();
+  return `<div class="qr-code ${className}" aria-label="QR code para confirmação de presença">${code.createSvgTag({ cellSize: 6, margin: 0, scalable: true })}</div>`;
 }
 
 function isoDate(offset = 0) {
@@ -38,6 +71,22 @@ function prettyDate(iso, long = false) {
     ? { weekday: "long", day: "2-digit", month: "long" }
     : { day: "2-digit", month: "short" }
   ).format(new Date(`${iso}T12:00:00`));
+}
+
+function slotHasPassed(date, time) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date()).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  const today = `${parts.year}-${parts.month}-${parts.day}`;
+  if (date !== today) return date < today;
+  const [hour, minute] = String(time).split(":").map(Number);
+  return (hour * 60) + minute <= (Number(parts.hour) * 60) + Number(parts.minute);
 }
 
 function escapeHTML(value = "") {
@@ -82,7 +131,10 @@ function href(path = "/") {
 }
 
 function navigate(path) {
+  const previousRoute = route();
+  void stopQrScanner();
   history.pushState(null, "", href(path));
+  if (route() !== previousRoute) state.publicLookup = freshPublicLookup();
   state.mobileMenu = false;
   render();
   window.scrollTo({ top: 0, behavior: "instant" });
@@ -239,7 +291,7 @@ function bookingContent(establishment) {
   </div>`;
 
   const item = booking.confirmation;
-  return `${progress(3)}<div class="confirmation"><div class="confirmation-icon">✓</div><h2 class="booking-title">Agendamento confirmado</h2><p class="booking-lead">Seu horário na ${establishment.name} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${item.time}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div></div><div class="booking-actions"><span></span><button class="btn btn-primary" data-new-booking>Fazer outro agendamento</button></div></div>`;
+  return `${progress(3)}<div class="confirmation"><div class="confirmation-icon">✓</div><h2 class="booking-title">Agendamento confirmado</h2><p class="booking-lead">Seu horário na ${establishment.name} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${item.time}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div></div><div class="checkin-password"><span>Sua senha de presença</span><strong>${escapeHTML(item.checkInCode)}</strong><p>Guarde esta senha. Ao chegar, use-a ou informe seu nome e leia o QR code do balcão.</p></div><div class="booking-actions"><span></span><button class="btn btn-primary" data-new-booking>Fazer outro agendamento</button></div></div>`;
 }
 
 function publicSchedule(establishment) {
@@ -249,14 +301,16 @@ function publicSchedule(establishment) {
   const schedules = professionals.map((professional) => {
     const times = employeeMode ? (professional.availableTimes || []) : (establishment.availableTimes || []);
     const busy = new Set((data.slots || []).filter((slot) => slot.id?.endsWith("_establishment") || slot.professional === professional.name).map((slot) => slot.time));
-    const freeCount = times.filter((time) => !busy.has(time)).length;
-    const buttons = times.map((time) => busy.has(time)
-      ? `<button class="schedule-slot occupied" type="button" disabled aria-label="${escapeHTML(time)} ocupado"><strong>${escapeHTML(time)}</strong><small>Ocupado</small></button>`
-      : `<button class="schedule-slot available ${state.booking.professional === professional.name && state.booking.time === time ? "selected" : ""}" type="button" data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}"><strong>${escapeHTML(time)}</strong><small>Disponível</small></button>`
-    ).join("");
+    const freeCount = times.filter((time) => !busy.has(time) && !slotHasPassed(state.booking.date, time)).length;
+    const buttons = times.map((time) => {
+      if (slotHasPassed(state.booking.date, time)) return `<button class="schedule-slot past" type="button" disabled aria-label="${escapeHTML(time)} encerrado"><strong>${escapeHTML(time)}</strong><small>Encerrado</small></button>`;
+      if (busy.has(time)) return `<button class="schedule-slot occupied" type="button" disabled aria-label="${escapeHTML(time)} ocupado"><strong>${escapeHTML(time)}</strong><small>Ocupado</small></button>`;
+      return `<button class="schedule-slot available ${state.booking.professional === professional.name && state.booking.time === time ? "selected" : ""}" type="button" data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}"><strong>${escapeHTML(time)}</strong><small>Disponível</small></button>`;
+    }).join("");
     return `<article class="public-professional-schedule"><header><span class="client-avatar">${initials(professional.name)}</span><div><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></div><em>${freeCount} ${freeCount === 1 ? "livre" : "livres"}</em></header><div class="public-slot-grid">${buttons || '<div class="schedule-empty">Nenhum horário configurado para esta data.</div>'}</div></article>`;
   }).join("");
-  return `<div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button><button type="button" class="${state.booking.dateMode === "tomorrow" ? "active" : ""}" data-date-mode="tomorrow"><strong>Amanhã</strong><small>${prettyDate(isoDate(1))}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate()}" value="${state.booking.date}" data-booking-date></label></div><div class="schedule-legend"><span><i class="available"></i>Disponível para agendar</span><span><i class="occupied"></i>Horário ocupado</span></div><div class="public-schedules">${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div>`;
+  const controls = professionals.length > 1 ? `<div class="professional-carousel-controls"><span data-professional-carousel-position>1 de ${professionals.length}</span><button type="button" data-professional-carousel-prev aria-label="Profissional anterior">←</button><button type="button" data-professional-carousel-next aria-label="Próximo profissional">→</button></div>` : "";
+  return `<div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button><button type="button" class="${state.booking.dateMode === "tomorrow" ? "active" : ""}" data-date-mode="tomorrow"><strong>Amanhã</strong><small>${prettyDate(isoDate(1))}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate()}" value="${state.booking.date}" data-booking-date></label></div><div class="schedule-legend"><div><span><i class="available"></i>Disponível</span><span><i class="occupied"></i>Ocupado</span><span><i class="past"></i>Encerrado</span></div>${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
 }
 
 function publicServiceCards(establishment) {
@@ -283,14 +337,138 @@ function startServiceCarousel() {
   }, 4000);
 }
 
+function updateProfessionalCarouselPosition() {
+  const carousel = document.querySelector("[data-professional-carousel]");
+  const label = document.querySelector("[data-professional-carousel-position]");
+  if (!carousel || !label) return;
+  const count = carousel.querySelectorAll(".public-professional-schedule").length;
+  const index = Math.min(count - 1, Math.max(0, Math.round(carousel.scrollLeft / Math.max(1, carousel.clientWidth))));
+  label.textContent = `${index + 1} de ${count}`;
+}
+
+function moveProfessionalCarousel(direction = 1) {
+  const carousel = document.querySelector("[data-professional-carousel]");
+  if (!carousel) return;
+  const cards = carousel.querySelectorAll(".public-professional-schedule");
+  if (cards.length < 2) return;
+  const current = Math.round(carousel.scrollLeft / Math.max(1, carousel.clientWidth));
+  const next = (current + direction + cards.length) % cards.length;
+  carousel.scrollTo({ left: next * carousel.clientWidth, behavior: "smooth" });
+  setTimeout(updateProfessionalCarouselPosition, 350);
+}
+
+function startProfessionalCarousel() {
+  clearInterval(professionalScheduleTimer);
+  const carousel = document.querySelector("[data-professional-carousel]");
+  if (!carousel || carousel.querySelectorAll(".public-professional-schedule").length < 2) return;
+  carousel.addEventListener("scroll", updateProfessionalCarouselPosition, { passive: true });
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  professionalScheduleTimer = setInterval(() => {
+    if (!carousel.matches(":hover") && !carousel.contains(document.activeElement)) moveProfessionalCarousel(1);
+  }, 5000);
+}
+
 function publicAppointmentLookup() {
   const lookup = state.publicLookup;
+  const credentialLabel = lookup.method === "code" ? "Senha do agendamento" : "Nome completo";
+  const credentialPlaceholder = lookup.method === "code" ? "Ex.: 7K9M2P" : "Digite seu nome completo";
   const results = lookup.loading
     ? '<div class="lookup-message">Buscando seu agendamento…</div>'
     : lookup.searched && !lookup.results.length
-      ? '<div class="lookup-message">Nenhum agendamento foi encontrado com esse nome completo.</div>'
-      : lookup.results.map((item) => `<article class="lookup-result"><div><small>${prettyDate(item.date, true)}</small><strong>${escapeHTML(item.time)} · ${escapeHTML(item.service)}</strong></div><div><span>${escapeHTML(item.professional)}</span><em>${escapeHTML(item.status || "confirmado")}</em></div></article>`).join("");
-  return `<div class="public-lookup-panel" id="consultar-agendamento"><h2 class="booking-title">Consultar meu agendamento</h2><p class="booking-lead">Digite exatamente o nome completo informado na reserva. Você não precisa iniciar um novo agendamento.</p><form id="public-appointment-search-form"><label for="public-appointment-name">Nome completo</label><div class="public-lookup-field"><input id="public-appointment-name" name="client" type="text" value="${escapeHTML(lookup.query)}" autocomplete="name" required placeholder="Digite seu nome completo"><button class="btn btn-primary" type="submit" ${lookup.loading ? "disabled" : ""}>${lookup.loading ? "Pesquisando…" : "Pesquisar agendamento"}</button></div></form><div class="public-lookup-results" aria-live="polite">${results}</div></div>`;
+      ? `<div class="lookup-message">Nenhum agendamento foi encontrado com ${lookup.method === "code" ? "essa senha" : "esse nome completo"}.</div>`
+      : lookup.results.map((item) => {
+        const canCheckIn = item.date === isoDate() && item.status === "confirmado";
+        const isPresent = item.status === "presente";
+        return `<article class="lookup-result checkin-result"><div><small>${prettyDate(item.date, true)}</small><strong>${escapeHTML(item.time)} · ${escapeHTML(item.service)}</strong><span>${escapeHTML(item.professional)}</span></div><div><em class="status ${escapeHTML(item.status || "confirmado")}">${escapeHTML(statusLabel(item.status))}</em>${canCheckIn ? `<button class="btn btn-primary btn-sm" type="button" data-start-checkin="${escapeHTML(item.appointmentId)}">Ler QR e confirmar</button>` : isPresent ? '<span class="presence-done">✓ Presença registrada</span>' : '<span class="presence-unavailable">Disponível no dia agendado</span>'}</div></article>`;
+      }).join("");
+  const success = lookup.success ? `<div class="checkin-success" role="status"><span>✓</span><div><strong>Presença confirmada!</strong><p>${escapeHTML(lookup.success.time)} · ${escapeHTML(lookup.success.service)}. A equipe já pode ver que você chegou.</p></div></div>` : "";
+  const scanner = lookup.scanning ? `<div class="booking-modal-backdrop" data-checkin-backdrop>
+    <section class="booking-modal checkin-scanner-modal" role="dialog" aria-modal="true" aria-labelledby="checkin-scanner-title">
+      <div class="booking-modal-head"><div><small>CONFIRMAÇÃO DE PRESENÇA</small><h2 id="checkin-scanner-title">Aponte para o QR code</h2></div><button class="booking-modal-close" type="button" data-cancel-checkin aria-label="Fechar leitor">×</button></div>
+      <div class="checkin-scanner-body"><div class="scanner-frame"><video data-qr-video playsinline muted></video><span class="scanner-corner corner-one"></span><span class="scanner-corner corner-two"></span><span class="scanner-corner corner-three"></span><span class="scanner-corner corner-four"></span><div class="scanner-loading" data-scanner-loading><span class="loading-spinner"></span>Ativando câmera…</div></div>
+      <p>Mantenha o QR code do balcão dentro do quadrado. A confirmação será automática.</p>
+      ${lookup.scanError ? `<div class="scanner-error">${escapeHTML(lookup.scanError)}</div>` : ""}
+      <label class="btn btn-soft scanner-upload">Usar foto do QR<input type="file" accept="image/*" data-qr-image hidden></label>
+      <button class="btn btn-outline" type="button" data-cancel-checkin>Cancelar</button></div>
+    </section></div>` : "";
+  return `<div class="public-lookup-panel" id="confirmar-presenca"><div class="checkin-heading"><span class="checkin-heading-icon">✓</span><div><small>CHEGUEI AO LOCAL</small><h2 class="booking-title">Confirmar minha presença</h2></div></div><p class="booking-lead">Primeiro encontre seu horário. Depois, leia o QR code disponível no balcão.</p>
+    <div class="checkin-methods" role="tablist" aria-label="Forma de identificação"><button type="button" class="${lookup.method === "name" ? "active" : ""}" data-checkin-method="name">Usar meu nome</button><button type="button" class="${lookup.method === "code" ? "active" : ""}" data-checkin-method="code">Usar minha senha</button></div>
+    <form id="public-appointment-search-form"><label for="public-appointment-credential">${credentialLabel}</label><div class="public-lookup-field"><input id="public-appointment-credential" name="credential" type="text" value="${escapeHTML(lookup.query)}" ${lookup.method === "code" ? 'inputmode="text" autocapitalize="characters" maxlength="12"' : 'autocomplete="name"'} required placeholder="${credentialPlaceholder}"><button class="btn btn-primary" type="submit" ${lookup.loading ? "disabled" : ""}>${lookup.loading ? "Pesquisando…" : "Encontrar horário"}</button></div></form>
+    ${success}<div class="public-lookup-results" aria-live="polite">${results}</div>${scanner}</div>`;
+}
+
+async function stopQrScanner() {
+  if (!qrScanner) return;
+  try { await qrScanner.stop(); qrScanner.destroy(); } catch { /* câmera já encerrada */ }
+  qrScanner = null;
+}
+
+function parseCheckInQr(rawValue, expectedSlug) {
+  try {
+    const url = new URL(String(rawValue));
+    let path = url.pathname;
+    if (BASE && path.startsWith(BASE)) path = path.slice(BASE.length);
+    const scannedSlug = path.replace(/^\/+|\/+$/g, "");
+    const token = url.searchParams.get("checkin");
+    if (scannedSlug !== expectedSlug || !token) throw new Error("wrong-establishment");
+    return token;
+  } catch {
+    const match = String(rawValue || "").match(/^agendae:checkin:([^:]+):(.+)$/);
+    if (match?.[1] === expectedSlug) return match[2];
+    return null;
+  }
+}
+
+async function finishPublicCheckIn(rawValue) {
+  const establishment = activeEstablishment();
+  const lookup = state.publicLookup;
+  const selected = lookup.results.find((item) => item.appointmentId === lookup.selectedId);
+  const token = establishment ? parseCheckInQr(rawValue, establishment.slug) : null;
+  if (!establishment || !selected || !token) {
+    lookup.scanError = "Este QR code não pertence a este estabelecimento. Aponte para o código disponível no balcão.";
+    render();
+    requestAnimationFrame(startQrScanner);
+    return;
+  }
+  await stopQrScanner();
+  lookup.scanError = "";
+  try {
+    await firebaseApi.confirmPresenceWithQr(establishment.slug, selected.appointmentId, token, selected.date, selected.presenceExists !== false);
+    selected.status = "presente";
+    selected.presenceExists = true;
+    lookup.scanning = false;
+    lookup.success = selected;
+    const url = new URL(location.href);
+    url.searchParams.delete("checkin");
+    history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    render();
+    requestAnimationFrame(() => document.querySelector("#confirmar-presenca")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  } catch (error) {
+    lookup.scanError = firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Não foi possível confirmar a presença.";
+    lookup.scanning = true;
+    render();
+  }
+}
+
+async function startQrScanner() {
+  const video = document.querySelector("[data-qr-video]");
+  if (!video || !state.publicLookup.scanning) return;
+  await stopQrScanner();
+  try {
+    const { default: QrScanner } = await import("./vendor/qr-scanner.min.js");
+    qrScanner = new QrScanner(video, (result) => void finishPublicCheckIn(result?.data || result), {
+      preferredCamera: "environment",
+      highlightScanRegion: true,
+      highlightCodeOutline: true,
+      returnDetailedScanResult: true,
+    });
+    await qrScanner.start();
+    document.querySelector("[data-scanner-loading]")?.remove();
+  } catch (error) {
+    console.error("Agendae: não foi possível abrir a câmera.", error);
+    state.publicLookup.scanError = "Não foi possível abrir a câmera. Autorize o acesso ou use uma foto do QR code.";
+    render();
+  }
 }
 
 function queuePanel(data, showNames = true) {
@@ -319,22 +497,22 @@ function ensureQueueSubscription(establishment) {
   });
 }
 
-function professionalAvailability(establishment, data) {
+function professionalAvailability(establishment, data, date = isoDate()) {
   const slots = data.slots || [];
   return professionalDirectory(establishment).map((professional) => ({
     ...professional,
     freeTimes: (professional.availableTimes || []).filter((time) =>
-      !slots.some((slot) => slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name))
+      !slotHasPassed(date, time) && !slots.some((slot) => slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name))
     ),
   }));
 }
 
-function availableTimesFor(establishment, data) {
+function availableTimesFor(establishment, data, date = isoDate()) {
   if (!usesEmployeeSchedules(establishment)) {
     const busy = new Set((data.slots || []).map((slot) => slot.time));
-    return (establishment.availableTimes || []).filter((time) => !busy.has(time));
+    return (establishment.availableTimes || []).filter((time) => !slotHasPassed(date, time) && !busy.has(time));
   }
-  return [...new Set(professionalAvailability(establishment, data).flatMap((professional) => professional.freeTimes))].sort();
+  return [...new Set(professionalAvailability(establishment, data, date).flatMap((professional) => professional.freeTimes))].sort();
 }
 
 function staffSchedulesMarkup(establishment, data) {
@@ -356,17 +534,22 @@ function renderEstablishmentPublic(establishment) {
   const data = getData(establishment);
   const todayAppointments = data.appointments.filter((item) => item.date === isoDate());
   const todayCount = Number.isFinite(data.todayAppointments) ? data.todayAppointments : todayAppointments.length;
-  const freeTimes = availableTimesFor(establishment, data);
+  const freeTimes = availableTimesFor(establishment, data, state.booking.date);
   const nextFree = freeTimes[0] || "—";
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
-    <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions">${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
+    <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions"><a class="btn btn-yellow btn-sm" href="#confirmar-presenca">✓ Confirmar presença</a>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
     <section class="est-cover"><div class="est-cover-inner"><div class="est-identity"><div class="est-logo">${escapeHTML(establishment.initials)}</div><div><h1>${escapeHTML(establishment.name)}</h1><p>${escapeHTML(establishment.description)}</p><div class="est-facts"><span>⌖ ${escapeHTML(establishment.address)}</span><span>◷ ${escapeHTML(establishment.todayHours)}</span><span>● ${establishment.openNow ? "Aberto agora" : "Fechado"}</span></div></div></div><div class="live-ticket"><span class="live-dot"></span><span><small>Senha chamada agora</small><strong>${data.queue.find((item) => item.status === "atendendo")?.ticket || "—"}</strong></span></div></div></section>
-    <main class="est-content"><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>${nextFree}</strong><em>Disponível hoje</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>${establishment.averageWaitMinutes} min</strong><em>Fila em tempo real</em></article></div>
-      <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">01</span><div><small>AGENDAMENTOS</small><h2>Serviços e horários</h2><p>Escolha um serviço e depois selecione um horário disponível.</p></div></div><div class="public-agenda-layout"><section class="panel public-schedule-panel">${publicServiceCards(establishment)}<div class="panel-head public-schedule-head"><div><span class="schedule-step-number">2</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-lookup-card">${publicAppointmentLookup()}</section><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section>
-      <section class="queue-zone" id="painel-senhas"><div class="zone-title queue-zone-title"><span class="zone-number">02</span><div><small>FILA DE ATENDIMENTO</small><h2>Acompanhe sua senha</h2><p>Veja quem está sendo atendido e sua posição na fila.</p></div></div>${queuePanel(data, false)}</section></main>
+    <main class="est-content"><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>${establishment.averageWaitMinutes} min</strong><em>Fila em tempo real</em></article></div>
+      <section class="checkin-zone"><div class="zone-title"><span class="zone-number">01</span><div><small>CONFIRMAÇÃO DE PRESENÇA</small><h2>Avise que você chegou</h2><p>Identifique seu horário e leia o QR code disponível no estabelecimento.</p></div></div><section class="panel public-lookup-card">${publicAppointmentLookup()}</section></section>
+      <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">02</span><div><small>AGENDAMENTOS</small><h2>Serviços e horários</h2><p>Escolha um serviço e depois selecione um horário disponível.</p></div></div><div class="public-agenda-layout"><section class="panel public-schedule-panel">${publicServiceCards(establishment)}<div class="panel-head public-schedule-head"><div><span class="schedule-step-number">2</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section>
+      <section class="queue-zone" id="painel-senhas"><div class="zone-title queue-zone-title"><span class="zone-number">03</span><div><small>FILA DE ATENDIMENTO</small><h2>Acompanhe sua senha</h2><p>Veja quem está sendo atendido e sua posição na fila.</p></div></div>${queuePanel(data, false)}</section></main>
   </div>`;
-  requestAnimationFrame(startServiceCarousel);
+  requestAnimationFrame(() => {
+    startServiceCarousel();
+    startProfessionalCarousel();
+    if (state.publicLookup.scanning) void startQrScanner();
+  });
   void refreshCloudData(establishment, "public", state.booking.date);
   ensureQueueSubscription(establishment);
 }
@@ -375,11 +558,33 @@ function appointmentRows(data, query = state.appointmentQuery) {
   const todayAppointments = data.appointments.filter((item) => item.date === isoDate()).sort((a,b) => a.time.localeCompare(b.time));
   const normalizedQuery = normalizedSearch(query);
   const appointments = normalizedQuery
-    ? todayAppointments.filter((item) => normalizedSearch(item.client).includes(normalizedQuery))
+    ? todayAppointments.filter((item) => normalizedSearch(item.client).includes(normalizedQuery) || String(item.checkInCode || "").toLowerCase() === normalizedQuery.replace(/\s/g, ""))
     : todayAppointments;
   if (!todayAppointments.length) return '<div class="empty">Nenhum atendimento marcado para hoje.</div>';
   if (!appointments.length) return `<div class="empty">Nenhum agendamento encontrado para <strong>${escapeHTML(query.trim())}</strong>.</div>`;
-  return appointments.map((item) => `<div class="appointment-row"><span class="appt-time">${item.time}</span><span class="client"><span class="client-avatar">${initials(item.client)}</span><span><strong>${escapeHTML(item.client)}</strong><small>${escapeHTML(item.service)}</small></span></span><span class="professional">${escapeHTML(item.professional)}</span><span class="status ${item.status}">${item.status[0].toUpperCase()+item.status.slice(1)}</span></div>`).join("");
+  return appointments.map((item) => `<div class="appointment-row"><span class="appt-time">${item.time}</span><span class="client"><span class="client-avatar">${initials(item.client)}</span><span><strong>${escapeHTML(item.client)}</strong><small>${escapeHTML(item.service)}${item.checkInCode ? ` · Senha ${escapeHTML(item.checkInCode)}` : ""}</small></span></span><span class="professional">${escapeHTML(item.professional)}</span><span class="status ${escapeHTML(item.status)}">${escapeHTML(statusLabel(item.status))}</span><span class="appointment-presence-action">${item.status === "confirmado" ? `<button class="btn btn-soft btn-sm" type="button" data-confirm-presence="${escapeHTML(item.id)}">Confirmar chegada</button>` : item.status === "presente" ? '<span>✓ No local</span>' : ""}</span></div>`).join("");
+}
+
+async function loadCheckInConfig(establishment) {
+  if (!firebaseApi || !session() || checkInConfigs.has(establishment.slug) || checkInConfigLoading.has(establishment.slug)) return;
+  checkInConfigLoading.add(establishment.slug);
+  try {
+    const config = await firebaseApi.getOrCreateCheckInConfig(establishment.slug);
+    checkInConfigs.set(establishment.slug, config);
+    if (route() === establishment.slug) render();
+  } catch (error) {
+    console.error("Agendae: não foi possível preparar o QR de presença.", error);
+    toast(firebaseApi.firebaseErrorMessage(error), "!");
+  } finally {
+    checkInConfigLoading.delete(establishment.slug);
+  }
+}
+
+function adminCheckInPanel(establishment, today) {
+  const token = checkInConfigs.get(establishment.slug)?.token;
+  const present = today.filter((item) => item.status === "presente").length;
+  const qr = token ? qrCodeMarkup(checkInQrUrl(establishment, token), "admin-checkin-qr") : '<div class="qr-placeholder"><span class="loading-spinner"></span>Preparando QR code…</div>';
+  return `<section class="admin-checkin panel"><div class="admin-checkin-copy"><small>CHECK-IN PRESENCIAL</small><h2>Confirmação de presença</h2><p>Deixe este QR visível no balcão. O cliente informa o nome ou a senha do agendamento e aponta a câmera para o código.</p><div class="admin-checkin-stats"><strong>${String(present).padStart(2, "0")}</strong><span>presenças confirmadas hoje</span></div><div class="admin-checkin-actions"><a class="btn btn-primary btn-sm ${token ? "" : "disabled"}" href="${href(`/${establishment.slug}?display=checkin`)}" data-link>Exibir QR no estabelecimento</a><span>Sem celular ou internet? Pesquise o cliente abaixo e use <b>Confirmar chegada</b>.</span></div></div><div class="admin-checkin-visual">${qr}<small>QR exclusivo de ${escapeHTML(establishment.name)}</small></div></section>`;
 }
 
 function renderAdmin(establishment) {
@@ -397,12 +602,14 @@ function renderAdmin(establishment) {
     <aside class="sidebar ${state.mobileMenu ? "mobile-open" : ""}"><a href="${href("/")}" data-link>${logo()}</a><div class="workspace"><span class="est-avatar">${escapeHTML(establishment.initials)}</span><span><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.category)}</small></span></div><div class="side-label">Gestão</div><nav class="side-nav"><button class="side-link active"><span class="side-icon">⌂</span>Visão geral</button><button class="side-link" data-coming><span class="side-icon">▣</span>Agenda</button><button class="side-link" data-coming><span class="side-icon">☷</span>Fila de senhas</button><button class="side-link" data-coming><span class="side-icon">♙</span>Clientes</button><button class="side-link" data-coming><span class="side-icon">⌁</span>Relatórios</button></nav><div class="side-spacer"></div><a class="side-link" href="${href(`/${establishment.slug}?public=1`)}" data-link><span class="side-icon">↗</span>Ver página pública</a><button class="side-link" data-logout><span class="side-icon">←</span>Sair</button><div class="sidebar-user"><span class="user-avatar">${initials(currentUser?.name || "Usuário")}</span><span><strong>${escapeHTML(currentUser?.name || "Usuário")}</strong><small>${currentUser?.role === "admin" ? "Administrador" : "Equipe"}</small></span></div></aside>
     <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}?public=1#agendar`)}" data-link>+ Novo agendamento</a></div></header>
       <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
+      ${adminCheckInPanel(establishment, today)}
       <section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Essa configuração vale para todos os novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="employee"><span>♙</span><strong>Agenda por funcionário</strong><small>Cada profissional tem seus próprios horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="establishment"><span>▣</span><strong>Agenda do estabelecimento</strong><small>Uma única grade compartilhada pela equipe.</small></button></div></section>
-      <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p><span data-appointment-count>${today.length}</span> horários confirmados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-search"><span class="appointment-search-icon" aria-hidden="true">⌕</span><input type="search" value="${escapeHTML(state.appointmentQuery)}" data-appointment-search aria-label="Pesquisar agendamento pelo nome completo" placeholder="Pesquisar por nome completo"><button type="button" data-clear-appointment-search aria-label="Limpar pesquisa" ${state.appointmentQuery ? "" : "hidden"}>×</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(data)}<section class="panel staff-availability-panel"><div class="panel-head"><div><h2>${usesEmployeeSchedules(establishment) ? "Agenda por profissional" : "Agenda do estabelecimento"}</h2><p>${usesEmployeeSchedules(establishment) ? "Disponibilidade individual de hoje" : "Disponibilidade compartilhada de hoje"}</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></div>
+      <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p><span data-appointment-count>${today.length}</span> horários agendados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-search"><span class="appointment-search-icon" aria-hidden="true">⌕</span><input type="search" value="${escapeHTML(state.appointmentQuery)}" data-appointment-search aria-label="Pesquisar agendamento pelo nome ou senha" placeholder="Pesquisar por nome completo ou senha"><button type="button" data-clear-appointment-search aria-label="Limpar pesquisa" ${state.appointmentQuery ? "" : "hidden"}>×</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(data)}<section class="panel staff-availability-panel"><div class="panel-head"><div><h2>${usesEmployeeSchedules(establishment) ? "Agenda por profissional" : "Agenda do estabelecimento"}</h2><p>${usesEmployeeSchedules(establishment) ? "Disponibilidade individual de hoje" : "Disponibilidade compartilhada de hoje"}</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></div>
     </main></div>`;
   const queueSection = app.querySelector(".admin-grid .queue-panel");
   if (queueSection) queueSection.insertAdjacentHTML("beforeend", `<div class="queue-admin-actions"><button class="btn btn-soft btn-sm" data-add-ticket data-priority="normal">+ Senha normal</button><button class="btn btn-priority btn-sm" data-add-ticket data-priority="preferencial">+ Preferencial</button><button class="btn btn-primary btn-sm" data-next-ticket>Chamar próxima</button></div>`);
   void refreshCloudData(establishment, "admin");
+  void loadCheckInConfig(establishment);
 }
 
 function updateMonitorClock() {
@@ -427,6 +634,14 @@ function renderQueueDisplay(establishment) {
   ensureQueueSubscription(establishment);
 }
 
+function renderCheckInDisplay(establishment) {
+  document.title = `QR de presença · ${establishment.name}`;
+  const token = checkInConfigs.get(establishment.slug)?.token;
+  const qr = token ? qrCodeMarkup(checkInQrUrl(establishment, token), "display-checkin-qr") : '<div class="qr-placeholder"><span class="loading-spinner"></span>Preparando QR code…</div>';
+  app.innerHTML = `<main class="checkin-display"><header class="checkin-display-header">${logo()}<span>${escapeHTML(establishment.name)}</span></header><section class="checkin-display-content"><div class="checkin-display-copy"><small>CONFIRMAÇÃO DE PRESENÇA</small><h1>Chegou? Confirme aqui.</h1><p>Abra a página da ${escapeHTML(establishment.name)}, informe seu nome ou a senha do agendamento e aponte a câmera para este QR code.</p><div class="checkin-display-steps"><span><b>1</b> Identifique seu horário</span><span><b>2</b> Leia o QR code</span><span><b>3</b> Presença confirmada</span></div></div><div class="checkin-display-code">${qr}<strong>Aponte a câmera para o código</strong><small>QR exclusivo deste estabelecimento</small></div></section><footer class="checkin-display-footer"><span>Se precisar de ajuda, procure nossa equipe.</span><div><button class="monitor-action" data-request-fullscreen>⛶ Tela cheia</button><button class="monitor-action" data-print-checkin ${token ? "" : "disabled"}>Imprimir</button><a class="monitor-action" href="${href(`/${establishment.slug}`)}" data-link>Fechar</a></div></footer></main>`;
+  if (!token) void loadCheckInConfig(establishment);
+}
+
 function renderLoading() {
   document.title = "Carregando — Agendae";
   app.innerHTML = `<main class="loading-page">${logo()}<span class="loading-spinner"></span><p>Carregando estabelecimento…</p></main>`;
@@ -442,15 +657,19 @@ function render() {
   monitorClockTimer = null;
   clearInterval(serviceCarouselTimer);
   serviceCarouselTimer = null;
+  clearInterval(professionalScheduleTimer);
+  professionalScheduleTimer = null;
   const current = route();
   if (current === "home") return renderHome();
   if (current === "login") return renderLogin();
   if (!catalogLoaded) return renderLoading();
   const establishment = establishments[current];
   if (!establishment) return renderNotFound();
-  if (new URLSearchParams(location.search).get("display") === "queue") return renderQueueDisplay(establishment);
+  const routeParams = new URLSearchParams(location.search);
+  if (routeParams.get("display") === "queue") return renderQueueDisplay(establishment);
   const authenticated = session()?.slug === establishment.slug;
-  const publicPreview = new URLSearchParams(location.search).get("public") === "1";
+  if (routeParams.get("display") === "checkin" && authenticated) return renderCheckInDisplay(establishment);
+  const publicPreview = routeParams.get("public") === "1" || routeParams.has("checkin");
   if (authenticated && !publicPreview) renderAdmin(establishment);
   else renderEstablishmentPublic(establishment);
 }
@@ -472,6 +691,8 @@ document.addEventListener("click", async (event) => {
   if (open) return navigate(`/${open.dataset.openEstablishment}`);
   if (event.target.closest("[data-service-carousel-prev]")) { moveServiceCarousel(-1); return; }
   if (event.target.closest("[data-service-carousel-next]")) { moveServiceCarousel(1); return; }
+  if (event.target.closest("[data-professional-carousel-prev]")) { moveProfessionalCarousel(-1); startProfessionalCarousel(); return; }
+  if (event.target.closest("[data-professional-carousel-next]")) { moveProfessionalCarousel(1); startProfessionalCarousel(); return; }
   const publicSlot = event.target.closest("[data-public-slot]");
   if (publicSlot) {
     if (!state.booking.serviceId) {
@@ -522,6 +743,35 @@ document.addEventListener("click", async (event) => {
   }
   if (event.target.closest("[data-booking-back]") || event.target.matches("[data-booking-modal-backdrop]")) { event.preventDefault(); state.booking.step = 1; render(); return; }
   if (event.target.closest("[data-new-booking]")) { state.booking = freshBooking(); render(); return; }
+  const checkInMethod = event.target.closest("[data-checkin-method]");
+  if (checkInMethod) {
+    state.publicLookup = freshPublicLookup(checkInMethod.dataset.checkinMethod);
+    render();
+    requestAnimationFrame(() => document.querySelector("#public-appointment-credential")?.focus());
+    return;
+  }
+  const startCheckInButton = event.target.closest("[data-start-checkin]");
+  if (startCheckInButton) {
+    const selectedId = startCheckInButton.dataset.startCheckin;
+    state.publicLookup.selectedId = selectedId;
+    state.publicLookup.scanError = "";
+    const scannedToken = new URLSearchParams(location.search).get("checkin");
+    if (scannedToken) {
+      await finishPublicCheckIn(checkInQrUrl(activeEstablishment(), scannedToken));
+    } else {
+      state.publicLookup.scanning = true;
+      render();
+      requestAnimationFrame(startQrScanner);
+    }
+    return;
+  }
+  if (event.target.closest("[data-cancel-checkin]") || event.target.matches("[data-checkin-backdrop]")) {
+    await stopQrScanner();
+    state.publicLookup.scanning = false;
+    state.publicLookup.scanError = "";
+    render();
+    return;
+  }
   if (event.target.closest("[data-mobile-admin]")) { state.mobileMenu = !state.mobileMenu; render(); return; }
   if (event.target.closest("[data-coming]")) { toast("Módulo preparado para a próxima etapa do sistema.", "ⓘ"); return; }
   if (event.target.closest("[data-notification]")) { toast("Nenhuma nova notificação.", "○"); return; }
@@ -553,6 +803,7 @@ document.addEventListener("click", async (event) => {
     try { await document.documentElement.requestFullscreen(); } catch { toast("O navegador não permitiu abrir a tela cheia.", "!"); }
     return;
   }
+  if (event.target.closest("[data-print-checkin]")) { window.print(); return; }
   if (event.target.closest("[data-logout]")) {
     try { if (firebaseApi) await firebaseApi.logout(); } catch { /* a interface encerra mesmo sem rede */ }
     firebaseSession = null;
@@ -571,6 +822,22 @@ document.addEventListener("click", async (event) => {
   const addTicketButton = event.target.closest("[data-add-ticket]");
   if (addTicketButton) await addTicket(addTicketButton.dataset.priority || "normal");
   if (event.target.closest("[data-next-ticket]")) await callNext();
+  const confirmPresenceButton = event.target.closest("[data-confirm-presence]");
+  if (confirmPresenceButton) {
+    const establishment = activeEstablishment();
+    confirmPresenceButton.disabled = true;
+    confirmPresenceButton.textContent = "Confirmando…";
+    try {
+      await firebaseApi.confirmPresenceManually(establishment.slug, confirmPresenceButton.dataset.confirmPresence);
+      cloudCache.delete(`admin:${establishment.slug}`);
+      toast("Presença confirmada pela equipe.");
+      render();
+    } catch (error) {
+      confirmPresenceButton.disabled = false;
+      confirmPresenceButton.textContent = "Confirmar chegada";
+      toast(firebaseApi.firebaseErrorMessage(error), "!");
+    }
+  }
 });
 
 document.addEventListener("change", (event) => {
@@ -583,6 +850,21 @@ document.addEventListener("change", (event) => {
     render();
   }
   if (event.target.matches("[data-professional]")) { state.booking.professional = event.target.value; state.booking.time = null; render(); }
+  if (event.target.matches("[data-qr-image]")) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    void (async () => {
+      try {
+        const { default: QrScanner } = await import("./vendor/qr-scanner.min.js");
+        const result = await QrScanner.scanImage(file, { returnDetailedScanResult: true });
+        await finishPublicCheckIn(result?.data || result);
+      } catch {
+        await stopQrScanner();
+        state.publicLookup.scanError = "Não encontramos um QR code válido nessa imagem. Tente novamente.";
+        render();
+      }
+    })();
+  }
 });
 
 document.addEventListener("input", (event) => {
@@ -601,16 +883,19 @@ document.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (event.target.id === "public-appointment-search-form") {
     const establishment = activeEstablishment();
-    const fullName = String(new FormData(event.target).get("client") || "").trim();
-    if (!establishment || normalizedSearch(fullName).split(" ").length < 2) return toast("Digite seu nome completo para consultar.", "!");
-    state.publicLookup = { query: fullName, loading: true, searched: false, results: [] };
+    const lookupMethod = state.publicLookup.method;
+    const credential = String(new FormData(event.target).get("credential") || "").trim();
+    if (!establishment) return;
+    if (lookupMethod === "name" && normalizedSearch(credential).split(" ").length < 2) return toast("Digite seu nome completo para consultar.", "!");
+    if (lookupMethod === "code" && credential.replace(/\s/g, "").length < 6) return toast("Digite a senha de 6 caracteres do agendamento.", "!");
+    state.publicLookup = { ...freshPublicLookup(lookupMethod), query: credential, loading: true };
     render();
     try {
-      const results = await firebaseApi.findPublicAppointments(establishment.slug, fullName);
-      state.publicLookup = { query: fullName, loading: false, searched: true, results };
+      const results = await firebaseApi.findPublicAppointments(establishment.slug, credential, lookupMethod);
+      state.publicLookup = { ...freshPublicLookup(lookupMethod), query: credential, loading: false, searched: true, results };
     } catch (error) {
       console.error("Agendae: falha ao consultar agendamento.", error);
-      state.publicLookup = { query: fullName, loading: false, searched: false, results: [] };
+      state.publicLookup = { ...freshPublicLookup(lookupMethod), query: credential, loading: false, searched: false, results: [] };
       toast("Não foi possível consultar agora. Tente novamente.", "!");
     }
     render();
@@ -672,9 +957,16 @@ document.addEventListener("submit", async (event) => {
   if (event.target.id === "booking-form") {
     const establishment = activeEstablishment();
     if (!establishment) return;
+    if (slotHasPassed(state.booking.date, state.booking.time)) {
+      state.booking.step = 1;
+      state.booking.time = null;
+      render();
+      toast("Este horário já passou. Escolha outro horário disponível.", "!");
+      return;
+    }
     const form = new FormData(event.target);
     const service = establishment.services.find((item) => item.id === state.booking.serviceId);
-    const appointment = { id: crypto.randomUUID(), date: state.booking.date, time: state.booking.time, client: form.get("name").trim(), phone: form.get("phone").trim(), service: service.name, professional: state.booking.professional, status: "confirmado" };
+    const appointment = { id: crypto.randomUUID(), date: state.booking.date, time: state.booking.time, client: form.get("name").trim(), phone: form.get("phone").trim(), service: service.name, professional: state.booking.professional, status: "confirmado", checkInCode: generateCheckInCode() };
     const button = event.target.querySelector("button[type=submit]");
     button.disabled = true;
     button.textContent = "Confirmando…";
@@ -741,6 +1033,13 @@ async function callNext() {
 
 window.addEventListener("popstate", render);
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.publicLookup.scanning) {
+    void stopQrScanner();
+    state.publicLookup.scanning = false;
+    state.publicLookup.scanError = "";
+    render();
+    return;
+  }
   if (event.key === "Escape" && state.booking.step === 2) {
     state.booking.step = 1;
     render();
