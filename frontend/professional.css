@@ -259,7 +259,9 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-slot small { margin-top: 3px; font-size: 7px; font-weight: 800; text-transform: uppercase; }
 .schedule-slot.available { border-color: #a8d9c1; background: #f3fbf7; }
 .schedule-slot.available small { color: var(--green); }
-.schedule-slot.available:hover,.schedule-slot.available.selected { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-soft); transform: translateY(-1px); }
+.schedule-slot.available:hover { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-soft); transform: translateY(-1px); }
+.schedule-slot.available.selected { border-color: var(--blue); color: #fff; background: var(--blue); box-shadow: 0 0 0 3px rgba(18,73,163,.16),0 8px 18px rgba(18,73,163,.22); transform: translateY(-1px); }
+.schedule-slot.available.selected strong,.schedule-slot.available.selected small { color: #fff; }
 .schedule-slot.occupied { cursor: not-allowed; border-style: dashed; color: #9ba4b2; background: #f3f5f7; }
 .schedule-slot.occupied strong,.schedule-slot.occupied small { color: #9ba4b2; }
 .schedule-slot.past { cursor: not-allowed; border-color: #eadcc5; color: #a4865b; background: #fbf7f0; }
