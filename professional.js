@@ -23,6 +23,7 @@ const state = {
   booking: freshBooking(),
   appointmentQuery: "",
   publicLookup: freshPublicLookup(),
+  queueModalOpen: false,
   mobileMenu: false,
 };
 
@@ -142,6 +143,7 @@ function navigate(path) {
   void stopQrScanner();
   history.pushState(null, "", href(path));
   if (route() !== previousRoute) state.publicLookup = freshPublicLookup();
+  state.queueModalOpen = false;
   state.mobileMenu = false;
   render();
   window.scrollTo({ top: 0, behavior: "instant" });
@@ -511,13 +513,18 @@ async function startQrScanner() {
   }
 }
 
-function queuePanel(data, showNames = true) {
+function queuePanel(data, showNames = true, showHeader = true) {
   const current = data.queue.find((item) => item.status === "atendendo");
   const waiting = data.queue.filter((item) => item.status === "aguardando");
   const priorityBadge = (item) => item?.priority === "preferencial" ? '<span class="priority-badge">Preferencial</span>' : '<span class="normal-badge">Normal</span>';
-  return `<section class="panel queue-panel"><div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Ordem de atendimento atualizada em tempo real</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>
+  return `<section class="panel queue-panel">${showHeader ? '<div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Ordem de atendimento atualizada em tempo real</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>' : ""}
     <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small><strong>${escapeHTML(current?.ticket || "—")}</strong><div class="service-point">${current ? escapeHTML(current.servicePoint || "Atendimento") : "Fila livre"}</div>${current ? priorityBadge(current) : ""}${showNames && current?.name ? `<span class="queue-customer">${escapeHTML(current.name)}</span>` : ""}</div>
     <div class="queue-next"><div class="queue-list-title"><strong>Próximas senhas</strong><span>${waiting.length} aguardando</span></div><div class="queue-list">${waiting.slice(0,6).map((item,index) => `<div class="queue-row"><span class="queue-position">${index + 1}º</span><span class="ticket">${escapeHTML(item.ticket)}</span><span class="queue-row-info"><strong>${showNames ? escapeHTML(item.name || "Cliente") : "Aguardando"}</strong>${priorityBadge(item)}</span><small>${index === 0 ? "Próxima" : "Na fila"}</small></div>`).join("") || '<div class="empty">Ninguém aguardando.</div>'}</div></div></div></section>`;
+}
+
+function publicQueueModal(data) {
+  if (!state.queueModalOpen) return "";
+  return `<div class="booking-modal-backdrop" data-public-queue-backdrop><section class="booking-modal public-queue-modal" role="dialog" aria-modal="true" aria-labelledby="public-queue-modal-title"><div class="booking-modal-head"><div><small>ATUALIZAÇÃO EM TEMPO REAL</small><h2 id="public-queue-modal-title">Painel de Senhas</h2></div><button class="booking-modal-close" type="button" data-close-public-queue aria-label="Fechar painel de senhas">×</button></div><div class="public-queue-modal-body">${queuePanel(data, false, false)}</div></section></div>`;
 }
 
 function ensureQueueSubscription(establishment) {
@@ -573,18 +580,16 @@ function renderEstablishmentPublic(establishment) {
   document.title = `${establishment.name} — Agendae`;
   if (new URLSearchParams(location.search).has("checkin")) state.publicLookup.open = true;
   const data = getData(establishment);
-  const todayAppointments = data.appointments.filter((item) => item.date === isoDate());
-  const todayCount = Number.isFinite(data.todayAppointments) ? data.todayAppointments : todayAppointments.length;
   const freeTimes = availableTimesFor(establishment, data, state.booking.date);
   const nextFree = freeTimes[0] || "—";
+  const currentTicket = data.queue.find((item) => item.status === "atendendo");
+  const waitingTickets = data.queue.filter((item) => item.status === "aguardando");
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
-    <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
-    <section class="est-cover"><div class="est-cover-inner"><div class="est-identity"><div class="est-logo">${escapeHTML(establishment.initials)}</div><div><h1>${escapeHTML(establishment.name)}</h1><p>${escapeHTML(establishment.description)}</p><div class="est-facts"><span>⌖ ${escapeHTML(establishment.address)}</span><span>◷ ${escapeHTML(establishment.todayHours)}</span><span>● ${establishment.openNow ? "Aberto agora" : "Fechado"}</span></div></div></div><div class="live-ticket"><span class="live-dot"></span><span><small>Senha chamada agora</small><strong>${data.queue.find((item) => item.status === "atendendo")?.ticket || "—"}</strong></span></div></div></section>
-    <main class="est-content"><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>${establishment.averageWaitMinutes} min</strong><em>Fila em tempo real</em></article></div>
-      <section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel">${publicServiceCards(establishment)}<div class="panel-head public-schedule-head"><div><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section>
-      <section class="queue-zone" id="painel-senhas"><div class="zone-title queue-zone-title"><span class="zone-number">02</span><div><small>FILA DE ATENDIMENTO</small><h2>Acompanhe sua senha</h2><p>Veja quem está sendo atendido e sua posição na fila.</p></div></div>${queuePanel(data, false)}</section></main>
-    ${publicCheckInModal()}</div>`;
+    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${establishment.category ? `${escapeHTML(establishment.category)} · ` : ""}${establishment.openNow ? "Aberto agora" : "Fechado"}</small></div></div><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
+    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Chamando agora</small><strong>${escapeHTML(currentTicket?.ticket || "—")}</strong><em>${currentTicket ? escapeHTML(currentTicket.servicePoint || "Atendimento") : "Fila livre"}</em></div></article><article class="public-live-card"><small>Próximas senhas</small><div class="public-next-tickets">${waitingTickets.slice(0,3).map((item) => `<span>${escapeHTML(item.ticket)}</span>`).join("") || "<em>Ninguém aguardando</em>"}</div></article><article class="public-live-card public-next-slot"><small>Próximo horário livre</small><div><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></div></article><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button></div></section>
+    <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="panel-head public-schedule-head"><div><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div><div class="public-services-complement">${publicServiceCards(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>${escapeHTML(establishment.address)}</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section></main>
+    ${publicCheckInModal()}${publicQueueModal(data)}</div>`;
   requestAnimationFrame(() => {
     startServiceCarousel();
     startProfessionalCarousel();
@@ -781,6 +786,16 @@ document.addEventListener("click", async (event) => {
   }
   if (event.target.closest("[data-booking-back]") || event.target.matches("[data-booking-modal-backdrop]")) { event.preventDefault(); state.booking.step = 1; render(); return; }
   if (event.target.closest("[data-new-booking]")) { state.booking = freshBooking(); render(); return; }
+  if (event.target.closest("[data-open-public-queue]")) {
+    state.queueModalOpen = true;
+    render();
+    return;
+  }
+  if (event.target.closest("[data-close-public-queue]") || event.target.matches("[data-public-queue-backdrop]")) {
+    state.queueModalOpen = false;
+    render();
+    return;
+  }
   if (event.target.closest("[data-open-checkin]")) {
     state.publicLookup.open = true;
     render();
@@ -1102,6 +1117,11 @@ async function callNext() {
 
 window.addEventListener("popstate", render);
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.queueModalOpen) {
+    state.queueModalOpen = false;
+    render();
+    return;
+  }
   if (event.key === "Escape" && state.publicLookup.scanning) {
     void stopQrScanner();
     state.publicLookup.scanning = false;
