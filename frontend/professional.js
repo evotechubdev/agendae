@@ -140,6 +140,16 @@ function professionalIsOnShift(professional, date = isoDate()) {
   return clock.minutes >= minutes[0] && clock.minutes <= minutes.at(-1);
 }
 
+function currentProfessionalSlot(professional, date = isoDate()) {
+  if (!professionalIsOnShift(professional, date)) return null;
+  const clock = currentSaoPauloClock();
+  const times = [...(professional.availableTimes || [])].sort();
+  return times.filter((time) => {
+    const [hour, minute] = String(time).split(":").map(Number);
+    return ((hour * 60) + minute) <= clock.minutes;
+  }).at(-1) || times[0] || null;
+}
+
 function scheduleFor(establishment, professionalName) {
   const professional = professionalDirectory(establishment).find((item) => item.name === professionalName);
   return professional?.availableTimes || [];
@@ -397,18 +407,18 @@ function publicSchedule(establishment) {
     const freeCount = times.filter((time) => !busy.has(time) && !slotHasPassed(state.booking.date, time)).length;
     const staffStatus = staffStatusFor(data, professional.name);
     const isToday = state.booking.date === isoDate();
-    const currentTime = isToday && staffStatus.currentDate === state.booking.date ? staffStatus.currentTime : null;
     const paused = isToday && professionalIsPaused(data, professional.name, state.booking.date);
+    const onShift = isToday && professionalIsOnShift(professional, state.booking.date);
+    const savedCurrentTime = isToday && staffStatus.currentDate === state.booking.date ? staffStatus.currentTime : null;
+    const currentTime = savedCurrentTime || (!paused && onShift ? currentProfessionalSlot(professional, state.booking.date) : null);
     const operationalLabel = !isToday
       ? `${freeCount} ${freeCount === 1 ? "livre" : "livres"}`
       : paused
         ? "Atendimento em Pausa"
-        : currentTime
+        : onShift
           ? "Em atendimento"
-          : professionalIsOnShift(professional)
-            ? "Livre"
-            : "Fora do expediente";
-    const operationalClass = paused ? "paused" : currentTime ? "in-service" : professionalIsOnShift(professional) ? "free" : "off-shift";
+          : "Fora do expediente";
+    const operationalClass = paused ? "paused" : onShift ? "in-service" : "off-shift";
     const buttons = times.map((time) => {
       if (currentTime === time && paused) return `<button class="schedule-slot paused" type="button" disabled aria-label="${escapeHTML(time)} atendimento em pausa"><strong>${escapeHTML(time)}</strong><small>Em pausa</small></button>`;
       if (currentTime === time) return `<button class="schedule-slot in-service" type="button" disabled aria-label="${escapeHTML(time)} em atendimento"><strong>${escapeHTML(time)}</strong><small>Em atendimento</small></button>`;
@@ -669,16 +679,36 @@ function staffSchedulesMarkup(establishment, data) {
     const current = data.appointments.find((item) => item.professional === professional.name && item.status === "atendendo");
     const paused = professionalIsPaused(data, professional.name);
     const onShift = professionalIsOnShift(professional);
-    const label = paused ? "Atendimento em Pausa" : current ? `Em atendimento · ${current.time}` : onShift ? "Livre" : "Fora do expediente";
-    const statusClass = paused ? "paused" : current ? "in-service" : onShift ? "free" : "off-shift";
+    const label = paused ? "Atendimento em Pausa" : onShift ? `Em atendimento${current ? ` · ${current.time}` : ""}` : "Fora do expediente";
+    const statusClass = paused ? "paused" : onShift ? "in-service" : "off-shift";
     return `<section class="staff-schedule"><div class="staff-schedule-head"><span class="client-avatar">${initials(professional.name)}</span><span class="staff-schedule-person"><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")} · ${professional.freeTimes.length} livres</small></span><span class="staff-operational-status ${statusClass}">${escapeHTML(label)}</span></div><button class="staff-pause-button ${paused ? "resume" : ""}" type="button" data-toggle-professional-pause data-professional-name="${escapeHTML(professional.name)}" data-paused="${paused}">${paused ? "Retomar atendimento" : "Pausar atendimento"}</button><div class="staff-time-list">${professional.freeTimes.length ? professional.freeTimes.map((time) => `<span class="free-slot">${time}</span>`).join("") : '<span class="staff-full">Agenda preenchida</span>'}</div></section>`;
   }).join("");
 }
 
-function hoursMarkup(establishment) {
-  return (establishment.hours || []).map((item, index) =>
-    `<div class="hours-row ${index === 0 ? "today" : ""}"><span>${escapeHTML(item.label)}</span><${index === 0 ? "strong" : "span"}>${escapeHTML(item.value)}</${index === 0 ? "strong" : "span"}></div>`
-  ).join("");
+function compactBusinessHours(establishment) {
+  const hours = establishment.hours || [];
+  const labelKey = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
+  const range = (value) => {
+    const clean = String(value || "").trim();
+    if (!clean) return "";
+    if (/fechado/i.test(clean)) return "Fechado";
+    const normalized = clean.replace(/^das\s+/i, "").replace(/\s*(?:-|\u2013|\u2014|\u00e0s|as)\s*/i, " às ");
+    return `das ${normalized}`;
+  };
+  const weekdayGroup = hours.find((item) => {
+    const key = labelKey(item.label);
+    return (key.includes("seg") || key.includes("segunda")) && (key.includes("sex") || key.includes("sexta"));
+  });
+  const weekdays = ["segunda", "terca", "quarta", "quinta", "sexta"]
+    .map((day) => hours.find((item) => labelKey(item.label).startsWith(day)))
+    .filter(Boolean);
+  const weekdayValue = weekdayGroup?.value || weekdays[0]?.value || "";
+  const saturday = hours.find((item) => labelKey(item.label).startsWith("sab"));
+  const parts = [
+    weekdayValue ? `<span><strong>Seg a sex</strong> ${escapeHTML(range(weekdayValue))}</span>` : "",
+    saturday?.value ? `<span><strong>Sáb</strong> ${escapeHTML(range(saturday.value))}</span>` : "",
+  ].filter(Boolean);
+  return parts.join('<i aria-hidden="true">•</i>') || `<span>${escapeHTML(establishment.todayHours || "Consulte o funcionamento")}</span>`;
 }
 
 function renderEstablishmentPublic(establishment) {
@@ -691,9 +721,9 @@ function renderEstablishmentPublic(establishment) {
   const waitingTickets = data.queue.filter((item) => item.status === "aguardando");
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
-    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${establishment.category ? `${escapeHTML(establishment.category)} · ` : ""}${establishment.openNow ? "Aberto agora" : "Fechado"}</small></div></div><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : '<button class="btn btn-primary btn-sm" type="button" data-open-employee-access>Área do estabelecimento</button>'}</div></div></header>
+    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : '<button class="btn btn-primary btn-sm" type="button" data-open-employee-access>Área do estabelecimento</button>'}</div></div></header>
     <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Chamando agora</small><strong>${escapeHTML(currentTicket?.ticket || "—")}</strong><em>${currentTicket ? escapeHTML(currentTicket.servicePoint || "Atendimento") : "Fila livre"}</em></div></article><article class="public-live-card"><small>Próximas senhas</small><div class="public-next-tickets">${waitingTickets.slice(0,3).map((item) => `<span>${escapeHTML(item.ticket)}</span>`).join("") || "<em>Ninguém aguardando</em>"}</div></article><article class="public-live-card public-next-slot"><small>Próximo horário livre</small><div><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></div></article><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button></div></section>
-    <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>${escapeHTML(establishment.address)}</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2></div></div>${publicServiceCards(establishment)}</section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section></main>
+    <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section></main>
     ${publicCheckInModal()}${publicQueueModal(data)}${employeeAccessModal(establishment)}</div>`;
   requestAnimationFrame(() => {
     startServiceCarousel();
