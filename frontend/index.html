@@ -27,7 +27,17 @@
           var restored = location.search.slice(2).split("&").map(function (part) {
             return part.replace(/~and~/g, "&");
           }).join("?");
-          history.replaceState(null, "", location.pathname.replace(/\/$/, "") + "/" + restored + location.hash);
+          var separator = restored.indexOf("?");
+          var route = separator === -1 ? restored : restored.slice(0, separator);
+          var query = separator === -1 ? "" : restored.slice(separator + 1);
+          var params = new URLSearchParams(query);
+          params.set("route", route);
+          var ordered = new URLSearchParams();
+          ordered.set("route", params.get("route"));
+          params.forEach(function (value, key) {
+            if (key !== "route") ordered.append(key, value);
+          });
+          history.replaceState(null, "", location.pathname + "?" + ordered.toString() + location.hash);
         }
       })(window.location);
     </script>

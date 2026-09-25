@@ -45,10 +45,7 @@ function statusLabel(status = "confirmado") {
 }
 
 function checkInQrUrl(establishment, token) {
-  const url = new URL(`${BASE || ""}/`, location.origin);
-  url.search = `?/${encodeURIComponent(establishment.slug)}&checkin=${encodeURIComponent(token)}`;
-  url.hash = "confirmar-presenca";
-  return url.toString();
+  return new URL(href(`/${establishment.slug}?checkin=${encodeURIComponent(token)}#confirmar-presenca`), location.origin).toString();
 }
 
 function qrCodeMarkup(value, className = "") {
@@ -127,7 +124,17 @@ function requestedEstablishment() {
 }
 
 function href(path = "/") {
-  return `${BASE}${path === "/" ? "/" : path}`;
+  if (path.startsWith("/public/")) return `${BASE}${path}`;
+  const [pathAndQuery, hash = ""] = String(path).split("#", 2);
+  const [pathname, queryString = ""] = pathAndQuery.split("?", 2);
+  const routeName = pathname.replace(/^\/+|\/+$/g, "");
+  const params = new URLSearchParams(queryString);
+  if (routeName && routeName !== "home") params.set("route", routeName);
+  const ordered = new URLSearchParams();
+  if (params.has("route")) ordered.set("route", params.get("route"));
+  for (const [key, value] of params) if (key !== "route") ordered.append(key, value);
+  const query = ordered.toString();
+  return `${BASE}/${query ? `?${query}` : ""}${hash ? `#${hash}` : ""}`;
 }
 
 function navigate(path) {
@@ -141,6 +148,8 @@ function navigate(path) {
 }
 
 function route() {
+  const queryRoute = new URLSearchParams(location.search).get("route");
+  if (queryRoute) return queryRoute.replace(/^\/+|\/+$/g, "") || "home";
   let path = location.pathname;
   if (BASE && path.startsWith(BASE)) path = path.slice(BASE.length);
   return path.replace(/^\/+|\/+$/g, "") || "home";
@@ -423,6 +432,12 @@ async function stopQrScanner() {
 function parseCheckInQr(rawValue, expectedSlug) {
   try {
     const url = new URL(String(rawValue));
+    const queryRoute = url.searchParams.get("route");
+    if (queryRoute) {
+      const token = url.searchParams.get("checkin");
+      if (queryRoute === expectedSlug && token) return token;
+      throw new Error("wrong-establishment");
+    }
     const staticRoute = url.search.match(/^\?\/([^&]+)&checkin=([^&]+)/);
     if (staticRoute) {
       const scannedSlug = decodeURIComponent(staticRoute[1]);
@@ -706,7 +721,13 @@ document.addEventListener("click", async (event) => {
   if (internal) {
     event.preventDefault();
     const url = new URL(internal.href);
-    const path = `${url.pathname.replace(BASE, "")}${url.search}${url.hash}` || "/";
+    const params = new URLSearchParams(url.search);
+    const routeName = params.get("route");
+    params.delete("route");
+    const remainingQuery = params.toString();
+    const path = routeName
+      ? `/${routeName}${remainingQuery ? `?${remainingQuery}` : ""}${url.hash}`
+      : `${url.pathname.replace(BASE, "")}${url.search}${url.hash}` || "/";
     navigate(path);
     return;
   }
