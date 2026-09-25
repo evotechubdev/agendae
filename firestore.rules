@@ -164,6 +164,11 @@ service cloud.firestore {
         allow read, write: if manages(slug);
       }
 
+      match /staffStatus/{professionalId} {
+        allow read: if true;
+        allow write: if manages(slug);
+      }
+
       match /queue/{queueId} {
         allow read, write: if manages(slug);
       }
