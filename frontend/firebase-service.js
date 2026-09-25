@@ -41,6 +41,19 @@ function documentKey(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
 }
 
+function slotRefsForAppointment(slug, appointment) {
+  const base = `${appointment.date}_${String(appointment.time).replace(":", "")}`;
+  return [
+    doc(db, "establishments", slug, "slots", `${base}_${documentKey(appointment.professional)}`),
+    doc(db, "establishments", slug, "slots", `${base}_establishment`),
+  ];
+}
+
+async function existingAppointmentSlot(transaction, slug, appointment) {
+  const snapshots = await Promise.all(slotRefsForAppointment(slug, appointment).map((reference) => transaction.get(reference)));
+  return snapshots.find((snapshot) => snapshot.exists())?.ref || null;
+}
+
 function nextEligibleAppointment(items, excludedId = "") {
   return items
     .filter((item) => item.id !== excludedId && item.professional && ["presente", "confirmado"].includes(item.status))
@@ -165,7 +178,7 @@ export async function loadPublicData(slug, date) {
     getDocs(todaySlotsQuery),
     getDocs(collection(db, "establishments", slug, "staffStatus")).catch(() => null),
   ]);
-  if (!stateSnapshot.exists() && slotsSnapshot.empty && !staffStatusSnapshot?.size) return null;
+  if (!stateSnapshot.exists() && slotsSnapshot.empty && todaySlotsSnapshot.empty && !staffStatusSnapshot?.size) return null;
 
   const publicState = stateSnapshot.exists() ? stateSnapshot.data() : {};
   const current = publicState.current || (publicState.currentTicket ? { ticket: publicState.currentTicket } : null);
@@ -174,6 +187,7 @@ export async function loadPublicData(slug, date) {
     : (Array.isArray(publicState.waitingTickets) ? publicState.waitingTickets.map((ticket) => ({ ticket })) : []);
   return {
     slots: slotsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
+    todaySlots: todaySlotsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
     staffStatuses: (staffStatusSnapshot?.docs || []).map((item) => ({ id: item.id, ...item.data() })),
     todayAppointments: todaySlotsSnapshot.size,
     queue: [
@@ -205,7 +219,10 @@ export function observePublicState(slug, callback) {
   const stateRef = doc(db, "establishments", slug, "public", "state");
   let queue = [];
   let staffStatuses = [];
-  const emit = () => callback({ queue, staffStatuses });
+  let todaySlots = null;
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const todaySlotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", today));
+  const emit = () => callback({ queue, staffStatuses, ...(todaySlots ? { todaySlots } : {}) });
   const unsubscribeQueue = onSnapshot(stateRef, (snapshot) => {
     const publicState = snapshot.exists() ? snapshot.data() : {};
     const current = publicState.current || (publicState.currentTicket ? { ticket: publicState.currentTicket } : null);
@@ -222,9 +239,14 @@ export function observePublicState(slug, callback) {
     staffStatuses = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
     emit();
   }, () => emit());
+  const unsubscribeSlots = onSnapshot(todaySlotsQuery, (snapshot) => {
+    todaySlots = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+    emit();
+  }, () => emit());
   return () => {
     unsubscribeQueue();
     unsubscribeStaff();
+    unsubscribeSlots();
   };
 }
 
@@ -398,7 +420,9 @@ export async function startProfessionalAppointment(slug, appointmentId, professi
       throw error;
     }
     if (!["confirmado", "presente", "atendendo"].includes(appointment.status)) throw new Error("Este atendimento não pode mais ser iniciado.");
+    const slotRef = await existingAppointmentSlot(transaction, slug, appointment);
     transaction.update(appointmentRef, { status: "atendendo", startedAt: serverTimestamp() });
+    if (slotRef) transaction.update(slotRef, { status: "atendendo" });
     transaction.set(presenceRef, { appointmentId, date, status: "atendendo", startedAt: serverTimestamp() }, { merge: true });
     transaction.set(statusRef, {
       professional,
@@ -467,8 +491,13 @@ export async function completeAppointmentAndAdvance(slug, appointmentId, profess
     if (candidateRef) reads.push(transaction.get(candidateRef));
     const [appointmentSnapshot, statusSnapshot, candidateSnapshot] = await Promise.all(reads);
     if (!appointmentSnapshot.exists()) throw new Error("Atendimento não encontrado.");
+    const [slotRef, candidateSlotRef] = await Promise.all([
+      existingAppointmentSlot(transaction, slug, appointmentSnapshot.data()),
+      candidateSnapshot?.exists() ? existingAppointmentSlot(transaction, slug, candidateSnapshot.data()) : null,
+    ]);
     const staffStatus = statusSnapshot.exists() ? statusSnapshot.data() : {};
     transaction.update(appointmentRef, { status: "concluido", completedAt: serverTimestamp() });
+    if (slotRef) transaction.update(slotRef, { status: "concluido" });
     transaction.set(presenceRef, { appointmentId, date, status: "concluido", completedAt: serverTimestamp() }, { merge: true });
 
     const pausedToday = Boolean(staffStatus.paused && (!staffStatus.pausedDate || staffStatus.pausedDate === date));
@@ -477,6 +506,7 @@ export async function completeAppointmentAndAdvance(slug, appointmentId, profess
       : null;
     if (next) {
       transaction.update(candidateRef, { status: "atendendo", startedAt: serverTimestamp() });
+      if (candidateSlotRef) transaction.update(candidateSlotRef, { status: "atendendo" });
       transaction.set(candidatePresenceRef, { appointmentId: next.id, date, status: "atendendo", startedAt: serverTimestamp() }, { merge: true });
     }
     transaction.set(statusRef, {
