@@ -176,6 +176,7 @@ img { display: block; max-width: 100%; }
 body:has(.booking-modal-backdrop) { overflow: hidden; }
 .booking-modal-backdrop { position: fixed; inset: 0; z-index: 1000; padding: 24px; display: grid; place-items: center; overflow-y: auto; background: rgba(7,25,57,.68); backdrop-filter: blur(5px); animation: modal-fade-in .18s ease-out; }
 .booking-modal { width: min(100%,560px); max-height: calc(100vh - 48px); overflow-y: auto; border: 1px solid rgba(255,255,255,.65); border-radius: 20px; background: #fff; box-shadow: 0 24px 70px rgba(7,25,57,.3); animation: modal-rise-in .22s ease-out; }
+.booking-confirmation-modal { width: min(100%,700px); }
 .booking-modal-head { min-height: 82px; padding: 0 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); }
 .booking-modal-head small { color: var(--blue); font-size: 9px; font-weight: 800; letter-spacing: 1.1px; }
 .booking-modal-head h2 { margin: 4px 0 0; color: var(--navy); font: 800 21px "Manrope",sans-serif; }
@@ -183,6 +184,23 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .booking-modal-close:hover { color: var(--navy); background: var(--canvas); }
 .booking-modal-form { padding: 22px; }
 .booking-modal-lead { margin: 0 0 20px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.booking-service-picker { min-width: 0; margin: 0 0 20px; padding: 0; border: 0; }
+.booking-service-picker legend { width: 100%; margin-bottom: 10px; color: #35435a; font-size: 12px; font-weight: 800; }
+.booking-service-picker legend span { margin-left: 6px; padding: 3px 6px; border-radius: 999px; color: var(--blue); background: var(--blue-soft); font-size: 8px; text-transform: uppercase; }
+.booking-service-options { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.booking-service-option { position: relative; min-width: 0; min-height: 72px; padding: 11px; display: grid; grid-template-columns: 38px minmax(0,1fr) auto 20px; align-items: center; gap: 9px; border: 1px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; transition: border-color .16s,background .16s,box-shadow .16s; }
+.booking-service-option:hover { border-color: #9db7e1; background: #f9fbff; }
+.booking-service-option:has(input:checked) { border-color: var(--blue); background: var(--blue-soft); box-shadow: 0 0 0 2px rgba(18,73,163,.1); }
+.booking-service-option:has(input:focus-visible) { outline: 3px solid rgba(31,95,196,.22); outline-offset: 2px; }
+.booking-service-option input { position: absolute; width: 1px; height: 1px; opacity: .01; }
+.booking-service-option .service-icon { width: 38px; height: 38px; }
+.booking-service-info { min-width: 0; }
+.booking-service-info strong,.booking-service-info small { display: block; }
+.booking-service-info strong { overflow: hidden; color: var(--ink); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.booking-service-info small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.booking-service-option .service-price { white-space: nowrap; font-size: 10px; }
+.booking-service-option>i { width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid #cbd5e3; border-radius: 50%; color: transparent; background: #fff; font-size: 10px; font-style: normal; font-weight: 900; }
+.booking-service-option:has(input:checked)>i { border-color: var(--blue); color: #fff; background: var(--blue); }
 .optional-label { color: var(--muted); font-weight: 600; }
 .booking-review { margin-top: 20px; }
 @keyframes modal-fade-in { from { opacity: 0; } }
@@ -219,6 +237,11 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .service-carousel-controls button:hover { border-color: #9db7e1; background: var(--blue-soft); }
 .service-carousel { display: grid; grid-auto-flow: column; grid-auto-columns: calc(50% - 5px); gap: 10px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-behavior: smooth; scroll-snap-type: inline mandatory; scrollbar-width: thin; scrollbar-color: #c5d2e5 transparent; }
 .service-carousel .service-btn { width: 100%; scroll-snap-align: start; }
+.service-card-display { width: 100%; min-height: 74px; padding: 12px; display: grid; grid-template-columns: 40px minmax(0,1fr) auto; align-items: center; gap: 11px; scroll-snap-align: start; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.service-card-display strong,.service-card-display small { display: block; }
+.service-card-display strong { color: var(--ink); font-size: 12px; }
+.service-card-display small { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.service-card-display .service-price { white-space: nowrap; }
 .public-schedule-head>div { display: flex; align-items: center; gap: 11px; }
 .public-schedule-head>div>div { display: block; }
 .public-schedule-head .schedule-step-number { color: var(--navy); background: var(--yellow); }
@@ -278,6 +301,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .selected-slot-card span { color: var(--muted); font-size: 10px; }
 .selected-slot-card button { border: 0; color: var(--blue); background: transparent; font-size: 10px; font-weight: 800; }
 .booking-selection-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.booking-selection-summary.single { grid-template-columns: 1fr; }
 .booking-selection-summary>div { padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); }
 .booking-selection-summary span,.booking-selection-summary strong,.booking-selection-summary small { display: block; }
 .booking-selection-summary span { color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; }
@@ -448,6 +472,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .booking-modal-form { padding: 18px; }
   .booking-modal-form .booking-actions { flex-direction: column-reverse; }
   .booking-modal-form .btn { width: 100%; }
+  .booking-service-options { grid-template-columns: 1fr; }
   .public-agenda-layout { grid-template-columns: 1fr; }
   .public-services,.public-schedule-body,.public-lookup-card { padding: 16px; }
   .service-carousel { grid-auto-columns: 88%; }
