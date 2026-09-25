@@ -10,8 +10,14 @@
         var projectSegments = 1;
         var base = location.pathname.split("/").slice(0, 1 + projectSegments).join("/");
         var route = location.pathname.split("/").slice(1 + projectSegments).join("/");
-        var query = location.search ? "&" + location.search.slice(1).replace(/&/g, "~and~") : "";
-        location.replace(location.protocol + "//" + location.host + base + "/?/" + route + query + location.hash);
+        var params = new URLSearchParams(location.search);
+        params.set("route", route);
+        var ordered = new URLSearchParams();
+        ordered.set("route", params.get("route"));
+        params.forEach(function (value, key) {
+          if (key !== "route") ordered.append(key, value);
+        });
+        location.replace(location.protocol + "//" + location.host + base + "/?" + ordered.toString() + location.hash);
       })(window.location);
     </script>
   </head>
