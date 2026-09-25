@@ -221,9 +221,6 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .queue-row:last-child { border-bottom: 0; }
 .ticket { width: 44px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--blue); background: var(--blue-soft); font-size: 10px; font-weight: 800; }
 .queue-row small { color: var(--muted); }
-.hours-body { padding: 17px 20px; }
-.hours-row { padding: 8px 0; display: flex; justify-content: space-between; gap: 15px; color: var(--muted); font-size: 11px; }
-.hours-row.today { color: var(--blue); font-weight: 800; }
 .public-agenda-layout { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(300px,.65fr); gap: 20px; align-items: start; }
 .public-schedule-panel { overflow: hidden; }
 .public-services { padding: 20px; background: linear-gradient(180deg,#f8fbff,#fff); }
@@ -656,7 +653,6 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .zone-title h2 { margin: 2px 0; color: var(--navy); font: 800 22px "Manrope",sans-serif; }
 .zone-title p { margin: 0; color: var(--muted); font-size: 12px; }
 .booking-layout { display: grid; grid-template-columns: minmax(0,1.65fr) minmax(270px,.55fr); gap: 20px; align-items: start; }
-.hours-panel { position: sticky; top: 18px; }
 .queue-zone { margin-top: 48px; padding: 30px; border-radius: 24px; background: linear-gradient(135deg,#071b42,#0b3276); box-shadow: 0 20px 45px rgba(8,35,84,.18); }
 .queue-zone-title { margin: 0 0 20px; }
 .queue-zone-title .zone-number { color: var(--navy); background: var(--yellow); }
@@ -730,7 +726,6 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 
 @media (max-width:980px) {
   .booking-layout { grid-template-columns: 1fr; }
-  .hours-panel { position: static; }
   .queue-display-content { grid-template-columns: 1fr; }
   .queue-display-current { min-height: 430px; }
 }
@@ -780,7 +775,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-next-slot>div { display: flex; align-items: baseline; gap: 8px; }
 .public-queue-button { margin-left: 22px; white-space: nowrap; }
 .public-direct-content { padding-top: 18px; }
-.public-agenda-layout { grid-template-columns: minmax(0,1fr) 270px; gap: 16px; align-items: stretch; }
+.public-agenda-layout { grid-template-columns: minmax(0,1fr) 250px; gap: 16px; align-items: stretch; }
 .public-schedule-panel { height: 100%; display: flex; }
 .public-schedule-body { width: 100%; display: flex; flex: 1; flex-direction: column; }
 .public-schedule-body .professional-carousel { min-height: 0; display: flex; flex: 1; }
@@ -802,15 +797,13 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-professional-schedule header .professional-status.paused { color: #805700; background: #fff0bd; }
 .public-professional-schedule header .professional-status.free { color: var(--green); background: var(--green-soft); }
 .public-professional-schedule header .professional-status.off-shift { color: var(--muted); background: #eef1f5; }
-.public-agenda-side { height: 100%; display: grid; grid-template-rows: auto 1fr; gap: 16px; }
-.public-agenda-side .hours-panel { position: static; top: auto; }
-.public-agenda-side .hours-panel .panel-head { min-height: 62px; padding: 0 17px; }
-.public-agenda-side .hours-panel .panel-head h2 { font-size: 15px; }
-.public-agenda-side .hours-panel .panel-head p { max-width: 225px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.public-agenda-side .hours-body { padding: 12px 17px; }
-.public-agenda-side .hours-row { padding: 6px 0; }
-.public-services-panel { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
-.public-services-panel .compact-panel-head { min-height: 56px; padding: 0 17px; }
+.public-agenda-side { display: grid; grid-template-rows: 1fr; gap: 16px; }
+.public-services-panel { overflow: hidden; display: flex; flex-direction: column; }
+.public-services-panel .compact-panel-head { min-height: 72px; padding: 10px 14px; }
+.compact-business-hours { margin-top: 5px; display: grid; gap: 2px; color: var(--muted); font-size: 9px; line-height: 1.35; }
+.compact-business-hours span { display: block; }
+.compact-business-hours strong { color: #43516a; font-weight: 800; }
+.compact-business-hours i { display: none; }
 .public-services-panel .public-services { padding: 12px; flex: 1; background: #fbfcff; }
 .service-list { display: grid; gap: 8px; }
 .public-services-panel .service-card-display { min-height: 58px; padding: 9px; grid-template-columns: 36px minmax(0,1fr) auto; gap: 8px; }
@@ -875,7 +868,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .public-schedule-panel,.public-agenda-side { height: auto; }
   .public-schedule-body .professional-carousel { flex: none; }
   .public-schedule-body .public-professional-schedule { height: auto; }
-  .public-agenda-side { grid-template-columns: minmax(230px,.72fr) minmax(0,1.28fr); grid-template-rows: auto; }
+  .public-agenda-side { grid-template-columns: 1fr; grid-template-rows: auto; }
   .public-services-panel .service-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
