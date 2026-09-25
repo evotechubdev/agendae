@@ -11,9 +11,11 @@ let queueSubscriptionSlug = null;
 let monitorClockTimer = null;
 let serviceCarouselTimer = null;
 let professionalScheduleTimer = null;
+let adminRefreshTimer = null;
 let qrScanner = null;
 const cloudCache = new Map();
 const cloudLoading = new Set();
+const professionalReconcileLoading = new Set();
 const checkInConfigs = new Map();
 const checkInConfigLoading = new Set();
 
@@ -43,7 +45,7 @@ function generateCheckInCode() {
 }
 
 function statusLabel(status = "confirmado") {
-  return ({ confirmado: "Confirmado", presente: "Presença confirmada", concluido: "Concluído", aguardando: "Aguardando" })[status] || status;
+  return ({ confirmado: "Confirmado", presente: "Presença confirmada", atendendo: "Em atendimento", concluido: "Concluído", aguardando: "Aguardando" })[status] || status;
 }
 
 function checkInQrUrl(establishment, token) {
@@ -101,6 +103,41 @@ function professionalDirectory(establishment) {
     ? { name: professional, availableTimes: establishment.availableTimes || [] }
     : professional
   );
+}
+
+function staffStatusFor(data, professionalName) {
+  return (data.staffStatuses || []).find((item) => item.professional === professionalName) || {};
+}
+
+function professionalIsPaused(data, professionalName, date = isoDate()) {
+  const status = staffStatusFor(data, professionalName);
+  return Boolean(status.paused && (!status.pausedDate || status.pausedDate === date));
+}
+
+function currentSaoPauloClock() {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date()).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, minutes: (Number(parts.hour) * 60) + Number(parts.minute) };
+}
+
+function professionalIsOnShift(professional, date = isoDate()) {
+  const times = professional.availableTimes || [];
+  if (!times.length) return false;
+  const clock = currentSaoPauloClock();
+  if (clock.date !== date) return false;
+  const toMinutes = (time) => {
+    const [hour, minute] = String(time).split(":").map(Number);
+    return (hour * 60) + minute;
+  };
+  const minutes = times.map(toMinutes).sort((a, b) => a - b);
+  return clock.minutes >= minutes[0] && clock.minutes <= minutes.at(-1);
 }
 
 function scheduleFor(establishment, professionalName) {
@@ -176,7 +213,44 @@ function invalidatePublicCache(slug) {
 function getData(establishment) {
   const adminMode = session()?.slug === establishment.slug && new URLSearchParams(location.search).get("public") !== "1";
   const cloud = cloudCache.get(adminMode ? `admin:${establishment.slug}` : publicCacheKey(establishment));
-  return cloud || { appointments: [], queue: [], slots: [], todayAppointments: 0 };
+  return cloud || { appointments: [], queue: [], slots: [], staffStatuses: [], todayAppointments: 0 };
+}
+
+async function reconcileProfessionalCoverage(establishment, data) {
+  if (!firebaseApi || !session() || !usesEmployeeSchedules(establishment)) return;
+  const date = isoDate();
+  const reconciliationKey = `${establishment.slug}:${date}`;
+  if (professionalReconcileLoading.has(reconciliationKey)) return;
+  professionalReconcileLoading.add(reconciliationKey);
+  let changed = false;
+  try {
+    for (const professional of professionalDirectory(establishment)) {
+      const appointments = data.appointments.filter((item) => item.professional === professional.name);
+      const staffStatus = staffStatusFor(data, professional.name);
+      const current = appointments.find((item) => item.status === "atendendo");
+      const hasEligible = appointments.some((item) => ["presente", "confirmado"].includes(item.status));
+      if (professionalIsPaused(data, professional.name, date)) continue;
+      if (current) {
+        if (staffStatus.currentAppointmentId !== current.id || staffStatus.currentDate !== date) {
+          const synchronized = await firebaseApi.startNextProfessionalAppointment(establishment.slug, professional.name, date);
+          changed ||= Boolean(synchronized);
+        }
+        continue;
+      }
+      if (!hasEligible || !professionalIsOnShift(professional, date)) continue;
+      const started = await firebaseApi.startNextProfessionalAppointment(establishment.slug, professional.name, date);
+      changed ||= Boolean(started);
+    }
+  } catch (error) {
+    console.error("Agendae: não foi possível reconciliar os atendimentos em andamento.", error);
+  } finally {
+    professionalReconcileLoading.delete(reconciliationKey);
+  }
+  if (changed) {
+    cloudCache.delete(`admin:${establishment.slug}`);
+    invalidatePublicCache(establishment.slug);
+    render();
+  }
 }
 
 async function refreshCloudData(establishment, mode, date = isoDate()) {
@@ -187,7 +261,8 @@ async function refreshCloudData(establishment, mode, date = isoDate()) {
   try {
     if (mode === "admin") {
       const remote = await firebaseApi.loadAdminData(establishment.slug, isoDate());
-      cloudCache.set(key, { appointments: remote.appointments, queue: remote.queue, slots: remote.slots });
+      cloudCache.set(key, { appointments: remote.appointments, queue: remote.queue, slots: remote.slots, staffStatuses: remote.staffStatuses || [] });
+      void reconcileProfessionalCoverage(establishment, remote);
     } else {
       const remote = await firebaseApi.loadPublicData(establishment.slug, date);
       if (remote) cloudCache.set(key, { appointments: [], ...remote });
@@ -320,17 +395,33 @@ function publicSchedule(establishment) {
     const times = employeeMode ? (professional.availableTimes || []) : (establishment.availableTimes || []);
     const busy = new Set((data.slots || []).filter((slot) => slot.id?.endsWith("_establishment") || slot.professional === professional.name).map((slot) => slot.time));
     const freeCount = times.filter((time) => !busy.has(time) && !slotHasPassed(state.booking.date, time)).length;
+    const staffStatus = staffStatusFor(data, professional.name);
+    const isToday = state.booking.date === isoDate();
+    const currentTime = isToday && staffStatus.currentDate === state.booking.date ? staffStatus.currentTime : null;
+    const paused = isToday && professionalIsPaused(data, professional.name, state.booking.date);
+    const operationalLabel = !isToday
+      ? `${freeCount} ${freeCount === 1 ? "livre" : "livres"}`
+      : paused
+        ? "Atendimento em Pausa"
+        : currentTime
+          ? "Em atendimento"
+          : professionalIsOnShift(professional)
+            ? "Livre"
+            : "Fora do expediente";
+    const operationalClass = paused ? "paused" : currentTime ? "in-service" : professionalIsOnShift(professional) ? "free" : "off-shift";
     const buttons = times.map((time) => {
+      if (currentTime === time && paused) return `<button class="schedule-slot paused" type="button" disabled aria-label="${escapeHTML(time)} atendimento em pausa"><strong>${escapeHTML(time)}</strong><small>Em pausa</small></button>`;
+      if (currentTime === time) return `<button class="schedule-slot in-service" type="button" disabled aria-label="${escapeHTML(time)} em atendimento"><strong>${escapeHTML(time)}</strong><small>Em atendimento</small></button>`;
       if (slotHasPassed(state.booking.date, time)) return `<button class="schedule-slot past" type="button" disabled aria-label="${escapeHTML(time)} encerrado"><strong>${escapeHTML(time)}</strong><small>Encerrado</small></button>`;
-      if (busy.has(time)) return `<button class="schedule-slot occupied" type="button" disabled aria-label="${escapeHTML(time)} em atendimento"><strong>${escapeHTML(time)}</strong><small>Em atendimento</small></button>`;
+      if (busy.has(time)) return `<button class="schedule-slot occupied" type="button" disabled aria-label="${escapeHTML(time)} agendado"><strong>${escapeHTML(time)}</strong><small>Agendado</small></button>`;
       const selected = state.booking.professional === professional.name && state.booking.time === time;
       return `<button class="schedule-slot available ${selected ? "selected" : ""}" type="button" data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${selected}"><strong>${escapeHTML(time)}</strong><small>${selected ? "Selecionado" : "Livre"}</small></button>`;
     }).join("");
-    return `<article class="public-professional-schedule"><header><span class="client-avatar">${initials(professional.name)}</span><div><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></div><em>${freeCount} ${freeCount === 1 ? "livre" : "livres"}</em></header><div class="public-slot-grid">${buttons || '<div class="schedule-empty">Nenhum horário configurado para esta data.</div>'}</div></article>`;
+    return `<article class="public-professional-schedule"><header><span class="client-avatar">${initials(professional.name)}</span><div><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></div><em class="professional-status ${operationalClass}">${operationalLabel}</em></header><div class="public-slot-grid">${buttons || '<div class="schedule-empty">Nenhum horário configurado para esta data.</div>'}</div></article>`;
   }).join("");
   const controls = professionals.length > 1 ? `<div class="professional-carousel-controls"><span data-professional-carousel-position>1 de ${professionals.length}</span><button type="button" data-professional-carousel-prev aria-label="Profissional anterior">←</button><button type="button" data-professional-carousel-next aria-label="Próximo profissional">→</button></div>` : "";
   const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
-  return `<div class="schedule-command-bar"><div class="schedule-command-title"><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div><div class="schedule-legend"><div><span><i class="available"></i>Livre</span><span><i class="occupied"></i>Em atendimento</span><span><i class="past"></i>Encerrado</span></div></div>${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
+  return `<div class="schedule-command-bar"><div class="schedule-command-title"><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div><div class="schedule-legend"><div><span><i class="available"></i>Livre</span><span><i class="in-service"></i>Em atendimento</span><span><i class="past"></i>Encerrado</span></div></div>${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
 }
 
 function publicServiceCards(establishment) {
@@ -573,7 +664,15 @@ function staffSchedulesMarkup(establishment, data) {
     const freeTimes = availableTimesFor(establishment, data);
     return `<section class="staff-schedule"><div class="staff-schedule-head"><span class="client-avatar">EST</span><span><strong>Agenda do estabelecimento</strong><small>Grade compartilhada · ${freeTimes.length} livres</small></span></div><div class="staff-time-list">${freeTimes.length ? freeTimes.map((time) => `<span class="free-slot">${time}</span>`).join("") : '<span class="staff-full">Agenda preenchida</span>'}</div></section>`;
   }
-  return professionalAvailability(establishment, data).map((professional) => `<section class="staff-schedule"><div class="staff-schedule-head"><span class="client-avatar">${initials(professional.name)}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")} · ${professional.freeTimes.length} livres</small></span></div><div class="staff-time-list">${professional.freeTimes.length ? professional.freeTimes.map((time) => `<span class="free-slot">${time}</span>`).join("") : '<span class="staff-full">Agenda preenchida</span>'}</div></section>`).join("");
+  return professionalAvailability(establishment, data).map((professional) => {
+    const staffStatus = staffStatusFor(data, professional.name);
+    const current = data.appointments.find((item) => item.professional === professional.name && item.status === "atendendo");
+    const paused = professionalIsPaused(data, professional.name);
+    const onShift = professionalIsOnShift(professional);
+    const label = paused ? "Atendimento em Pausa" : current ? `Em atendimento · ${current.time}` : onShift ? "Livre" : "Fora do expediente";
+    const statusClass = paused ? "paused" : current ? "in-service" : onShift ? "free" : "off-shift";
+    return `<section class="staff-schedule"><div class="staff-schedule-head"><span class="client-avatar">${initials(professional.name)}</span><span class="staff-schedule-person"><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")} · ${professional.freeTimes.length} livres</small></span><span class="staff-operational-status ${statusClass}">${escapeHTML(label)}</span></div><button class="staff-pause-button ${paused ? "resume" : ""}" type="button" data-toggle-professional-pause data-professional-name="${escapeHTML(professional.name)}" data-paused="${paused}">${paused ? "Retomar atendimento" : "Pausar atendimento"}</button><div class="staff-time-list">${professional.freeTimes.length ? professional.freeTimes.map((time) => `<span class="free-slot">${time}</span>`).join("") : '<span class="staff-full">Agenda preenchida</span>'}</div></section>`;
+  }).join("");
 }
 
 function hoursMarkup(establishment) {
@@ -613,7 +712,19 @@ function appointmentRows(data, query = state.appointmentQuery) {
     : todayAppointments;
   if (!todayAppointments.length) return '<div class="empty">Nenhum atendimento marcado para hoje.</div>';
   if (!appointments.length) return `<div class="empty">Nenhum agendamento encontrado para <strong>${escapeHTML(query.trim())}</strong>.</div>`;
-  return appointments.map((item) => `<div class="appointment-row"><span class="appt-time">${item.time}</span><span class="client"><span class="client-avatar">${initials(item.client)}</span><span><strong>${escapeHTML(item.client)}</strong><small>${escapeHTML(item.service)}${item.checkInCode ? ` · Senha ${escapeHTML(item.checkInCode)}` : ""}</small></span></span><span class="professional">${escapeHTML(item.professional)}</span><span class="status ${escapeHTML(item.status)}">${escapeHTML(statusLabel(item.status))}</span><span class="appointment-presence-action">${item.status === "confirmado" ? `<button class="btn btn-soft btn-sm" type="button" data-confirm-presence="${escapeHTML(item.id)}">Confirmar chegada</button>` : item.status === "presente" ? '<span>✓ No local</span>' : ""}</span></div>`).join("");
+  return appointments.map((item) => {
+    const paused = professionalIsPaused(data, item.professional);
+    const action = item.status === "confirmado"
+      ? `<button class="btn btn-soft btn-sm" type="button" data-confirm-presence="${escapeHTML(item.id)}">Confirmar chegada</button>`
+      : item.status === "presente" && paused
+        ? '<span class="appointment-paused">Em pausa</span>'
+        : item.status === "presente"
+          ? `<button class="btn btn-soft btn-sm" type="button" data-start-appointment="${escapeHTML(item.id)}" data-professional-name="${escapeHTML(item.professional)}">Iniciar</button>`
+          : item.status === "atendendo"
+            ? `<button class="btn btn-primary btn-sm" type="button" data-complete-appointment="${escapeHTML(item.id)}" data-professional-name="${escapeHTML(item.professional)}">Encerrar</button>`
+            : item.status === "concluido" ? '<span>✓ Finalizado</span>' : "";
+    return `<div class="appointment-row"><span class="appt-time">${item.time}</span><span class="client"><span class="client-avatar">${initials(item.client)}</span><span><strong>${escapeHTML(item.client)}</strong><small>${escapeHTML(item.service)}${item.checkInCode ? ` · Senha ${escapeHTML(item.checkInCode)}` : ""}</small></span></span><span class="professional">${escapeHTML(item.professional)}</span><span class="status ${escapeHTML(item.status)}">${escapeHTML(statusLabel(item.status))}</span><span class="appointment-presence-action">${action}</span></div>`;
+  }).join("");
 }
 
 async function loadCheckInConfig(establishment) {
@@ -661,6 +772,11 @@ function renderAdmin(establishment) {
   if (queueSection) queueSection.insertAdjacentHTML("beforeend", `<div class="queue-admin-actions"><button class="btn btn-soft btn-sm" data-add-ticket data-priority="normal">+ Senha normal</button><button class="btn btn-priority btn-sm" data-add-ticket data-priority="preferencial">+ Preferencial</button><button class="btn btn-primary btn-sm" data-next-ticket>Chamar próxima</button></div>`);
   void refreshCloudData(establishment, "admin");
   void loadCheckInConfig(establishment);
+  adminRefreshTimer = setInterval(() => {
+    if (route() !== establishment.slug || session()?.slug !== establishment.slug || new URLSearchParams(location.search).get("public") === "1") return;
+    cloudCache.delete(`admin:${establishment.slug}`);
+    void refreshCloudData(establishment, "admin");
+  }, 10000);
 }
 
 function updateMonitorClock() {
@@ -704,6 +820,8 @@ function renderNotFound() {
 }
 
 function render() {
+  clearInterval(adminRefreshTimer);
+  adminRefreshTimer = null;
   clearInterval(monitorClockTimer);
   monitorClockTimer = null;
   clearInterval(serviceCarouselTimer);
@@ -905,17 +1023,83 @@ document.addEventListener("click", async (event) => {
     requestAnimationFrame(() => document.querySelector("[data-appointment-search]")?.focus());
     return;
   }
+  const pauseButton = event.target.closest("[data-toggle-professional-pause]");
+  if (pauseButton) {
+    const establishment = activeEstablishment();
+    const professionalName = pauseButton.dataset.professionalName;
+    const professional = professionalDirectory(establishment).find((item) => item.name === professionalName);
+    const pause = pauseButton.dataset.paused !== "true";
+    pauseButton.disabled = true;
+    pauseButton.textContent = pause ? "Pausando…" : "Retomando…";
+    try {
+      const next = await firebaseApi.setProfessionalPause(establishment.slug, professionalName, pause, isoDate(), Boolean(professional && professionalIsOnShift(professional)));
+      cloudCache.delete(`admin:${establishment.slug}`);
+      invalidatePublicCache(establishment.slug);
+      toast(pause ? `${professionalName} está com o atendimento em pausa.` : next ? `${professionalName} retomou e o próximo atendimento foi iniciado.` : `${professionalName} retomou o atendimento.`);
+      render();
+    } catch (error) {
+      pauseButton.disabled = false;
+      toast(firebaseApi.firebaseErrorMessage(error), "!");
+    }
+    return;
+  }
+  const startAppointmentButton = event.target.closest("[data-start-appointment]");
+  if (startAppointmentButton) {
+    const establishment = activeEstablishment();
+    startAppointmentButton.disabled = true;
+    startAppointmentButton.textContent = "Iniciando…";
+    try {
+      await firebaseApi.startProfessionalAppointment(establishment.slug, startAppointmentButton.dataset.startAppointment, startAppointmentButton.dataset.professionalName, isoDate());
+      cloudCache.delete(`admin:${establishment.slug}`);
+      invalidatePublicCache(establishment.slug);
+      toast("Atendimento iniciado.");
+      render();
+    } catch (error) {
+      startAppointmentButton.disabled = false;
+      startAppointmentButton.textContent = "Iniciar";
+      toast(firebaseApi.firebaseErrorMessage(error), "!");
+    }
+    return;
+  }
+  const completeAppointmentButton = event.target.closest("[data-complete-appointment]");
+  if (completeAppointmentButton) {
+    const establishment = activeEstablishment();
+    const professionalName = completeAppointmentButton.dataset.professionalName;
+    const professional = professionalDirectory(establishment).find((item) => item.name === professionalName);
+    completeAppointmentButton.disabled = true;
+    completeAppointmentButton.textContent = "Encerrando…";
+    try {
+      const result = await firebaseApi.completeAppointmentAndAdvance(establishment.slug, completeAppointmentButton.dataset.completeAppointment, professionalName, isoDate(), Boolean(professional && professionalIsOnShift(professional)));
+      cloudCache.delete(`admin:${establishment.slug}`);
+      invalidatePublicCache(establishment.slug);
+      toast(result.next ? `Atendimento encerrado. ${result.next.time} entrou automaticamente em atendimento.` : result.paused ? "Atendimento encerrado. O próximo aguardará até a retomada." : "Atendimento encerrado.");
+      render();
+    } catch (error) {
+      completeAppointmentButton.disabled = false;
+      completeAppointmentButton.textContent = "Encerrar";
+      toast(firebaseApi.firebaseErrorMessage(error), "!");
+    }
+    return;
+  }
   const addTicketButton = event.target.closest("[data-add-ticket]");
   if (addTicketButton) await addTicket(addTicketButton.dataset.priority || "normal");
   if (event.target.closest("[data-next-ticket]")) await callNext();
   const confirmPresenceButton = event.target.closest("[data-confirm-presence]");
   if (confirmPresenceButton) {
     const establishment = activeEstablishment();
+    const data = getData(establishment);
+    const appointment = data.appointments.find((item) => item.id === confirmPresenceButton.dataset.confirmPresence);
     confirmPresenceButton.disabled = true;
     confirmPresenceButton.textContent = "Confirmando…";
     try {
       await firebaseApi.confirmPresenceManually(establishment.slug, confirmPresenceButton.dataset.confirmPresence);
+      const professional = professionalDirectory(establishment).find((item) => item.name === appointment?.professional);
+      const hasCurrent = data.appointments.some((item) => item.professional === appointment?.professional && item.status === "atendendo");
+      if (professional && !professionalIsPaused(data, appointment?.professional) && !hasCurrent && professionalIsOnShift(professional)) {
+        await firebaseApi.startNextProfessionalAppointment(establishment.slug, professional.name, isoDate());
+      }
       cloudCache.delete(`admin:${establishment.slug}`);
+      invalidatePublicCache(establishment.slug);
       toast("Presença confirmada pela equipe.");
       render();
     } catch (error) {
@@ -923,6 +1107,7 @@ document.addEventListener("click", async (event) => {
       confirmPresenceButton.textContent = "Confirmar chegada";
       toast(firebaseApi.firebaseErrorMessage(error), "!");
     }
+    return;
   }
 });
 

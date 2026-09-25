@@ -37,6 +37,16 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
+function documentKey(value) {
+  return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
+}
+
+function nextEligibleAppointment(items, excludedId = "") {
+  return items
+    .filter((item) => item.id !== excludedId && item.professional && ["presente", "confirmado"].includes(item.status))
+    .sort((a, b) => Number(b.status === "presente") - Number(a.status === "presente") || String(a.time).localeCompare(String(b.time)))[0] || null;
+}
+
 function normalizedAppointmentName(value) {
   return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
 }
@@ -149,8 +159,13 @@ export async function loadPublicData(slug, date) {
   const slotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", date));
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
   const todaySlotsQuery = date === today ? slotsQuery : query(collection(db, "establishments", slug, "slots"), where("date", "==", today));
-  const [stateSnapshot, slotsSnapshot, todaySlotsSnapshot] = await Promise.all([getDoc(stateRef), getDocs(slotsQuery), getDocs(todaySlotsQuery)]);
-  if (!stateSnapshot.exists() && slotsSnapshot.empty) return null;
+  const [stateSnapshot, slotsSnapshot, todaySlotsSnapshot, staffStatusSnapshot] = await Promise.all([
+    getDoc(stateRef),
+    getDocs(slotsQuery),
+    getDocs(todaySlotsQuery),
+    getDocs(collection(db, "establishments", slug, "staffStatus")).catch(() => null),
+  ]);
+  if (!stateSnapshot.exists() && slotsSnapshot.empty && !staffStatusSnapshot?.size) return null;
 
   const publicState = stateSnapshot.exists() ? stateSnapshot.data() : {};
   const current = publicState.current || (publicState.currentTicket ? { ticket: publicState.currentTicket } : null);
@@ -159,6 +174,7 @@ export async function loadPublicData(slug, date) {
     : (Array.isArray(publicState.waitingTickets) ? publicState.waitingTickets.map((ticket) => ({ ticket })) : []);
   return {
     slots: slotsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
+    staffStatuses: (staffStatusSnapshot?.docs || []).map((item) => ({ id: item.id, ...item.data() })),
     todayAppointments: todaySlotsSnapshot.size,
     queue: [
       ...(current ? [{ ...current, status: "atendendo" }] : []),
@@ -187,28 +203,39 @@ export async function findPublicAppointments(slug, credential, method = "name") 
 
 export function observePublicState(slug, callback) {
   const stateRef = doc(db, "establishments", slug, "public", "state");
-  return onSnapshot(stateRef, (snapshot) => {
+  let queue = [];
+  let staffStatuses = [];
+  const emit = () => callback({ queue, staffStatuses });
+  const unsubscribeQueue = onSnapshot(stateRef, (snapshot) => {
     const publicState = snapshot.exists() ? snapshot.data() : {};
     const current = publicState.current || (publicState.currentTicket ? { ticket: publicState.currentTicket } : null);
     const waiting = Array.isArray(publicState.waiting)
       ? publicState.waiting
       : (Array.isArray(publicState.waitingTickets) ? publicState.waitingTickets.map((ticket) => ({ ticket })) : []);
-    callback({
-      queue: [
-        ...(current ? [{ ...current, status: "atendendo" }] : []),
-        ...waiting.map((item, index) => ({ ...item, status: "aguardando", position: index + 1 })),
-      ],
-    });
+    queue = [
+      ...(current ? [{ ...current, status: "atendendo" }] : []),
+      ...waiting.map((item, index) => ({ ...item, status: "aguardando", position: index + 1 })),
+    ];
+    emit();
   });
+  const unsubscribeStaff = onSnapshot(collection(db, "establishments", slug, "staffStatus"), (snapshot) => {
+    staffStatuses = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+    emit();
+  }, () => emit());
+  return () => {
+    unsubscribeQueue();
+    unsubscribeStaff();
+  };
 }
 
 export async function loadAdminData(slug, date) {
   const appointmentsQuery = query(collection(db, "establishments", slug, "appointments"), where("date", "==", date));
   const slotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", date));
-  const [appointmentsSnapshot, queueSnapshot, slotsSnapshot] = await Promise.all([
+  const [appointmentsSnapshot, queueSnapshot, slotsSnapshot, staffStatusSnapshot] = await Promise.all([
     getDocs(appointmentsQuery),
     getDocs(collection(db, "establishments", slug, "queue")),
     getDocs(slotsQuery),
+    getDocs(collection(db, "establishments", slug, "staffStatus")).catch(() => null),
   ]);
   return {
     appointments: appointmentsSnapshot.docs.map((item) => ({ ...item.data(), id: item.id })),
@@ -219,6 +246,7 @@ export async function loadAdminData(slug, date) {
       return priorityDifference || (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
     }),
     slots: slotsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
+    staffStatuses: (staffStatusSnapshot?.docs || []).map((item) => ({ id: item.id, ...item.data() })),
   };
 }
 
@@ -229,15 +257,14 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
   const lookupRef = doc(db, "establishments", slug, "appointmentLookups", lookupKey);
   const codeLookupRef = doc(db, "establishments", slug, "appointmentCodeLookups", codeLookupKey);
   const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentRef.id);
-  const keyFor = (name) => name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
-  const professionalKey = keyFor(appointment.professional);
+  const professionalKey = documentKey(appointment.professional);
   const scheduleKey = scheduleMode === "establishment" ? "establishment" : professionalKey;
   const slotBase = `${appointment.date}_${appointment.time.replace(":", "")}`;
   const slotId = `${slotBase}_${scheduleKey}`;
   const slotRef = doc(db, "establishments", slug, "slots", slotId);
   const sharedSlotRef = doc(db, "establishments", slug, "slots", `${slotBase}_establishment`);
   const refsToCheck = scheduleMode === "establishment"
-    ? [sharedSlotRef, ...professionalNames.map((name) => doc(db, "establishments", slug, "slots", `${slotBase}_${keyFor(name)}`))]
+    ? [sharedSlotRef, ...professionalNames.map((name) => doc(db, "establishments", slug, "slots", `${slotBase}_${documentKey(name)}`))]
     : [slotRef, sharedSlotRef];
 
   await runTransaction(db, async (transaction) => {
@@ -343,6 +370,127 @@ export async function confirmPresenceManually(slug, appointmentId) {
   await batch.commit();
 }
 
+async function professionalAppointments(slug, professional, date) {
+  const snapshot = await getDocs(query(collection(db, "establishments", slug, "appointments"), where("date", "==", date)));
+  return snapshot.docs
+    .map((item) => ({ id: item.id, ref: item.ref, ...item.data() }))
+    .filter((item) => item.professional === professional)
+    .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+}
+
+export async function startProfessionalAppointment(slug, appointmentId, professional, date) {
+  const appointmentRef = doc(db, "establishments", slug, "appointments", appointmentId);
+  const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentId);
+  const statusRef = doc(db, "establishments", slug, "staffStatus", documentKey(professional));
+  return runTransaction(db, async (transaction) => {
+    const [appointmentSnapshot, statusSnapshot] = await Promise.all([transaction.get(appointmentRef), transaction.get(statusRef)]);
+    if (!appointmentSnapshot.exists()) throw new Error("Atendimento não encontrado.");
+    const appointment = appointmentSnapshot.data();
+    const staffStatus = statusSnapshot.exists() ? statusSnapshot.data() : {};
+    if (staffStatus.paused && (!staffStatus.pausedDate || staffStatus.pausedDate === date)) {
+      const error = new Error("Retome o atendimento do profissional antes de iniciar o próximo cliente.");
+      error.code = "agendae/professional-paused";
+      throw error;
+    }
+    if (staffStatus.currentAppointmentId && (!staffStatus.currentDate || staffStatus.currentDate === date) && staffStatus.currentAppointmentId !== appointmentId) {
+      const error = new Error("Este profissional já possui um atendimento em andamento.");
+      error.code = "agendae/professional-busy";
+      throw error;
+    }
+    if (!["confirmado", "presente", "atendendo"].includes(appointment.status)) throw new Error("Este atendimento não pode mais ser iniciado.");
+    transaction.update(appointmentRef, { status: "atendendo", startedAt: serverTimestamp() });
+    transaction.set(presenceRef, { appointmentId, date, status: "atendendo", startedAt: serverTimestamp() }, { merge: true });
+    transaction.set(statusRef, {
+      professional,
+      paused: false,
+      currentAppointmentId: appointmentId,
+      currentDate: date,
+      currentTime: appointment.time,
+      currentService: appointment.service,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    return { id: appointmentId, client: appointment.client, time: appointment.time };
+  });
+}
+
+export async function startNextProfessionalAppointment(slug, professional, date) {
+  const appointments = await professionalAppointments(slug, professional, date);
+  const current = appointments.find((item) => item.status === "atendendo");
+  if (current) {
+    const statusRef = doc(db, "establishments", slug, "staffStatus", documentKey(professional));
+    await runTransaction(db, async (transaction) => {
+      const statusSnapshot = await transaction.get(statusRef);
+      if (statusSnapshot.exists() && statusSnapshot.data().paused && (!statusSnapshot.data().pausedDate || statusSnapshot.data().pausedDate === date)) return;
+      transaction.set(statusRef, {
+        professional,
+        paused: false,
+        currentAppointmentId: current.id,
+        currentDate: date,
+        currentTime: current.time,
+        currentService: current.service,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    });
+    return { id: current.id, client: current.client, time: current.time, existing: true };
+  }
+  const next = nextEligibleAppointment(appointments);
+  if (!next) return null;
+  return startProfessionalAppointment(slug, next.id, professional, date);
+}
+
+export async function setProfessionalPause(slug, professional, paused, date, startNext = true) {
+  const statusRef = doc(db, "establishments", slug, "staffStatus", documentKey(professional));
+  await runTransaction(db, async (transaction) => {
+    await transaction.get(statusRef);
+    transaction.set(statusRef, {
+      professional,
+      paused,
+      pausedDate: paused ? date : null,
+      ...(paused ? { pausedAt: serverTimestamp() } : { resumedAt: serverTimestamp() }),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  });
+  if (!paused && startNext) return startNextProfessionalAppointment(slug, professional, date);
+  return null;
+}
+
+export async function completeAppointmentAndAdvance(slug, appointmentId, professional, date, advance = true) {
+  const appointments = await professionalAppointments(slug, professional, date);
+  const candidate = nextEligibleAppointment(appointments, appointmentId);
+  const appointmentRef = doc(db, "establishments", slug, "appointments", appointmentId);
+  const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentId);
+  const statusRef = doc(db, "establishments", slug, "staffStatus", documentKey(professional));
+  const candidateRef = candidate ? doc(db, "establishments", slug, "appointments", candidate.id) : null;
+  const candidatePresenceRef = candidate ? doc(db, "establishments", slug, "appointmentPresence", candidate.id) : null;
+  return runTransaction(db, async (transaction) => {
+    const reads = [transaction.get(appointmentRef), transaction.get(statusRef)];
+    if (candidateRef) reads.push(transaction.get(candidateRef));
+    const [appointmentSnapshot, statusSnapshot, candidateSnapshot] = await Promise.all(reads);
+    if (!appointmentSnapshot.exists()) throw new Error("Atendimento não encontrado.");
+    const staffStatus = statusSnapshot.exists() ? statusSnapshot.data() : {};
+    transaction.update(appointmentRef, { status: "concluido", completedAt: serverTimestamp() });
+    transaction.set(presenceRef, { appointmentId, date, status: "concluido", completedAt: serverTimestamp() }, { merge: true });
+
+    const pausedToday = Boolean(staffStatus.paused && (!staffStatus.pausedDate || staffStatus.pausedDate === date));
+    const next = advance && !pausedToday && candidateSnapshot?.exists() && ["confirmado", "presente"].includes(candidateSnapshot.data().status)
+      ? { id: candidateSnapshot.id, ...candidateSnapshot.data() }
+      : null;
+    if (next) {
+      transaction.update(candidateRef, { status: "atendendo", startedAt: serverTimestamp() });
+      transaction.set(candidatePresenceRef, { appointmentId: next.id, date, status: "atendendo", startedAt: serverTimestamp() }, { merge: true });
+    }
+    transaction.set(statusRef, {
+      professional,
+      currentAppointmentId: next?.id || null,
+      currentDate: next ? date : null,
+      currentTime: next?.time || null,
+      currentService: next?.service || null,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    return { next: next ? { id: next.id, client: next.client, time: next.time } : null, paused: pausedToday };
+  });
+}
+
 export async function addQueueTicket(slug, ticket, name, priority = "normal", servicePoint = "Atendimento") {
   const queueRef = doc(collection(db, "establishments", slug, "queue"));
   const stateRef = doc(db, "establishments", slug, "public", "state");
@@ -408,6 +556,8 @@ export function firebaseErrorMessage(error) {
     "agendae/profile-not-found": "Este usuário ainda não está vinculado a um estabelecimento.",
     "agendae/establishment-mismatch": "Este funcionário não pertence ao estabelecimento selecionado.",
     "agendae/slot-unavailable": error?.message,
+    "agendae/professional-paused": error?.message,
+    "agendae/professional-busy": error?.message,
     "agendae/checkin-code-collision": error?.message,
     "not-found": "Este agendamento não está disponível para confirmação por QR. Peça ajuda à equipe.",
     "failed-precondition": "Esta presença já foi confirmada ou o agendamento ainda não está disponível.",
