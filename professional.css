@@ -523,6 +523,9 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .checkin-password strong { margin: 7px 0 4px; font: 800 29px "Manrope",sans-serif; letter-spacing: 5px; }
 .checkin-password p { margin: 0; color: var(--muted); font-size: 10px; }
 .checkin-scanner-modal { width: min(100%,490px); }
+.checkin-flow-modal { width: min(100%,680px); }
+.checkin-flow-body { padding: 22px; }
+.checkin-flow-body .public-lookup-panel { padding: 0; }
 .checkin-scanner-body { padding: 20px; display: grid; gap: 12px; }
 .checkin-scanner-body>p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; text-align: center; }
 .scanner-frame { position: relative; aspect-ratio: 1/1; overflow: hidden; border-radius: 16px; background: var(--navy); }
@@ -580,6 +583,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 }
 @media (max-width:720px) {
   .checkin-zone .public-lookup-panel { padding: 18px; }
+  .checkin-flow-body { padding: 18px; }
   .checkin-result { display: grid; }
   .checkin-result>div:last-child { min-width: 0; align-items: flex-start; text-align: left; }
   .admin-checkin { grid-template-columns: 1fr; }
