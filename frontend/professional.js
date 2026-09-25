@@ -273,7 +273,7 @@ function renderLogin() {
 }
 
 function progress(step) {
-  return `<div class="booking-progress">${["Escolha", "Seus dados", "Confirmação"].map((label, index) => {
+  return `<div class="booking-progress">${["Horário", "Seus dados", "Confirmação"].map((label, index) => {
     const number = index + 1;
     const className = number < step ? "done" : number === step ? "active" : "";
     return `<div class="progress-step ${className}"><span class="progress-number">${number < step ? "✓" : number}</span><span>${label}</span></div>`;
@@ -282,18 +282,18 @@ function progress(step) {
 
 function bookingContent(establishment) {
   const booking = state.booking;
-  const service = establishment.services.find((item) => item.id === booking.serviceId);
 
-  if (booking.step === 1) return `${progress(1)}<h2 class="booking-title">Confirme sua escolha</h2><p class="booking-lead">Confira o serviço e o horário antes de informar seus dados.</p><div class="booking-selection-summary"><div><span>Serviço</span><strong>${escapeHTML(service.name)}</strong><small>${service.duration} minutos · ${service.price ? currency.format(service.price) : "Incluso"}</small></div><div><span>Data e horário</span><strong>${prettyDate(booking.date, true)} · ${escapeHTML(booking.time)}</strong><small>${escapeHTML(booking.professional)}</small></div></div>
+  if (booking.step === 1) return `${progress(1)}<h2 class="booking-title">Horário selecionado</h2><p class="booking-lead">Confira o horário. O serviço será escolhido obrigatoriamente na próxima etapa.</p><div class="booking-selection-summary single"><div><span>Data e horário</span><strong>${prettyDate(booking.date, true)} · ${escapeHTML(booking.time)}</strong><small>${escapeHTML(booking.professional)}</small></div></div>
     <div class="booking-actions"><button class="btn btn-outline" type="button" data-change-slot>Escolher outro horário</button><button class="btn btn-primary" type="button" data-booking-next>Agendar este horário →</button></div>`;
 
   if (booking.step === 2) return `<div class="booking-modal-backdrop" data-booking-modal-backdrop>
-    <section class="booking-modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
-      <div class="booking-modal-head"><div><small>FINALIZAR AGENDAMENTO</small><h2 id="booking-modal-title">Seus dados e confirmação</h2></div><button class="booking-modal-close" type="button" data-booking-back aria-label="Fechar janela">×</button></div>
+    <section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
+      <div class="booking-modal-head"><div><small>FINALIZAR AGENDAMENTO</small><h2 id="booking-modal-title">Escolha o serviço e confirme</h2></div><button class="booking-modal-close" type="button" data-booking-back aria-label="Fechar janela">×</button></div>
       <form id="booking-form" class="booking-modal-form">
-        <p class="booking-modal-lead">Confira os dados escolhidos abaixo e informe seu nome para confirmar.</p>
+        <p class="booking-modal-lead">Selecione o serviço desejado. A duração e o valor variam conforme a opção escolhida.</p>
+        <fieldset class="booking-service-picker"><legend>Serviço <span>Obrigatório</span></legend><div class="booking-service-options">${establishment.services.map((item) => `<label class="booking-service-option"><input type="radio" name="service" value="${escapeHTML(item.id)}" data-booking-service required ${booking.serviceId === item.id ? "checked" : ""}><span class="service-icon">${item.icon}</span><span class="booking-service-info"><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span><i aria-hidden="true">✓</i></label>`).join("")}</div></fieldset>
         <div class="mini-field-grid"><div class="field full"><label for="customer-name">Nome completo</label><input id="customer-name" name="name" type="text" autocomplete="name" required placeholder="Digite seu nome"></div><div class="field full"><label for="customer-phone">Telefone <span class="optional-label">(opcional)</span></label><input id="customer-phone" name="phone" type="tel" autocomplete="tel" placeholder="(00) 00000-0000"></div></div>
-        <div class="confirmation-data booking-review"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(service.name)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(booking.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(booking.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(booking.professional)}</strong></div></div>
+        <div class="confirmation-data booking-review"><div class="confirmation-row"><span>Data</span><strong>${prettyDate(booking.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(booking.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(booking.professional)}</strong></div></div>
         <div class="booking-actions"><button class="btn btn-outline" type="button" data-booking-back>Voltar</button><button class="btn btn-yellow" type="submit">Confirmar agendamento</button></div>
       </form>
     </section>
@@ -324,12 +324,12 @@ function publicSchedule(establishment) {
 }
 
 function publicServiceCards(establishment) {
-  return `<section class="public-services" id="servicos-agendamento"><div class="public-services-head"><span>1</span><div><strong>Escolha o serviço</strong><small>O carrossel avança automaticamente; toque em um cartão para selecionar</small></div><div class="service-carousel-controls"><button type="button" data-service-carousel-prev aria-label="Serviço anterior">←</button><button type="button" data-service-carousel-next aria-label="Próximo serviço">→</button></div></div><div class="service-carousel" data-service-carousel>${establishment.services.map((item) => `<button type="button" class="service-btn ${state.booking.serviceId === item.id ? "selected" : ""}" data-service="${item.id}" aria-pressed="${state.booking.serviceId === item.id}"><span class="service-icon">${item.icon}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></button>`).join("")}</div></section>`;
+  return `<section class="public-services" id="servicos-agendamento"><div class="public-services-head"><span>R$</span><div><strong>Serviços e valores</strong><small>Consulte as opções disponíveis; a escolha será feita ao confirmar o agendamento</small></div><div class="service-carousel-controls"><button type="button" data-service-carousel-prev aria-label="Serviço anterior">←</button><button type="button" data-service-carousel-next aria-label="Próximo serviço">→</button></div></div><div class="service-carousel" data-service-carousel>${establishment.services.map((item) => `<article class="service-card-display"><span class="service-icon">${item.icon}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("")}</div></section>`;
 }
 
 function moveServiceCarousel(direction = 1) {
   const carousel = document.querySelector("[data-service-carousel]");
-  const card = carousel?.querySelector(".service-btn");
+  const card = carousel?.querySelector(".service-card-display");
   if (!carousel || !card) return;
   const step = card.getBoundingClientRect().width + 10;
   const atEnd = carousel.scrollLeft + carousel.clientWidth >= carousel.scrollWidth - 4;
@@ -580,7 +580,7 @@ function renderEstablishmentPublic(establishment) {
     <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
     <section class="est-cover"><div class="est-cover-inner"><div class="est-identity"><div class="est-logo">${escapeHTML(establishment.initials)}</div><div><h1>${escapeHTML(establishment.name)}</h1><p>${escapeHTML(establishment.description)}</p><div class="est-facts"><span>⌖ ${escapeHTML(establishment.address)}</span><span>◷ ${escapeHTML(establishment.todayHours)}</span><span>● ${establishment.openNow ? "Aberto agora" : "Fechado"}</span></div></div></div><div class="live-ticket"><span class="live-dot"></span><span><small>Senha chamada agora</small><strong>${data.queue.find((item) => item.status === "atendendo")?.ticket || "—"}</strong></span></div></div></section>
     <main class="est-content"><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>${establishment.averageWaitMinutes} min</strong><em>Fila em tempo real</em></article></div>
-      <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">01</span><div><small>AGENDAMENTOS</small><h2>Serviços e horários</h2><p>Escolha um serviço e depois selecione um horário disponível.</p></div></div><div class="public-agenda-layout"><section class="panel public-schedule-panel">${publicServiceCards(establishment)}<div class="panel-head public-schedule-head"><div><span class="schedule-step-number">2</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section>
+      <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">01</span><div><small>AGENDAMENTOS</small><h2>Serviços e horários</h2><p>Consulte os serviços e escolha primeiro o melhor horário para você.</p></div></div><div class="public-agenda-layout"><section class="panel public-schedule-panel">${publicServiceCards(establishment)}<div class="panel-head public-schedule-head"><div><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section>
       <section class="queue-zone" id="painel-senhas"><div class="zone-title queue-zone-title"><span class="zone-number">02</span><div><small>FILA DE ATENDIMENTO</small><h2>Acompanhe sua senha</h2><p>Veja quem está sendo atendido e sua posição na fila.</p></div></div>${queuePanel(data, false)}</section></main>
     ${publicCheckInModal()}</div>`;
   requestAnimationFrame(() => {
@@ -739,11 +739,6 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-professional-carousel-next]")) { moveProfessionalCarousel(1); startProfessionalCarousel(); return; }
   const publicSlot = event.target.closest("[data-public-slot]");
   if (publicSlot) {
-    if (!state.booking.serviceId) {
-      toast("Selecione primeiro o serviço desejado.", "!");
-      document.querySelector("#servicos-agendamento")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
     state.booking.professional = publicSlot.dataset.professionalName;
     state.booking.time = publicSlot.dataset.slotTime;
     state.booking.step = 1;
@@ -773,15 +768,13 @@ document.addEventListener("click", async (event) => {
     render();
     return;
   }
-  const service = event.target.closest("[data-service]");
-  if (service) { state.booking.serviceId = service.dataset.service; render(); return; }
   const time = event.target.closest("[data-time]");
   if (time) { state.booking.time = time.dataset.time; render(); return; }
   if (event.target.closest("[data-booking-next]")) {
     event.preventDefault();
     state.booking.step = 2;
     render();
-    requestAnimationFrame(() => document.querySelector("#customer-name")?.focus());
+    requestAnimationFrame(() => document.querySelector("[data-booking-service]")?.focus());
     return;
   }
   if (event.target.closest("[data-booking-back]") || event.target.matches("[data-booking-modal-backdrop]")) { event.preventDefault(); state.booking.step = 1; render(); return; }
@@ -909,6 +902,7 @@ document.addEventListener("change", (event) => {
     render();
   }
   if (event.target.matches("[data-professional]")) { state.booking.professional = event.target.value; state.booking.time = null; render(); }
+  if (event.target.matches("[data-booking-service]")) state.booking.serviceId = event.target.value;
   if (event.target.matches("[data-qr-image]")) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1023,7 +1017,14 @@ document.addEventListener("submit", async (event) => {
       return;
     }
     const form = new FormData(event.target);
-    const service = establishment.services.find((item) => item.id === state.booking.serviceId);
+    const selectedServiceId = String(form.get("service") || "");
+    const service = establishment.services.find((item) => item.id === selectedServiceId);
+    if (!service) {
+      toast("Selecione o serviço desejado para continuar.", "!");
+      event.target.querySelector("[data-booking-service]")?.focus();
+      return;
+    }
+    state.booking.serviceId = selectedServiceId;
     const appointment = { id: crypto.randomUUID(), date: state.booking.date, time: state.booking.time, client: form.get("name").trim(), phone: form.get("phone").trim(), service: service.name, professional: state.booking.professional, status: "confirmado", checkInCode: generateCheckInCode() };
     const button = event.target.querySelector("button[type=submit]");
     button.disabled = true;
