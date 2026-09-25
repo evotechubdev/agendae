@@ -31,7 +31,7 @@ function freshBooking() {
 }
 
 function freshPublicLookup(method = "name") {
-  return { method, query: "", loading: false, searched: false, results: [], selectedId: null, scanning: false, scanError: "", success: null };
+  return { method, query: "", loading: false, searched: false, results: [], selectedId: null, scanning: false, scanError: "", success: null, open: false };
 }
 
 function generateCheckInCode() {
@@ -276,7 +276,7 @@ function bookingContent(establishment) {
   const service = establishment.services.find((item) => item.id === booking.serviceId);
 
   if (booking.step === 1) return `${progress(1)}<h2 class="booking-title">Confirme sua escolha</h2><p class="booking-lead">Confira o serviço e o horário antes de informar seus dados.</p><div class="booking-selection-summary"><div><span>Serviço</span><strong>${escapeHTML(service.name)}</strong><small>${service.duration} minutos · ${service.price ? currency.format(service.price) : "Incluso"}</small></div><div><span>Data e horário</span><strong>${prettyDate(booking.date, true)} · ${escapeHTML(booking.time)}</strong><small>${escapeHTML(booking.professional)}</small></div></div>
-    <div class="booking-actions"><button class="btn btn-outline" type="button" data-change-slot>Escolher outro horário</button><button class="btn btn-primary" type="button" data-booking-next>Continuar →</button></div>`;
+    <div class="booking-actions"><button class="btn btn-outline" type="button" data-change-slot>Escolher outro horário</button><button class="btn btn-primary" type="button" data-booking-next>Agendar este horário →</button></div>`;
 
   if (booking.step === 2) return `<div class="booking-modal-backdrop" data-booking-modal-backdrop>
     <section class="booking-modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
@@ -404,6 +404,16 @@ function publicAppointmentLookup() {
     ${success}<div class="public-lookup-results" aria-live="polite">${results}</div>${scanner}</div>`;
 }
 
+function publicCheckInModal() {
+  if (!state.publicLookup.open) return "";
+  return `<div class="booking-modal-backdrop" data-checkin-modal-backdrop>
+    <section class="booking-modal checkin-flow-modal" role="dialog" aria-modal="true" aria-labelledby="checkin-modal-title">
+      <div class="booking-modal-head"><div><small>CHEGUEI AO LOCAL</small><h2 id="checkin-modal-title">Confirmar minha presença</h2></div><button class="booking-modal-close" type="button" data-close-checkin-modal aria-label="Fechar confirmação de presença">×</button></div>
+      <div class="checkin-flow-body">${publicAppointmentLookup()}</div>
+    </section>
+  </div>`;
+}
+
 async function stopQrScanner() {
   if (!qrScanner) return;
   try { await qrScanner.stop(); qrScanner.destroy(); } catch { /* câmera já encerrada */ }
@@ -456,7 +466,6 @@ async function finishPublicCheckIn(rawValue) {
     url.searchParams.delete("checkin");
     history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     render();
-    requestAnimationFrame(() => document.querySelector("#confirmar-presenca")?.scrollIntoView({ behavior: "smooth", block: "center" }));
   } catch (error) {
     lookup.scanError = firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Não foi possível confirmar a presença.";
     lookup.scanning = true;
@@ -545,6 +554,7 @@ function hoursMarkup(establishment) {
 
 function renderEstablishmentPublic(establishment) {
   document.title = `${establishment.name} — Agendae`;
+  if (new URLSearchParams(location.search).has("checkin")) state.publicLookup.open = true;
   const data = getData(establishment);
   const todayAppointments = data.appointments.filter((item) => item.date === isoDate());
   const todayCount = Number.isFinite(data.todayAppointments) ? data.todayAppointments : todayAppointments.length;
@@ -552,13 +562,12 @@ function renderEstablishmentPublic(establishment) {
   const nextFree = freeTimes[0] || "—";
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
-    <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions"><a class="btn btn-yellow btn-sm" href="#confirmar-presenca">✓ Confirmar presença</a>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
+    <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
     <section class="est-cover"><div class="est-cover-inner"><div class="est-identity"><div class="est-logo">${escapeHTML(establishment.initials)}</div><div><h1>${escapeHTML(establishment.name)}</h1><p>${escapeHTML(establishment.description)}</p><div class="est-facts"><span>⌖ ${escapeHTML(establishment.address)}</span><span>◷ ${escapeHTML(establishment.todayHours)}</span><span>● ${establishment.openNow ? "Aberto agora" : "Fechado"}</span></div></div></div><div class="live-ticket"><span class="live-dot"></span><span><small>Senha chamada agora</small><strong>${data.queue.find((item) => item.status === "atendendo")?.ticket || "—"}</strong></span></div></div></section>
     <main class="est-content"><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>${establishment.averageWaitMinutes} min</strong><em>Fila em tempo real</em></article></div>
-      <section class="checkin-zone"><div class="zone-title"><span class="zone-number">01</span><div><small>CONFIRMAÇÃO DE PRESENÇA</small><h2>Avise que você chegou</h2><p>Identifique seu horário e leia o QR code disponível no estabelecimento.</p></div></div><section class="panel public-lookup-card">${publicAppointmentLookup()}</section></section>
-      <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">02</span><div><small>AGENDAMENTOS</small><h2>Serviços e horários</h2><p>Escolha um serviço e depois selecione um horário disponível.</p></div></div><div class="public-agenda-layout"><section class="panel public-schedule-panel">${publicServiceCards(establishment)}<div class="panel-head public-schedule-head"><div><span class="schedule-step-number">2</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section>
-      <section class="queue-zone" id="painel-senhas"><div class="zone-title queue-zone-title"><span class="zone-number">03</span><div><small>FILA DE ATENDIMENTO</small><h2>Acompanhe sua senha</h2><p>Veja quem está sendo atendido e sua posição na fila.</p></div></div>${queuePanel(data, false)}</section></main>
-  </div>`;
+      <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">01</span><div><small>AGENDAMENTOS</small><h2>Serviços e horários</h2><p>Escolha um serviço e depois selecione um horário disponível.</p></div></div><div class="public-agenda-layout"><section class="panel public-schedule-panel">${publicServiceCards(establishment)}<div class="panel-head public-schedule-head"><div><span class="schedule-step-number">2</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section>
+      <section class="queue-zone" id="painel-senhas"><div class="zone-title queue-zone-title"><span class="zone-number">02</span><div><small>FILA DE ATENDIMENTO</small><h2>Acompanhe sua senha</h2><p>Veja quem está sendo atendido e sua posição na fila.</p></div></div>${queuePanel(data, false)}</section></main>
+    ${publicCheckInModal()}</div>`;
   requestAnimationFrame(() => {
     startServiceCarousel();
     startProfessionalCarousel();
@@ -719,7 +728,6 @@ document.addEventListener("click", async (event) => {
     state.booking.step = 1;
     state.booking.confirmation = null;
     render();
-    requestAnimationFrame(() => document.querySelector("#novo-agendamento")?.scrollIntoView({ behavior: "smooth", block: "start" }));
     return;
   }
   if (event.target.closest("[data-change-slot]")) { state.booking.time = null; state.booking.step = 1; render(); return; }
@@ -757,9 +765,25 @@ document.addEventListener("click", async (event) => {
   }
   if (event.target.closest("[data-booking-back]") || event.target.matches("[data-booking-modal-backdrop]")) { event.preventDefault(); state.booking.step = 1; render(); return; }
   if (event.target.closest("[data-new-booking]")) { state.booking = freshBooking(); render(); return; }
+  if (event.target.closest("[data-open-checkin]")) {
+    state.publicLookup.open = true;
+    render();
+    requestAnimationFrame(() => document.querySelector("#public-appointment-credential")?.focus());
+    return;
+  }
+  if (event.target.closest("[data-close-checkin-modal]") || event.target.matches("[data-checkin-modal-backdrop]")) {
+    await stopQrScanner();
+    const url = new URL(location.href);
+    url.searchParams.delete("checkin");
+    history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    state.publicLookup = freshPublicLookup(state.publicLookup.method);
+    render();
+    return;
+  }
   const checkInMethod = event.target.closest("[data-checkin-method]");
   if (checkInMethod) {
     state.publicLookup = freshPublicLookup(checkInMethod.dataset.checkinMethod);
+    state.publicLookup.open = true;
     render();
     requestAnimationFrame(() => document.querySelector("#public-appointment-credential")?.focus());
     return;
@@ -902,18 +926,17 @@ document.addEventListener("submit", async (event) => {
     if (!establishment) return;
     if (lookupMethod === "name" && normalizedSearch(credential).split(" ").length < 2) return toast("Digite seu nome completo para consultar.", "!");
     if (lookupMethod === "code" && credential.replace(/\s/g, "").length < 6) return toast("Digite a senha de 6 caracteres do agendamento.", "!");
-    state.publicLookup = { ...freshPublicLookup(lookupMethod), query: credential, loading: true };
+    state.publicLookup = { ...freshPublicLookup(lookupMethod), query: credential, loading: true, open: true };
     render();
     try {
       const results = await firebaseApi.findPublicAppointments(establishment.slug, credential, lookupMethod);
-      state.publicLookup = { ...freshPublicLookup(lookupMethod), query: credential, loading: false, searched: true, results };
+      state.publicLookup = { ...freshPublicLookup(lookupMethod), query: credential, loading: false, searched: true, results, open: true };
     } catch (error) {
       console.error("Agendae: falha ao consultar agendamento.", error);
-      state.publicLookup = { ...freshPublicLookup(lookupMethod), query: credential, loading: false, searched: false, results: [] };
+      state.publicLookup = { ...freshPublicLookup(lookupMethod), query: credential, loading: false, searched: false, results: [], open: true };
       toast("Não foi possível consultar agora. Tente novamente.", "!");
     }
     render();
-    requestAnimationFrame(() => document.querySelector("#consultar-agendamento")?.scrollIntoView({ behavior: "smooth", block: "center" }));
     return;
   }
   if (event.target.id === "finder-form") {
@@ -1051,6 +1074,15 @@ document.addEventListener("keydown", (event) => {
     void stopQrScanner();
     state.publicLookup.scanning = false;
     state.publicLookup.scanError = "";
+    render();
+    return;
+  }
+  if (event.key === "Escape" && state.publicLookup.open) {
+    void stopQrScanner();
+    const url = new URL(location.href);
+    url.searchParams.delete("checkin");
+    history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    state.publicLookup = freshPublicLookup(state.publicLookup.method);
     render();
     return;
   }
