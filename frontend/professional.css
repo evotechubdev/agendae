@@ -755,3 +755,70 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .queue-display-footer>div { width: 100%; }
   .monitor-action { flex: 1; justify-content: center; }
 }
+
+/* Tela pública direta: operação principal antes dos complementos */
+.est-topbar-identity { min-width: 0; display: flex; align-items: center; gap: 16px; }
+.est-topbar-identity>a { flex: 0 0 auto; }
+.est-header-divider { width: 1px; height: 34px; flex: 0 0 auto; background: var(--line); }
+.est-header-business { min-width: 0; }
+.est-header-business strong,.est-header-business small { display: block; }
+.est-header-business strong { overflow: hidden; color: var(--navy); font: 800 15px "Manrope",sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.est-header-business small { margin-top: 3px; color: var(--muted); font-size: 9px; font-weight: 700; }
+.public-live-strip { color: #fff; background: linear-gradient(116deg,#071b42,#0d3c88); box-shadow: 0 8px 24px rgba(8,35,84,.12); }
+.public-live-inner { width: min(1180px,calc(100% - 36px)); min-height: 96px; margin: auto; display: grid; grid-template-columns: minmax(190px,.8fr) minmax(230px,1fr) minmax(190px,.72fr) auto; align-items: center; gap: 0; }
+.public-live-card { min-width: 0; min-height: 58px; padding: 4px 24px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid rgba(255,255,255,.14); }
+.public-live-card:first-child { padding-left: 0; }
+.public-live-card small,.public-live-card strong,.public-live-card em { display: block; }
+.public-live-card small { color: #a9c1e9; font-size: 9px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; }
+.public-live-card strong { margin-top: 4px; color: #fff; font: 800 22px "Manrope",sans-serif; }
+.public-live-card em { margin-top: 2px; color: #c9d7ee; font-size: 9px; font-style: normal; }
+.public-live-current { flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px; }
+.public-live-current .live-dot { flex: 0 0 auto; }
+.public-next-tickets { min-height: 29px; margin-top: 7px; display: flex; align-items: center; gap: 6px; }
+.public-next-tickets span { padding: 6px 9px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; color: #fff; background: rgba(255,255,255,.09); font: 800 10px "Manrope",sans-serif; }
+.public-next-tickets em { color: #c9d7ee; font-size: 10px; }
+.public-next-slot>div { display: flex; align-items: baseline; gap: 8px; }
+.public-queue-button { margin-left: 22px; white-space: nowrap; }
+.public-direct-content { padding-top: 18px; }
+.public-services-complement { border-top: 1px solid var(--line); }
+.public-services-complement .public-services { background: #fbfcff; }
+.public-queue-modal { width: min(100%,820px); }
+.public-queue-modal-body { padding: 18px; }
+.public-queue-modal-body .queue-panel { border: 0; }
+.public-queue-modal-body .queue-board { min-height: 300px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+
+@media (max-width:980px) {
+  .public-live-inner { padding: 15px 0; grid-template-columns: repeat(3,minmax(0,1fr)); row-gap: 13px; }
+  .public-queue-button { grid-column: 1/-1; width: fit-content; margin: 0; }
+}
+
+@media (max-width:720px) {
+  .est-topbar-identity { gap: 10px; }
+  .est-header-actions a.btn-sm { display: none; }
+  .est-header-divider { height: 29px; }
+  .est-header-business strong { max-width: 180px; font-size: 13px; }
+  .est-header-business small { font-size: 8px; }
+  .public-live-inner { width: calc(100% - 28px); grid-template-columns: 1fr 1fr; gap: 8px; }
+  .public-live-card { min-height: 72px; padding: 11px; border: 1px solid rgba(255,255,255,.12); border-radius: 11px; background: rgba(255,255,255,.055); }
+  .public-live-card:first-child { padding-left: 11px; }
+  .public-live-current { align-items: center; flex-direction: row; }
+  .public-next-slot>div { display: block; }
+  .public-queue-button { grid-column: auto; width: 100%; height: 72px; margin: 0; }
+  .public-direct-content { padding-top: 12px; }
+  .public-queue-modal-body { padding: 12px; }
+  .public-queue-modal-body .queue-board { min-height: 0; }
+}
+
+@media (max-width:520px) {
+  .est-topbar-identity>a,.est-header-divider { display: none; }
+}
+
+@media (max-width:430px) {
+  .est-topbar-identity>a,.est-header-divider { display: none; }
+  .est-header-business strong { max-width: 150px; }
+  .est-header-business small { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .public-live-card { min-height: 68px; }
+  .public-live-card strong { font-size: 19px; }
+  .public-next-tickets span:nth-child(3) { display: none; }
+  .public-queue-button { min-height: 68px; height: auto; padding: 8px; }
+}
