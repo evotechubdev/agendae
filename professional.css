@@ -544,6 +544,11 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .checkin-password span { color: var(--blue); font-size: 9px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
 .checkin-password strong { margin: 7px 0 4px; font: 800 29px "Manrope",sans-serif; letter-spacing: 5px; }
 .checkin-password p { margin: 0; color: var(--muted); font-size: 10px; }
+.call-ticket { margin-top: 17px; padding: 16px; border: 1px solid #cbd3de; border-radius: 13px; background: #eef1f5; text-align: center; }
+.call-ticket span,.call-ticket strong { display: block; }
+.call-ticket span { color: #586575; font-size: 9px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+.call-ticket strong { margin: 7px 0 4px; color: var(--navy); font: 800 clamp(17px,3vw,25px) "Manrope",sans-serif; letter-spacing: .5px; }
+.call-ticket p { margin: 0; color: var(--muted); font-size: 10px; }
 .checkin-scanner-modal { width: min(100%,490px); }
 .checkin-flow-modal { width: min(100%,680px); }
 .checkin-flow-body { padding: 22px; }
@@ -664,23 +669,30 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .queue-board { display: grid; grid-template-columns: minmax(250px,.62fr) minmax(0,1.38fr); min-height: 260px; }
 .queue-current { padding: 35px 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(145deg,#edf4ff,#fff9df); }
 .queue-current strong { font-size: clamp(50px,7vw,78px); letter-spacing: -2px; }
+.queue-current > strong { max-width: 100%; font-size: clamp(27px,3vw,39px); letter-spacing: -.8px; overflow-wrap: anywhere; }
+.queue-current-extra { width: 100%; margin-top: 12px; padding-top: 10px; display: grid; gap: 5px; border-top: 1px solid #d6e0ec; text-align: center; }
+.queue-current-extra small { font-size: 9px; }
+.queue-current-extra span { color: var(--navy); font-size: 10px; }
+.queue-current-extra b { margin-right: 4px; }
 .service-point { margin: 4px 0 12px; color: var(--navy); font: 800 17px "Manrope",sans-serif; }
 .queue-customer { margin-top: 10px; color: var(--muted); font-size: 11px; }
-.priority-badge,.normal-badge { width: fit-content; padding: 5px 9px; border-radius: 999px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; }
+.priority-badge,.normal-badge,.scheduled-badge { width: fit-content; padding: 5px 9px; border-radius: 999px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; }
 .priority-badge { color: #8a3b00; background: #ffdfb7; }
 .normal-badge { color: var(--blue); background: var(--blue-soft); }
+.scheduled-badge { color: #276344; background: #e5f6eb; }
 .queue-next { min-width: 0; padding: 20px 24px; background: #fff; }
 .queue-list-title { min-height: 35px; display: flex; justify-content: space-between; gap: 14px; border-bottom: 1px solid var(--line); color: var(--navy); font-size: 12px; }
 .queue-list-title span { color: var(--muted); font-size: 10px; font-weight: 700; }
 .queue-list { padding: 4px 0 0; }
-.queue-row { min-height: 59px; grid-template-columns: 31px 58px minmax(0,1fr) auto; }
+.queue-row { min-height: 59px; grid-template-columns: 31px minmax(84px,auto) minmax(0,1fr) auto; }
 .queue-position { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); background: var(--canvas); font-size: 10px; font-weight: 800; }
-.queue-row-info { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.queue-row-info { min-width: 0; display: grid; gap: 3px; }
 .queue-row-info>strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.queue-row .ticket { width: 52px; font-size: 11px; }
+.queue-row .ticket { width: auto; font-size: 10px; font-weight: 800; white-space: nowrap; }
 .admin-grid .queue-board { grid-template-columns: 1fr; }
 .admin-grid .queue-current { min-height: 230px; }
 .admin-grid .queue-current strong { font-size: 55px; }
+.admin-grid .queue-current > strong { font-size: 32px; }
 .admin-grid .queue-panel-head { display: block; padding-top: 16px; padding-bottom: 14px; }
 .admin-grid .queue-head-actions { margin-top: 12px; justify-content: space-between; }
 .queue-admin-actions { grid-template-columns: 1fr 1fr; padding-top: 18px; border-top: 1px solid var(--line); }
@@ -702,12 +714,15 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .queue-display-current { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.15); border-radius: 30px; background: rgba(255,255,255,.075); box-shadow: 0 24px 80px rgba(0,0,0,.18); }
 .queue-display-current>small { color: #a9c4f2; font-size: clamp(11px,1.4vw,18px); font-weight: 800; letter-spacing: 2px; }
 .queue-display-current>strong { margin: clamp(12px,2vw,28px) 0; color: var(--yellow); font: 800 clamp(100px,17vw,245px)/.85 "Manrope",sans-serif; letter-spacing: -10px; text-shadow: 0 12px 35px rgba(0,0,0,.25); }
+.queue-display-current > strong { max-width: 100%; padding: 0 12px; font-size: clamp(35px,5vw,72px); letter-spacing: -2px; text-align: center; overflow-wrap: anywhere; }
+.monitor-current-extra { margin-top: 20px; display: grid; gap: 7px; color: #d7e7ff; font-size: 13px; text-align: center; }
 .monitor-service-point { display: grid; gap: 4px; text-align: center; }
 .monitor-service-point span { color: #a9c4f2; font-size: 13px; }
 .monitor-service-point b { font: 800 clamp(24px,3vw,42px) "Manrope",sans-serif; }
-.monitor-priority,.monitor-normal { margin-top: 17px; padding: 8px 14px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; }
+.monitor-priority,.monitor-normal,.monitor-scheduled { margin-top: 17px; padding: 8px 14px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; }
 .monitor-priority { color: #512500; background: #ffc86f; }
 .monitor-normal { color: #d7e7ff; background: rgba(255,255,255,.13); }
+.monitor-scheduled { color: #153d29; background: #b9e5cb; }
 .queue-display-next { overflow: hidden; border-radius: 24px; background: #fff; color: var(--ink); }
 .monitor-next-title { min-height: 82px; padding: 0 25px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border-bottom: 1px solid var(--line); }
 .monitor-next-title span { color: var(--navy); font: 800 20px "Manrope",sans-serif; }
@@ -715,8 +730,11 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .monitor-waiting-list { padding: 7px 23px; }
 .monitor-waiting-row { min-height: 72px; display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 15px; border-bottom: 1px solid var(--line); }
 .monitor-waiting-row:last-child { border-bottom: 0; }
-.monitor-waiting-row>strong { color: var(--navy); font: 800 clamp(22px,2.5vw,34px) "Manrope",sans-serif; }
-.monitor-waiting-row .monitor-priority,.monitor-waiting-row .monitor-normal { margin: 0; }
+.monitor-waiting-row>div { min-width: 0; }
+.monitor-waiting-row>div strong,.monitor-waiting-row>div small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.monitor-waiting-row>div strong { color: var(--navy); font: 800 clamp(13px,1.35vw,18px) "Manrope",sans-serif; }
+.monitor-waiting-row>div small { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.monitor-waiting-row .monitor-priority,.monitor-waiting-row .monitor-normal,.monitor-waiting-row .monitor-scheduled { margin: 0; }
 .monitor-position { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--blue); background: var(--blue-soft); font-size: 12px; font-weight: 800; }
 .monitor-empty { padding: 70px 20px; color: var(--muted); text-align: center; }
 .queue-display-footer { min-height: 78px; padding: 15px clamp(28px,4vw,70px); display: flex; align-items: center; justify-content: space-between; gap: 25px; border-top: 1px solid rgba(255,255,255,.13); color: #abc0e5; font-size: 12px; }
@@ -733,7 +751,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .queue-board { grid-template-columns: 1fr; }
   .queue-head-actions .btn { font-size: 0; }
   .queue-head-actions .btn::after { content: "⛶"; font-size: 17px; }
-  .queue-row { grid-template-columns: 31px 55px minmax(0,1fr); }
+  .queue-row { grid-template-columns: 31px minmax(80px,auto) minmax(0,1fr); }
   .queue-row>small { display: none; }
   .queue-row-info { display: grid; gap: 3px; }
   .queue-display-header { min-height: 78px; padding: 15px 20px; }
@@ -770,6 +788,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-live-current .live-dot { flex: 0 0 auto; }
 .public-next-tickets { min-height: 29px; margin-top: 7px; display: flex; align-items: center; gap: 6px; }
 .public-next-tickets span { padding: 6px 9px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; color: #fff; background: rgba(255,255,255,.09); font: 800 10px "Manrope",sans-serif; }
+.public-next-tickets span small { margin-top: 3px; color: #b9e5cb; font-size: 8px; }
 .public-next-tickets em { color: #c9d7ee; font-size: 10px; }
 .public-next-slot>div { display: flex; align-items: baseline; gap: 8px; }
 .public-queue-button { margin-left: 22px; white-space: nowrap; }

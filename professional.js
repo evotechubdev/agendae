@@ -1,3 +1,5 @@
+import { queueView, scheduledTicket } from "./queue-model.mjs";
+
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
 const toastArea = document.querySelector("#toast-region");
@@ -383,7 +385,7 @@ function bookingContent(establishment) {
   </div>`;
 
   const item = booking.confirmation;
-  return `<div class="booking-modal-backdrop"><section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-confirmation-title"><div class="booking-modal-head"><div><small>AGENDAMENTO CONCLUÍDO</small><h2 id="booking-confirmation-title">Agendamento confirmado</h2></div><button class="booking-modal-close" type="button" data-new-booking aria-label="Fechar confirmação">×</button></div><div class="booking-modal-form"><div class="confirmation"><div class="confirmation-icon">✓</div><p class="booking-lead">Seu horário na ${escapeHTML(establishment.name)} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(item.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div></div><div class="checkin-password"><span>Sua senha de presença</span><strong>${escapeHTML(item.checkInCode)}</strong><p>Guarde esta senha. Ao chegar, use-a ou informe seu nome e leia o QR code do balcão.</p></div><div class="booking-actions"><span></span><button class="btn btn-primary" type="button" data-new-booking>Fazer outro agendamento</button></div></div></div></section></div>`;
+  return `<div class="booking-modal-backdrop"><section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-confirmation-title"><div class="booking-modal-head"><div><small>AGENDAMENTO CONCLUÍDO</small><h2 id="booking-confirmation-title">Agendamento confirmado</h2></div><button class="booking-modal-close" type="button" data-new-booking aria-label="Fechar confirmação">×</button></div><div class="booking-modal-form"><div class="confirmation"><div class="confirmation-icon">✓</div><p class="booking-lead">Seu horário na ${escapeHTML(establishment.name)} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(item.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div></div><div class="call-ticket"><span>Senha no painel</span><strong>${escapeHTML(scheduledTicket(establishment, item.time, item.professional))}</strong><p>Esta senha identifica seu horário quando ele for chamado.</p></div><div class="checkin-password"><span>Sua senha de presença</span><strong>${escapeHTML(item.checkInCode)}</strong><p>Guarde esta senha para confirmar sua chegada. Ela não aparece no painel público.</p></div><div class="booking-actions"><span></span><button class="btn btn-primary" type="button" data-new-booking>Fazer outro agendamento</button></div></div></div></section></div>`;
 }
 
 function publicSchedule(establishment) {
@@ -634,18 +636,27 @@ async function startQrScanner() {
   }
 }
 
-function queuePanel(data, showNames = true, showHeader = true) {
-  const current = data.queue.find((item) => item.status === "atendendo");
-  const waiting = data.queue.filter((item) => item.status === "aguardando");
-  const priorityBadge = (item) => item?.priority === "preferencial" ? '<span class="priority-badge">Preferencial</span>' : '<span class="normal-badge">Normal</span>';
-  return `<section class="panel queue-panel">${showHeader ? '<div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Ordem de atendimento atualizada em tempo real</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>' : ""}
-    <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small><strong>${escapeHTML(current?.ticket || "—")}</strong><div class="service-point">${current ? escapeHTML(current.servicePoint || "Atendimento") : "Fila livre"}</div>${current ? priorityBadge(current) : ""}${showNames && current?.name ? `<span class="queue-customer">${escapeHTML(current.name)}</span>` : ""}</div>
-    <div class="queue-next"><div class="queue-list-title"><strong>Próximas senhas</strong><span>${waiting.length} aguardando</span></div><div class="queue-list">${waiting.slice(0,6).map((item,index) => `<div class="queue-row"><span class="queue-position">${index + 1}º</span><span class="ticket">${escapeHTML(item.ticket)}</span><span class="queue-row-info"><strong>${showNames ? escapeHTML(item.name || "Cliente") : "Aguardando"}</strong>${priorityBadge(item)}</span><small>${index === 0 ? "Próxima" : "Na fila"}</small></div>`).join("") || '<div class="empty">Ninguém aguardando.</div>'}</div></div></div></section>`;
+function queueDetail(item) {
+  return item?.kind === "scheduled" ? `${item.time} · ${item.professional}` : (item?.servicePoint || "Fila avulsa");
 }
 
-function publicQueueModal(data) {
+function queueBadge(item, monitor = false) {
+  if (item?.kind === "scheduled") return `<span class="${monitor ? "monitor-scheduled" : "scheduled-badge"}">Agendado</span>`;
+  if (item?.priority === "preferencial") return `<span class="${monitor ? "monitor-priority" : "priority-badge"}">Preferencial</span>`;
+  return `<span class="${monitor ? "monitor-normal" : "normal-badge"}">Avulso</span>`;
+}
+
+function queuePanel(establishment, data, showNames = true, showHeader = true) {
+  const { current, waiting } = queueView(establishment, data, currentSaoPauloClock());
+  const called = current[0];
+  return `<section class="panel queue-panel">${showHeader ? '<div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Horários agendados e fila avulsa em tempo real</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>' : ""}
+    <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small><strong>${escapeHTML(called?.ticket || "—")}</strong><div class="service-point">${called ? escapeHTML(queueDetail(called)) : "Nenhum atendimento iniciado"}</div>${called ? queueBadge(called) : ""}${showNames && called?.client ? `<span class="queue-customer">${escapeHTML(called.client)}</span>` : ""}${current.length > 1 ? `<div class="queue-current-extra"><small>Também em atendimento</small>${current.slice(1).map((item) => `<span><b>${escapeHTML(item.ticket)}</b> ${escapeHTML(queueDetail(item))}</span>`).join("")}</div>` : ""}</div>
+    <div class="queue-next"><div class="queue-list-title"><strong>Próximos horários e senhas</strong><span>${waiting.length} na sequência</span></div><div class="queue-list">${waiting.slice(0,6).map((item,index) => `<div class="queue-row"><span class="queue-position">${index + 1}º</span><span class="ticket">${escapeHTML(item.ticket)}</span><span class="queue-row-info"><strong>${escapeHTML(item.kind === "scheduled" ? queueDetail(item) : (showNames ? item.name || "Cliente avulso" : "Fila avulsa"))}</strong>${queueBadge(item)}</span><small>${index === 0 ? "Próxima" : "Na fila"}</small></div>`).join("") || '<div class="empty">Nenhum horário ou senha aguardando.</div>'}</div></div></div></section>`;
+}
+
+function publicQueueModal(establishment, data) {
   if (!state.queueModalOpen) return "";
-  return `<div class="booking-modal-backdrop" data-public-queue-backdrop><section class="booking-modal public-queue-modal" role="dialog" aria-modal="true" aria-labelledby="public-queue-modal-title"><div class="booking-modal-head"><div><small>ATUALIZAÇÃO EM TEMPO REAL</small><h2 id="public-queue-modal-title">Painel de Senhas</h2></div><button class="booking-modal-close" type="button" data-close-public-queue aria-label="Fechar painel de senhas">×</button></div><div class="public-queue-modal-body">${queuePanel(data, false, false)}</div></section></div>`;
+  return `<div class="booking-modal-backdrop" data-public-queue-backdrop><section class="booking-modal public-queue-modal" role="dialog" aria-modal="true" aria-labelledby="public-queue-modal-title"><div class="booking-modal-head"><div><small>ATUALIZAÇÃO EM TEMPO REAL</small><h2 id="public-queue-modal-title">Painel de Senhas</h2></div><button class="booking-modal-close" type="button" data-close-public-queue aria-label="Fechar painel de senhas">×</button></div><div class="public-queue-modal-body">${queuePanel(establishment, data, false, false)}</div></section></div>`;
 }
 
 function ensureQueueSubscription(establishment) {
@@ -731,15 +742,16 @@ function renderEstablishmentPublic(establishment) {
   const data = getData(establishment);
   const freeTimes = availableTimesFor(establishment, data, state.booking.date);
   const nextFree = freeTimes[0] || "—";
-  const currentTicket = data.queue.find((item) => item.status === "atendendo");
-  const waitingTickets = data.queue.filter((item) => item.status === "aguardando");
+  const scheduleQueue = queueView(establishment, data, currentSaoPauloClock());
+  const currentTicket = scheduleQueue.current[0];
+  const waitingTickets = scheduleQueue.waiting;
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : '<button class="btn btn-primary btn-sm" type="button" data-open-employee-access>Área do estabelecimento</button>'}</div></div></header>
-    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Chamando agora</small><strong>${escapeHTML(currentTicket?.ticket || "—")}</strong><em>${currentTicket ? escapeHTML(currentTicket.servicePoint || "Atendimento") : "Fila livre"}</em></div></article><article class="public-live-card"><small>Próximas senhas</small><div class="public-next-tickets">${waitingTickets.slice(0,3).map((item) => `<span>${escapeHTML(item.ticket)}</span>`).join("") || "<em>Ninguém aguardando</em>"}</div></article><article class="public-live-card public-next-slot"><small>Próximo horário livre</small><div><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></div></article><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button></div></section>
+    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Atendendo agora</small><strong>${escapeHTML(currentTicket?.ticket || "—")}</strong><em>${currentTicket ? escapeHTML(queueDetail(currentTicket)) : "Nenhum atendimento iniciado"}</em></div></article><article class="public-live-card"><small>Próximas senhas</small><div class="public-next-tickets">${waitingTickets.slice(0,2).map((item) => `<span>${escapeHTML(item.ticket)}${item.kind === "scheduled" ? `<small>${escapeHTML(item.time)}</small>` : ""}</span>`).join("") || "<em>Ninguém aguardando</em>"}</div></article><article class="public-live-card public-next-slot"><small>Próximo horário livre</small><div><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></div></article><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button></div></section>
     <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
     ${state.booking.step > 1 ? bookingContent(establishment) : ""}
-    ${publicCheckInModal()}${publicQueueModal(data)}${employeeAccessModal(establishment)}</div>`;
+    ${publicCheckInModal()}${publicQueueModal(establishment, data)}${employeeAccessModal(establishment)}</div>`;
   requestAnimationFrame(() => {
     startServiceCarousel();
     startProfessionalCarousel();
@@ -750,10 +762,11 @@ function renderEstablishmentPublic(establishment) {
 }
 
 function appointmentRows(data, query = state.appointmentQuery) {
+  const establishment = activeEstablishment();
   const todayAppointments = data.appointments.filter((item) => item.date === isoDate()).sort((a,b) => a.time.localeCompare(b.time));
   const normalizedQuery = normalizedSearch(query);
   const appointments = normalizedQuery
-    ? todayAppointments.filter((item) => normalizedSearch(item.client).includes(normalizedQuery) || String(item.checkInCode || "").toLowerCase() === normalizedQuery.replace(/\s/g, ""))
+    ? todayAppointments.filter((item) => normalizedSearch(item.client).includes(normalizedQuery) || String(item.checkInCode || "").toLowerCase() === normalizedQuery.replace(/\s/g, "") || scheduledTicket(establishment, item.time, item.professional).toLowerCase() === normalizedQuery)
     : todayAppointments;
   if (!todayAppointments.length) return '<div class="empty">Nenhum atendimento marcado para hoje.</div>';
   if (!appointments.length) return `<div class="empty">Nenhum agendamento encontrado para <strong>${escapeHTML(query.trim())}</strong>.</div>`;
@@ -768,7 +781,7 @@ function appointmentRows(data, query = state.appointmentQuery) {
           : item.status === "atendendo"
             ? `<button class="btn btn-primary btn-sm" type="button" data-complete-appointment="${escapeHTML(item.id)}" data-professional-name="${escapeHTML(item.professional)}">Encerrar</button>`
             : item.status === "concluido" ? '<span>✓ Finalizado</span>' : "";
-    return `<div class="appointment-row"><span class="appt-time">${item.time}</span><span class="client"><span class="client-avatar">${initials(item.client)}</span><span><strong>${escapeHTML(item.client)}</strong><small>${escapeHTML(item.service)}${item.checkInCode ? ` · Senha ${escapeHTML(item.checkInCode)}` : ""}</small></span></span><span class="professional">${escapeHTML(item.professional)}</span><span class="status ${escapeHTML(item.status)}">${escapeHTML(statusLabel(item.status))}</span><span class="appointment-presence-action">${action}</span></div>`;
+    return `<div class="appointment-row"><span class="appt-time">${item.time}</span><span class="client"><span class="client-avatar">${initials(item.client)}</span><span><strong>${escapeHTML(item.client)}</strong><small>${escapeHTML(item.service)} · Painel ${escapeHTML(scheduledTicket(establishment, item.time, item.professional))}${item.checkInCode ? ` · Presença ${escapeHTML(item.checkInCode)}` : ""}</small></span></span><span class="professional">${escapeHTML(item.professional)}</span><span class="status ${escapeHTML(item.status)}">${escapeHTML(statusLabel(item.status))}</span><span class="appointment-presence-action">${action}</span></div>`;
   }).join("");
 }
 
@@ -811,10 +824,10 @@ function renderAdmin(establishment) {
       <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
       ${adminCheckInPanel(establishment, today)}
       <section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Essa configuração vale para todos os novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="employee"><span>♙</span><strong>Agenda por funcionário</strong><small>Cada profissional tem seus próprios horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="establishment"><span>▣</span><strong>Agenda do estabelecimento</strong><small>Uma única grade compartilhada pela equipe.</small></button></div></section>
-      <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p><span data-appointment-count>${today.length}</span> horários agendados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-search"><span class="appointment-search-icon" aria-hidden="true">⌕</span><input type="search" value="${escapeHTML(state.appointmentQuery)}" data-appointment-search aria-label="Pesquisar agendamento pelo nome ou senha" placeholder="Pesquisar por nome completo ou senha"><button type="button" data-clear-appointment-search aria-label="Limpar pesquisa" ${state.appointmentQuery ? "" : "hidden"}>×</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(data)}<section class="panel staff-availability-panel"><div class="panel-head"><div><h2>${usesEmployeeSchedules(establishment) ? "Agenda por profissional" : "Agenda do estabelecimento"}</h2><p>${usesEmployeeSchedules(establishment) ? "Disponibilidade individual de hoje" : "Disponibilidade compartilhada de hoje"}</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></div>
+      <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p><span data-appointment-count>${today.length}</span> horários agendados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-search"><span class="appointment-search-icon" aria-hidden="true">⌕</span><input type="search" value="${escapeHTML(state.appointmentQuery)}" data-appointment-search aria-label="Pesquisar agendamento pelo nome ou senha" placeholder="Pesquisar por nome completo ou senha"><button type="button" data-clear-appointment-search aria-label="Limpar pesquisa" ${state.appointmentQuery ? "" : "hidden"}>×</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(establishment, data)}<section class="panel staff-availability-panel"><div class="panel-head"><div><h2>${usesEmployeeSchedules(establishment) ? "Agenda por profissional" : "Agenda do estabelecimento"}</h2><p>${usesEmployeeSchedules(establishment) ? "Disponibilidade individual de hoje" : "Disponibilidade compartilhada de hoje"}</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></div>
     </main></div>`;
   const queueSection = app.querySelector(".admin-grid .queue-panel");
-  if (queueSection) queueSection.insertAdjacentHTML("beforeend", `<div class="queue-admin-actions"><button class="btn btn-soft btn-sm" data-add-ticket data-priority="normal">+ Senha normal</button><button class="btn btn-priority btn-sm" data-add-ticket data-priority="preferencial">+ Preferencial</button><button class="btn btn-primary btn-sm" data-next-ticket>Chamar próxima</button></div>`);
+  if (queueSection) queueSection.insertAdjacentHTML("beforeend", `<div class="queue-admin-actions"><button class="btn btn-soft btn-sm" data-add-ticket data-priority="normal">+ Senha avulsa</button><button class="btn btn-priority btn-sm" data-add-ticket data-priority="preferencial">+ Preferencial</button><button class="btn btn-primary btn-sm" data-next-ticket>Chamar próxima avulsa</button></div>`);
   void refreshCloudData(establishment, "admin");
   void loadCheckInConfig(establishment);
   adminRefreshTimer = setInterval(() => {
@@ -832,12 +845,11 @@ function updateMonitorClock() {
 function renderQueueDisplay(establishment) {
   document.title = `Painel de senhas · ${establishment.name}`;
   const data = cloudCache.get(publicCacheKey(establishment, isoDate())) || { queue: [], slots: [], todayAppointments: 0 };
-  const current = data.queue.find((item) => item.status === "atendendo");
-  const waiting = data.queue.filter((item) => item.status === "aguardando");
-  const badge = (item) => item?.priority === "preferencial" ? '<span class="monitor-priority">Preferencial</span>' : '<span class="monitor-normal">Normal</span>';
+  const { current, waiting } = queueView(establishment, data, currentSaoPauloClock());
+  const called = current[0];
   app.innerHTML = `<main class="queue-display"><header class="queue-display-header"><div class="queue-display-brand">${logo()}<span>${escapeHTML(establishment.name)}</span></div><div class="queue-display-status"><span class="live-dot"></span> AO VIVO <strong data-monitor-clock></strong></div></header>
-    <section class="queue-display-content"><div class="queue-display-current"><small>SENHA EM ATENDIMENTO</small><strong>${escapeHTML(current?.ticket || "—")}</strong><div class="monitor-service-point"><span>Dirija-se para</span><b>${escapeHTML(current?.servicePoint || "Aguardando chamada")}</b></div>${current ? badge(current) : ""}</div>
-    <aside class="queue-display-next"><div class="monitor-next-title"><span>Próximas senhas</span><b>${waiting.length} aguardando</b></div><div class="monitor-waiting-list">${waiting.slice(0,8).map((item, index) => `<div class="monitor-waiting-row"><span class="monitor-position">${index + 1}</span><strong>${escapeHTML(item.ticket)}</strong>${badge(item)}</div>`).join("") || '<div class="monitor-empty">Fila sem espera</div>'}</div></aside></section>
+    <section class="queue-display-content"><div class="queue-display-current"><small>SENHA EM ATENDIMENTO</small><strong>${escapeHTML(called?.ticket || "—")}</strong><div class="monitor-service-point"><span>${called?.kind === "scheduled" ? "Horário e profissional" : "Dirija-se para"}</span><b>${escapeHTML(called ? queueDetail(called) : "Aguardando chamada")}</b></div>${called ? queueBadge(called, true) : ""}${current.length > 1 ? `<div class="monitor-current-extra">${current.slice(1).map((item) => `<span>${escapeHTML(item.ticket)} · ${escapeHTML(queueDetail(item))}</span>`).join("")}</div>` : ""}</div>
+    <aside class="queue-display-next"><div class="monitor-next-title"><span>Próximos horários e senhas</span><b>${waiting.length} na sequência</b></div><div class="monitor-waiting-list">${waiting.slice(0,8).map((item, index) => `<div class="monitor-waiting-row"><span class="monitor-position">${index + 1}</span><div><strong>${escapeHTML(item.ticket)}</strong><small>${escapeHTML(queueDetail(item))}</small></div>${queueBadge(item, true)}</div>`).join("") || '<div class="monitor-empty">Fila sem espera</div>'}</div></aside></section>
     <footer class="queue-display-footer"><span>Acompanhe a ordem e aguarde sua senha ser chamada.</span><div><button class="monitor-action" data-request-fullscreen>⛶ Tela cheia</button><a class="monitor-action" href="${href(`/${establishment.slug}?public=1#painel-senhas`)}" data-link>Fechar painel</a></div></footer></main>`;
   updateMonitorClock();
   clearInterval(monitorClockTimer);
