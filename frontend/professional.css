@@ -233,6 +233,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-services-head strong { color: var(--navy); font: 800 15px "Manrope",sans-serif; }
 .public-services-head small { margin-top: 2px; color: var(--muted); font-size: 10px; }
 .service-carousel-controls { margin-left: auto; display: flex; gap: 6px; }
+.service-showcase-controls { margin-bottom: 10px; justify-content: flex-end; }
 .service-carousel-controls button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 9px; color: var(--blue); background: #fff; font-size: 15px; }
 .service-carousel-controls button:hover { border-color: #9db7e1; background: var(--blue-soft); }
 .service-carousel { display: grid; grid-auto-flow: column; grid-auto-columns: calc(50% - 5px); gap: 10px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-behavior: smooth; scroll-snap-type: inline mandatory; scrollbar-width: thin; scrollbar-color: #c5d2e5 transparent; }
@@ -479,7 +480,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .public-services-head>div:nth-child(2) { min-width: 0; }
   .public-services-head small { max-width: 190px; }
   .schedule-date-toolbar { align-items: stretch; flex-direction: column; }
-  .quick-dates { display: grid; grid-template-columns: 1fr 1fr; }
+  .quick-dates { display: grid; grid-template-columns: 1fr; }
   .quick-dates button { min-width: 0; }
   .schedule-date-field input { width: 100%; }
   .public-slot-grid { grid-template-columns: repeat(4,1fr); }

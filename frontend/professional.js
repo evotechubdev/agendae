@@ -320,11 +320,13 @@ function publicSchedule(establishment) {
     return `<article class="public-professional-schedule"><header><span class="client-avatar">${initials(professional.name)}</span><div><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></div><em>${freeCount} ${freeCount === 1 ? "livre" : "livres"}</em></header><div class="public-slot-grid">${buttons || '<div class="schedule-empty">Nenhum horário configurado para esta data.</div>'}</div></article>`;
   }).join("");
   const controls = professionals.length > 1 ? `<div class="professional-carousel-controls"><span data-professional-carousel-position>1 de ${professionals.length}</span><button type="button" data-professional-carousel-prev aria-label="Profissional anterior">←</button><button type="button" data-professional-carousel-next aria-label="Próximo profissional">→</button></div>` : "";
-  return `<div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button><button type="button" class="${state.booking.dateMode === "tomorrow" ? "active" : ""}" data-date-mode="tomorrow"><strong>Amanhã</strong><small>${prettyDate(isoDate(1))}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate()}" value="${state.booking.date}" data-booking-date></label></div><div class="schedule-legend"><div><span><i class="available"></i>Disponível</span><span><i class="occupied"></i>Ocupado</span><span><i class="past"></i>Encerrado</span></div>${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
+  const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
+  return `<div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data a partir de amanhã"></label></div><div class="schedule-legend"><div><span><i class="available"></i>Disponível</span><span><i class="occupied"></i>Ocupado</span><span><i class="past"></i>Encerrado</span></div>${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
 }
 
 function publicServiceCards(establishment) {
-  return `<section class="public-services" id="servicos-agendamento"><div class="public-services-head"><span>R$</span><div><strong>Serviços e valores</strong><small>Consulte as opções disponíveis; a escolha será feita ao confirmar o agendamento</small></div><div class="service-carousel-controls"><button type="button" data-service-carousel-prev aria-label="Serviço anterior">←</button><button type="button" data-service-carousel-next aria-label="Próximo serviço">→</button></div></div><div class="service-carousel" data-service-carousel>${establishment.services.map((item) => `<article class="service-card-display"><span class="service-icon">${item.icon}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("")}</div></section>`;
+  const controls = establishment.services.length > 1 ? `<div class="service-carousel-controls service-showcase-controls"><button type="button" data-service-carousel-prev aria-label="Serviço anterior">←</button><button type="button" data-service-carousel-next aria-label="Próximo serviço">→</button></div>` : "";
+  return `<section class="public-services" id="servicos-agendamento">${controls}<div class="service-carousel" data-service-carousel>${establishment.services.map((item) => `<article class="service-card-display"><span class="service-icon">${item.icon}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("")}</div></section>`;
 }
 
 function moveServiceCarousel(direction = 1) {
@@ -580,7 +582,7 @@ function renderEstablishmentPublic(establishment) {
     <header class="est-topbar"><div class="est-topbar-inner"><a href="${href("/")}" data-link>${logo()}</a><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
     <section class="est-cover"><div class="est-cover-inner"><div class="est-identity"><div class="est-logo">${escapeHTML(establishment.initials)}</div><div><h1>${escapeHTML(establishment.name)}</h1><p>${escapeHTML(establishment.description)}</p><div class="est-facts"><span>⌖ ${escapeHTML(establishment.address)}</span><span>◷ ${escapeHTML(establishment.todayHours)}</span><span>● ${establishment.openNow ? "Aberto agora" : "Fechado"}</span></div></div></div><div class="live-ticket"><span class="live-dot"></span><span><small>Senha chamada agora</small><strong>${data.queue.find((item) => item.status === "atendendo")?.ticket || "—"}</strong></span></div></div></section>
     <main class="est-content"><div class="public-summary"><article class="summary-card"><small>Atendimentos hoje</small><strong>${String(todayCount).padStart(2,"0")}</strong><em>Agenda atualizada</em></article><article class="summary-card"><small>Próximo horário livre</small><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></article><article class="summary-card"><small>Tempo médio de espera</small><strong>${establishment.averageWaitMinutes} min</strong><em>Fila em tempo real</em></article></div>
-      <section class="booking-zone" id="agendar"><div class="zone-title"><span class="zone-number">01</span><div><small>AGENDAMENTOS</small><h2>Serviços e horários</h2><p>Consulte os serviços e escolha primeiro o melhor horário para você.</p></div></div><div class="public-agenda-layout"><section class="panel public-schedule-panel">${publicServiceCards(establishment)}<div class="panel-head public-schedule-head"><div><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section>
+      <section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel">${publicServiceCards(establishment)}<div class="panel-head public-schedule-head"><div><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>Atendimento presencial</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section>
       <section class="queue-zone" id="painel-senhas"><div class="zone-title queue-zone-title"><span class="zone-number">02</span><div><small>FILA DE ATENDIMENTO</small><h2>Acompanhe sua senha</h2><p>Veja quem está sendo atendido e sua posição na fila.</p></div></div>${queuePanel(data, false)}</section></main>
     ${publicCheckInModal()}</div>`;
   requestAnimationFrame(() => {
@@ -760,8 +762,8 @@ document.addEventListener("click", async (event) => {
   }
   const mode = event.target.closest("[data-date-mode]");
   if (mode) {
-    state.booking.dateMode = mode.dataset.dateMode;
-    state.booking.date = mode.dataset.dateMode === "today" ? isoDate() : isoDate(1);
+    state.booking.dateMode = "today";
+    state.booking.date = isoDate();
     state.booking.time = null;
     const establishment = activeEstablishment();
     if (establishment) cloudCache.delete(publicCacheKey(establishment));
@@ -894,8 +896,16 @@ document.addEventListener("click", async (event) => {
 
 document.addEventListener("change", (event) => {
   if (event.target.matches("[data-booking-date]")) {
-    state.booking.date = event.target.value || isoDate(1);
-    state.booking.dateMode = state.booking.date === isoDate() ? "today" : state.booking.date === isoDate(1) ? "tomorrow" : "other";
+    const selectedDate = event.target.value;
+    const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(selectedDate) ? new Date(`${selectedDate}T12:00:00`) : null;
+    const validDate = parsedDate && !Number.isNaN(parsedDate.valueOf()) && parsedDate.toISOString().slice(0, 10) === selectedDate && selectedDate > isoDate();
+    if (!validDate) {
+      event.target.value = "";
+      toast("Escolha uma data válida a partir de amanhã.", "!");
+      return;
+    }
+    state.booking.date = selectedDate;
+    state.booking.dateMode = "other";
     state.booking.time = null;
     const establishment = activeEstablishment();
     if (establishment) cloudCache.delete(publicCacheKey(establishment));
