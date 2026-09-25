@@ -24,6 +24,7 @@ const state = {
   appointmentQuery: "",
   publicLookup: freshPublicLookup(),
   queueModalOpen: false,
+  employeeAccessOpen: false,
   mobileMenu: false,
 };
 
@@ -144,6 +145,7 @@ function navigate(path) {
   history.pushState(null, "", href(path));
   if (route() !== previousRoute) state.publicLookup = freshPublicLookup();
   state.queueModalOpen = false;
+  state.employeeAccessOpen = false;
   state.mobileMenu = false;
   render();
   window.scrollTo({ top: 0, behavior: "instant" });
@@ -274,6 +276,11 @@ function renderLogin() {
   </main>`;
 }
 
+function employeeAccessModal(establishment) {
+  if (!state.employeeAccessOpen) return "";
+  return `<div class="booking-modal-backdrop" data-employee-access-backdrop><section class="booking-modal employee-access-modal" role="dialog" aria-modal="true" aria-labelledby="employee-access-title"><div class="booking-modal-head"><div><small>ACESSO DA EQUIPE</small><h2 id="employee-access-title">Área do estabelecimento</h2></div><button class="booking-modal-close" type="button" data-close-employee-access aria-label="Fechar acesso">×</button></div><form id="login-form" class="employee-access-form"><input type="hidden" name="establishment" value="${escapeHTML(establishment.slug)}"><div class="employee-modal-establishment"><span>${escapeHTML(establishment.initials)}</span><div><small>ESTABELECIMENTO</small><strong>${escapeHTML(establishment.name)}</strong></div></div><div class="field"><label for="employee-login">Login</label><input id="employee-login" name="login" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="Digite seu login"></div><div class="field"><div class="password-line"><label for="password">Senha</label><a href="#" data-forgot>Esqueci minha senha</a></div><div class="password-input"><input id="password" name="password" type="password" autocomplete="current-password" required placeholder="Digite sua senha"><button type="button" class="password-toggle" data-toggle-password aria-label="Visualizar senha" title="Visualizar senha"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.7"></circle></svg></button></div></div><label class="remember-option"><input type="checkbox" name="remember" checked><span>Lembrar senha</span></label><button class="btn btn-primary btn-block" type="submit">Entrar no painel</button></form></section></div>`;
+}
+
 function progress(step) {
   return `<div class="booking-progress">${["Horário", "Seus dados", "Confirmação"].map((label, index) => {
     const number = index + 1;
@@ -323,7 +330,7 @@ function publicSchedule(establishment) {
   }).join("");
   const controls = professionals.length > 1 ? `<div class="professional-carousel-controls"><span data-professional-carousel-position>1 de ${professionals.length}</span><button type="button" data-professional-carousel-prev aria-label="Profissional anterior">←</button><button type="button" data-professional-carousel-next aria-label="Próximo profissional">→</button></div>` : "";
   const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
-  return `<div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data a partir de amanhã"></label></div><div class="schedule-legend"><div><span><i class="available"></i>Disponível</span><span><i class="occupied"></i>Ocupado</span><span><i class="past"></i>Encerrado</span></div>${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
+  return `<div class="schedule-command-bar"><div class="schedule-command-title"><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div><div class="schedule-legend"><div><span><i class="available"></i>Disponível</span><span><i class="occupied"></i>Ocupado</span><span><i class="past"></i>Encerrado</span></div></div>${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
 }
 
 function publicServiceCards(establishment) {
@@ -586,10 +593,10 @@ function renderEstablishmentPublic(establishment) {
   const waitingTickets = data.queue.filter((item) => item.status === "aguardando");
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
-    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${establishment.category ? `${escapeHTML(establishment.category)} · ` : ""}${establishment.openNow ? "Aberto agora" : "Fechado"}</small></div></div><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : `<a class="btn btn-primary btn-sm" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Área do estabelecimento</a>`}</div></div></header>
+    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${establishment.category ? `${escapeHTML(establishment.category)} · ` : ""}${establishment.openNow ? "Aberto agora" : "Fechado"}</small></div></div><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : '<button class="btn btn-primary btn-sm" type="button" data-open-employee-access>Área do estabelecimento</button>'}</div></div></header>
     <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Chamando agora</small><strong>${escapeHTML(currentTicket?.ticket || "—")}</strong><em>${currentTicket ? escapeHTML(currentTicket.servicePoint || "Atendimento") : "Fila livre"}</em></div></article><article class="public-live-card"><small>Próximas senhas</small><div class="public-next-tickets">${waitingTickets.slice(0,3).map((item) => `<span>${escapeHTML(item.ticket)}</span>`).join("") || "<em>Ninguém aguardando</em>"}</div></article><article class="public-live-card public-next-slot"><small>Próximo horário livre</small><div><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></div></article><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button></div></section>
-    <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="panel-head public-schedule-head"><div><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div></div><div class="public-schedule-body">${publicSchedule(establishment)}</div><div class="public-services-complement">${publicServiceCards(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>${escapeHTML(establishment.address)}</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section></main>
-    ${publicCheckInModal()}${publicQueueModal(data)}</div>`;
+    <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel hours-panel"><div class="panel-head"><div><h2>Horário de funcionamento</h2><p>${escapeHTML(establishment.address)}</p></div></div><div class="hours-body">${hoursMarkup(establishment)}</div></section><section class="panel public-services-panel">${publicServiceCards(establishment)}</section></aside></div>${state.booking.time ? `<section class="panel booking-panel selected-booking-panel" id="novo-agendamento"><div class="panel-head"><div><h2>Agendar atendimento</h2><p>Complete os dados do horário selecionado</p></div></div><div class="booking-body">${bookingContent(establishment)}</div></section>` : ""}</section></main>
+    ${publicCheckInModal()}${publicQueueModal(data)}${employeeAccessModal(establishment)}</div>`;
   requestAnimationFrame(() => {
     startServiceCarousel();
     startProfessionalCarousel();
@@ -754,6 +761,17 @@ document.addEventListener("click", async (event) => {
     return;
   }
   if (event.target.closest("[data-change-slot]")) { state.booking.time = null; state.booking.step = 1; render(); return; }
+  if (event.target.closest("[data-open-employee-access]")) {
+    state.employeeAccessOpen = true;
+    render();
+    requestAnimationFrame(() => document.querySelector("#employee-login")?.focus());
+    return;
+  }
+  if (event.target.closest("[data-close-employee-access]") || event.target.matches("[data-employee-access-backdrop]")) {
+    state.employeeAccessOpen = false;
+    render();
+    return;
+  }
   if (event.target.closest("[data-forgot]")) { event.preventDefault(); toast("Solicite uma nova senha ao administrador do estabelecimento.", "ⓘ"); return; }
   const passwordToggle = event.target.closest("[data-toggle-password]");
   if (passwordToggle) {
@@ -1117,6 +1135,11 @@ async function callNext() {
 
 window.addEventListener("popstate", render);
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.employeeAccessOpen) {
+    state.employeeAccessOpen = false;
+    render();
+    return;
+  }
   if (event.key === "Escape" && state.queueModalOpen) {
     state.queueModalOpen = false;
     render();
