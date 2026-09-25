@@ -780,21 +780,51 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-next-slot>div { display: flex; align-items: baseline; gap: 8px; }
 .public-queue-button { margin-left: 22px; white-space: nowrap; }
 .public-direct-content { padding-top: 18px; }
-.public-services-complement { border-top: 1px solid var(--line); }
-.public-services-complement .public-services { background: #fbfcff; }
+.public-services-panel { overflow: hidden; }
+.public-services-panel .public-services { padding: 14px; background: #fbfcff; }
+.public-services-panel .service-carousel { grid-auto-columns: 100%; }
+.public-services-panel .service-showcase-controls { margin-bottom: 8px; }
+.schedule-command-bar { margin-bottom: 14px; display: grid; grid-template-columns: minmax(240px,1fr) auto auto auto; align-items: center; gap: 12px; }
+.schedule-command-title { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.schedule-command-title>div { min-width: 0; }
+.schedule-command-title h2 { overflow: hidden; margin: 0; color: var(--navy); font: 800 14px "Manrope",sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-command-title p { overflow: hidden; margin: 3px 0 0; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-command-bar .schedule-date-toolbar { display: flex; align-items: center; justify-content: flex-start; flex-direction: row; gap: 7px; }
+.schedule-command-bar .quick-dates { display: flex; }
+.schedule-command-bar .quick-dates button { min-width: 72px; min-height: 42px; padding: 6px 10px; }
+.schedule-command-bar .schedule-date-field { gap: 2px; }
+.schedule-command-bar .schedule-date-field input { width: 126px; height: 42px; }
+.schedule-command-bar .schedule-legend { margin: 0; padding: 0; border: 0; }
+.schedule-command-bar .schedule-legend>div:first-child { flex-wrap: nowrap; gap: 8px; }
+.schedule-command-bar .schedule-legend span { gap: 4px; white-space: nowrap; }
+.schedule-command-bar .schedule-legend i { width: 7px; height: 7px; }
+.schedule-command-bar .professional-carousel-controls { margin-left: 0; }
 .public-queue-modal { width: min(100%,820px); }
 .public-queue-modal-body { padding: 18px; }
 .public-queue-modal-body .queue-panel { border: 0; }
 .public-queue-modal-body .queue-board { min-height: 300px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.employee-access-modal { width: min(100%,480px); }
+.employee-access-form { padding: 22px; }
+.employee-modal-establishment { margin-bottom: 20px; padding: 13px; display: flex; align-items: center; gap: 11px; border: 1px solid #d9e3f2; border-radius: 12px; background: #f7faff; }
+.employee-modal-establishment>span { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 10px; color: var(--navy); background: var(--yellow); font: 800 10px "Manrope",sans-serif; }
+.employee-modal-establishment small,.employee-modal-establishment strong { display: block; }
+.employee-modal-establishment small { color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .8px; }
+.employee-modal-establishment strong { margin-top: 3px; color: var(--navy); font-size: 12px; }
 
 @media (max-width:980px) {
   .public-live-inner { padding: 15px 0; grid-template-columns: repeat(3,minmax(0,1fr)); row-gap: 13px; }
   .public-queue-button { grid-column: 1/-1; width: fit-content; margin: 0; }
 }
 
+@media (max-width:1150px) {
+  .schedule-command-bar { grid-template-columns: minmax(240px,1fr) auto; }
+  .schedule-command-bar .schedule-legend { justify-content: flex-start; }
+  .schedule-command-bar .professional-carousel-controls { justify-content: flex-end; }
+}
+
 @media (max-width:720px) {
   .est-topbar-identity { gap: 10px; }
-  .est-header-actions a.btn-sm { display: none; }
+  .est-header-actions a.btn-sm,.est-header-actions [data-open-employee-access] { display: none; }
   .est-header-divider { height: 29px; }
   .est-header-business strong { max-width: 180px; font-size: 13px; }
   .est-header-business small { font-size: 8px; }
@@ -807,10 +837,16 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .public-direct-content { padding-top: 12px; }
   .public-queue-modal-body { padding: 12px; }
   .public-queue-modal-body .queue-board { min-height: 0; }
+  .employee-access-form { padding: 18px; }
 }
 
 @media (max-width:520px) {
   .est-topbar-identity>a,.est-header-divider { display: none; }
+  .schedule-command-bar { grid-template-columns: minmax(0,1fr) auto; }
+  .schedule-command-title,.schedule-command-bar .schedule-date-toolbar { grid-column: 1/-1; }
+  .schedule-command-title h2,.schedule-command-title p { white-space: normal; }
+  .schedule-command-bar .schedule-date-field { flex: 1; }
+  .schedule-command-bar .schedule-date-field input { width: 100%; }
 }
 
 @media (max-width:430px) {
