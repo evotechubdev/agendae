@@ -45,8 +45,8 @@ function statusLabel(status = "confirmado") {
 }
 
 function checkInQrUrl(establishment, token) {
-  const url = new URL(href(`/${establishment.slug}`), location.origin);
-  url.searchParams.set("checkin", token);
+  const url = new URL(`${BASE || ""}/`, location.origin);
+  url.search = `?/${encodeURIComponent(establishment.slug)}&checkin=${encodeURIComponent(token)}`;
   url.hash = "confirmar-presenca";
   return url.toString();
 }
@@ -305,7 +305,8 @@ function publicSchedule(establishment) {
     const buttons = times.map((time) => {
       if (slotHasPassed(state.booking.date, time)) return `<button class="schedule-slot past" type="button" disabled aria-label="${escapeHTML(time)} encerrado"><strong>${escapeHTML(time)}</strong><small>Encerrado</small></button>`;
       if (busy.has(time)) return `<button class="schedule-slot occupied" type="button" disabled aria-label="${escapeHTML(time)} ocupado"><strong>${escapeHTML(time)}</strong><small>Ocupado</small></button>`;
-      return `<button class="schedule-slot available ${state.booking.professional === professional.name && state.booking.time === time ? "selected" : ""}" type="button" data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}"><strong>${escapeHTML(time)}</strong><small>Disponível</small></button>`;
+      const selected = state.booking.professional === professional.name && state.booking.time === time;
+      return `<button class="schedule-slot available ${selected ? "selected" : ""}" type="button" data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${selected}"><strong>${escapeHTML(time)}</strong><small>${selected ? "Selecionado" : "Disponível"}</small></button>`;
     }).join("");
     return `<article class="public-professional-schedule"><header><span class="client-avatar">${initials(professional.name)}</span><div><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></div><em>${freeCount} ${freeCount === 1 ? "livre" : "livres"}</em></header><div class="public-slot-grid">${buttons || '<div class="schedule-empty">Nenhum horário configurado para esta data.</div>'}</div></article>`;
   }).join("");
@@ -361,6 +362,12 @@ function startProfessionalCarousel() {
   clearInterval(professionalScheduleTimer);
   const carousel = document.querySelector("[data-professional-carousel]");
   if (!carousel || carousel.querySelectorAll(".public-professional-schedule").length < 2) return;
+  const selectedCard = carousel.querySelector(".schedule-slot.selected")?.closest(".public-professional-schedule");
+  if (selectedCard) {
+    const cards = [...carousel.querySelectorAll(".public-professional-schedule")];
+    carousel.scrollLeft = cards.indexOf(selectedCard) * carousel.clientWidth;
+    updateProfessionalCarouselPosition();
+  }
   carousel.addEventListener("scroll", updateProfessionalCarouselPosition, { passive: true });
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   professionalScheduleTimer = setInterval(() => {
@@ -406,6 +413,13 @@ async function stopQrScanner() {
 function parseCheckInQr(rawValue, expectedSlug) {
   try {
     const url = new URL(String(rawValue));
+    const staticRoute = url.search.match(/^\?\/([^&]+)&checkin=([^&]+)/);
+    if (staticRoute) {
+      const scannedSlug = decodeURIComponent(staticRoute[1]);
+      const token = decodeURIComponent(staticRoute[2]);
+      if (scannedSlug === expectedSlug && token) return token;
+      throw new Error("wrong-establishment");
+    }
     let path = url.pathname;
     if (BASE && path.startsWith(BASE)) path = path.slice(BASE.length);
     const scannedSlug = path.replace(/^\/+|\/+$/g, "");
