@@ -281,7 +281,8 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-slot.available { border-color: #a8d9c1; background: #f3fbf7; }
 .schedule-slot.available small { color: var(--green); }
 .schedule-slot.available:hover { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-soft); transform: translateY(-1px); }
-.schedule-slot.available.selected { border: 2px solid var(--blue); box-shadow: none; transform: none; }
+.schedule-slot.available.selected { border-color: var(--blue); color: #fff; background: var(--blue); box-shadow: 0 0 0 3px rgba(18,73,163,.16),0 8px 18px rgba(18,73,163,.22); transform: translateY(-1px); }
+.schedule-slot.available.selected strong,.schedule-slot.available.selected small { color: #fff; }
 .schedule-slot.occupied { cursor: not-allowed; border-style: dashed; color: #9ba4b2; background: #f3f5f7; }
 .schedule-slot.occupied strong,.schedule-slot.occupied small { color: #9ba4b2; }
 .schedule-slot.past { cursor: not-allowed; border-color: #eadcc5; color: #a4865b; background: #fbf7f0; }
@@ -791,7 +792,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-slot.paused { cursor: default; border-color: #e5bd62; color: #6d4a00; background: #fff6d8; }
 .schedule-slot.paused strong,.schedule-slot.paused small { color: #7a5500; }
 .public-professional-schedule header .professional-status { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.public-professional-schedule header .professional-status.in-service { color: var(--blue); background: var(--blue-soft); }
+.public-professional-schedule header .professional-status.in-service { color: #276344; background: #e5f6eb; }
 .public-professional-schedule header .professional-status.paused { color: #805700; background: #fff0bd; }
 .public-professional-schedule header .professional-status.free { color: var(--green); background: var(--green-soft); }
 .public-professional-schedule header .professional-status.off-shift { color: var(--muted); background: #eef1f5; }
@@ -824,6 +825,37 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .service-list { display: grid; gap: 8px; }
 .public-services-panel .service-card-display { min-height: 58px; padding: 9px; grid-template-columns: 36px minmax(0,1fr) auto; gap: 8px; }
 .public-services-panel .service-icon { width: 36px; height: 36px; }
+.est-page:has(.public-direct-content) .btn { min-width: 150px; min-height: 42px; padding: 9px 14px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 11px; font-weight: 800; line-height: 1.2; text-align: center; }
+.est-page:has(.public-direct-content) .btn:not([data-open-checkin]),
+.est-page:has(.public-direct-content) .professional-carousel-controls button,
+.est-page:has(.public-direct-content) .quick-dates button,
+.est-page:has(.public-direct-content) .booking-modal-close { border-color: #586575; color: #fff; background: #586575; box-shadow: none; }
+.est-page:has(.public-direct-content) .quick-dates button.active { border-color: #435062; background: #435062; }
+.est-page:has(.public-direct-content) .btn:not([data-open-checkin]):hover,
+.est-page:has(.public-direct-content) .professional-carousel-controls button:hover,
+.est-page:has(.public-direct-content) .quick-dates button:hover,
+.est-page:has(.public-direct-content) .booking-modal-close:hover { border-color: #435062; color: #fff; background: #435062; box-shadow: 0 4px 10px rgba(38,48,63,.16); }
+.est-page:has(.public-direct-content) .quick-dates button strong,
+.est-page:has(.public-direct-content) .quick-dates button small { color: #fff; }
+.est-page:has(.public-direct-content) .schedule-slot.available { border-color: #cbd3de; background: #eef1f5; }
+.est-page:has(.public-direct-content) .schedule-slot.available small { color: #586575; }
+.est-page:has(.public-direct-content) .schedule-slot.available:hover { border-color: #586575; box-shadow: 0 0 0 2px rgba(88,101,117,.14); transform: translateY(-1px); }
+.est-page:has(.public-direct-content) .schedule-slot.available.selected { border: 2px solid var(--blue); color: var(--ink); background: #eef1f5; box-shadow: none; transform: none; }
+.est-page:has(.public-direct-content) .schedule-slot.available.selected strong { color: var(--ink); }
+.est-page:has(.public-direct-content) .schedule-slot.available.selected small { color: #586575; }
+.est-page:has(.public-direct-content) .schedule-slot.in-service { border-color: #a6dcb8; color: #276344; background: #e5f6eb; box-shadow: none; }
+.est-page:has(.public-direct-content) .schedule-slot.in-service strong,
+.est-page:has(.public-direct-content) .schedule-slot.in-service small { color: #276344; }
+.est-page:has(.public-direct-content) .schedule-legend i.available { background: #aeb8c7; }
+.est-page:has(.public-direct-content) .schedule-legend i.in-service { background: #b9e5cb; }
+.est-page:has(.public-direct-content) .btn:focus-visible,
+.est-page:has(.public-direct-content) .professional-carousel-controls button:focus-visible,
+.est-page:has(.public-direct-content) .quick-dates button:focus-visible { outline: 3px solid #aeb8c7; outline-offset: 2px; }
+@media (min-width: 900px) {
+  .est-page:has(.public-direct-content) .est-header-actions > .btn,
+  .est-page:has(.public-direct-content) .public-queue-button,
+  .est-page:has(.public-direct-content) .schedule-booking-button { width: 160px; }
+}
 .public-services-panel .service-card-display strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .public-services-panel .service-card-display small { font-size: 10px; }
 .public-services-panel .service-price { font-size: 11px; }
