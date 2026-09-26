@@ -1159,11 +1159,11 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-matrix-bands .schedule-matrix th,.schedule-matrix-bands .schedule-matrix td { padding: 2px; }
 .schedule-matrix-bands .schedule-matrix thead th { height: 25px; font-size: 10px; }
 .schedule-matrix-bands .schedule-matrix thead th:first-child { padding-left: 7px; }
-.schedule-matrix-bands .schedule-matrix tbody th { padding: 2px 6px; }
+.schedule-matrix-bands .schedule-matrix tbody th { padding: 4px 6px; }
 .schedule-matrix-bands .matrix-person { flex-direction: column; justify-content: center; gap: 2px; text-align: center; }
 .schedule-matrix-bands .matrix-avatar { width: 20px; height: 20px; border-radius: 50%; font-size: 12px; }
 .schedule-matrix-bands .matrix-person strong { font-size: 11px; line-height: 1.15; }
-.schedule-matrix-bands .matrix-person small { margin-top: 1px; font-size: 8px; line-height: 1.1; }
+.schedule-matrix-bands .matrix-person small { display: block; margin-top: 2px; font-size: 9px; line-height: 1.2; }
 .schedule-matrix-bands .matrix-slot { height: 30px; padding: 1px; gap: 3px; border-radius: 5px; }
 .schedule-matrix-bands .matrix-ticket-code { font-size: 10px; }
 .schedule-matrix-bands .matrix-status-dot { width: 7px; height: 7px; }
@@ -1185,8 +1185,4 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .schedule-matrix-bands .schedule-matrix-wrap { overflow-x: auto; }
   .schedule-matrix-bands .schedule-matrix { min-width: calc(66px + var(--matrix-columns) * 50px); }
   .schedule-matrix-bands .matrix-slot { height: 32px; gap: 3px; }
-}
-@media (max-height:700px) {
-  .schedule-matrix-bands .matrix-avatar { width: 16px; height: 16px; font-size: 11px; }
-  .schedule-matrix-bands .matrix-person small { display: none; }
 }
