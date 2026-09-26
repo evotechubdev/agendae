@@ -1,4 +1,5 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, TICKET_STATES } from "./queue-model.mjs";
+import { scheduleMatrix } from "./schedule-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -12,7 +13,6 @@ let queueSubscription = null;
 let queueSubscriptionSlug = null;
 let monitorClockTimer = null;
 let serviceCarouselTimer = null;
-let professionalScheduleTimer = null;
 let adminRefreshTimer = null;
 let qrScanner = null;
 const cloudCache = new Map();
@@ -26,6 +26,7 @@ let establishments = {};
 const state = {
   booking: freshBooking(),
   appointmentQuery: "",
+  scheduleScrollLeft: 0,
   publicLookup: freshPublicLookup(),
   queueModalOpen: false,
   employeeAccessOpen: false,
@@ -390,64 +391,39 @@ function bookingContent(establishment) {
 
 function publicSchedule(establishment) {
   const data = getData(establishment);
-  const employeeMode = usesEmployeeSchedules(establishment);
-  const professionals = professionalDirectory(establishment);
-  const schedules = professionals.map((professional) => {
-    const times = employeeMode ? (professional.availableTimes || []) : (establishment.availableTimes || []);
-    const busy = new Set((data.slots || []).filter((slot) => slot.id?.endsWith("_establishment") || slot.professional === professional.name).map((slot) => slot.time));
-    const freeCount = times.filter((time) => !busy.has(time) && !slotHasPassed(state.booking.date, time)).length;
+  const { times, professionals } = scheduleMatrix(establishment);
+  const clock = currentSaoPauloClock();
+  const isToday = state.booking.date === clock.date;
+  const rows = professionals.map((professional) => {
     const staffStatus = staffStatusFor(data, professional.name);
-    const isToday = state.booking.date === isoDate();
     const paused = isToday && professionalIsPaused(data, professional.name, state.booking.date);
-    const scheduleProfessional = { ...professional, availableTimes: times };
-    const onShift = isToday && professionalIsOnShift(scheduleProfessional, state.booking.date);
-    const savedCurrentTime = isToday && staffStatus.currentDate === state.booking.date ? staffStatus.currentTime : null;
-    const currentTime = savedCurrentTime || (onShift ? currentProfessionalSlot(scheduleProfessional, state.booking.date) : null);
-    const operationalLabel = !isToday
-      ? `${freeCount} ${freeCount === 1 ? "livre" : "livres"}`
-      : paused
-        ? "Pausado"
-        : onShift
-          ? "Em Atendimento"
-          : "Fora do expediente";
-    const operationalClass = paused ? "paused" : onShift ? "in-service" : "off-shift";
-    const buttons = times.map((time) => {
-      const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
-      const status = ticketState({ date: state.booking.date, time, booked: busy.has(time), currentTime, paused, status: appointment?.status }, currentSaoPauloClock());
-      if (status !== "free") return `<button class="schedule-slot ticket-state-${status}" type="button" disabled aria-label="${escapeHTML(time)} ${TICKET_STATES[status]}"><strong>${escapeHTML(time)}</strong><small>${TICKET_STATES[status]}</small></button>`;
-      const selected = state.booking.step < 3 && state.booking.professional === professional.name && state.booking.time === time;
-      return `<button class="schedule-slot available ticket-state-free ${selected ? "selected" : ""}" type="button" data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${selected}"><strong>${escapeHTML(time)}</strong><small>Livre${selected ? " · Selecionado" : ""}</small></button>`;
+    const onShift = isToday && professionalIsOnShift(professional, state.booking.date);
+    const savedCurrentTime = onShift && staffStatus.currentDate === state.booking.date ? staffStatus.currentTime : null;
+    const currentTime = savedCurrentTime || (isToday ? currentProfessionalSlot(professional, state.booking.date) : null);
+    const selected = state.booking.step < 3 && state.booking.professional === professional.name && state.booking.time;
+    const cells = professional.periods.map((time) => {
+      if (!time) return '<td class="matrix-unavailable"><span aria-label="Sem horário cadastrado">—</span></td>';
+        const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
+        const status = ticketState({ date: state.booking.date, time, booked: Boolean(appointment), currentTime, paused, status: appointment?.status }, clock);
+        const chosen = selected === time;
+        const label = `${professional.name}, ${time}, ${TICKET_STATES[status]}${chosen ? ", selecionado" : ""}`;
+        const action = status === "free" ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"` : 'disabled';
+        return `<td><button class="matrix-slot ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><span aria-hidden="true">${chosen ? "✓" : status === "free" ? "+" : status === "paused" ? "Ⅱ" : status === "in-service" ? "●" : status === "reserved" ? "•" : "—"}</span></button></td>`;
     }).join("");
-    const headerAction = state.booking.time && state.booking.professional === professional.name && state.booking.step < 3
-      ? `<button class="btn btn-primary btn-sm schedule-booking-button" type="button" data-booking-next aria-label="Agendar este horário: ${escapeHTML(state.booking.time)}">Agendar Este Horário</button>`
-      : `<em class="professional-status ${operationalClass}">${operationalLabel}</em>`;
-    return `<article class="public-professional-schedule"><header><span class="client-avatar">${initials(professional.name)}</span><div><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></div>${headerAction}</header><div class="public-slot-grid">${buttons || '<div class="schedule-empty">Nenhum horário configurado para esta data.</div>'}</div></article>`;
+    const action = selected ? `<button class="matrix-book-button" type="button" data-booking-next aria-label="Agendar ${escapeHTML(selected)} com ${escapeHTML(professional.name)}">Agendar ${escapeHTML(selected)} <span aria-hidden="true">→</span></button>` : "";
+    return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span class="matrix-avatar">${escapeHTML(initials(professional.name))}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div>${action}</th>${cells}</tr>`;
   }).join("");
-  const controls = professionals.length > 1 ? `<div class="professional-carousel-controls"><span data-professional-carousel-position>1 de ${professionals.length}</span><button type="button" data-professional-carousel-prev aria-label="Profissional anterior">←</button><button type="button" data-professional-carousel-next aria-label="Próximo profissional">→</button></div>` : "";
   const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
-  return `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div>${ticketStatusLegend()}${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
+  const toolbar = `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div>${ticketStatusLegend()}</div>`;
+  if (!professionals.length || !times.length) return `${toolbar}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
+  return `${toolbar}<div class="schedule-matrix-wrap" data-schedule-matrix tabindex="0" aria-label="Agenda de todos os profissionais na mesma linha do tempo"><table class="schedule-matrix" style="--matrix-columns:${times.length}"><caption>Disponibilidade dos profissionais na mesma linha do tempo</caption><colgroup><col class="matrix-person-column">${times.map(() => "<col>").join("")}</colgroup><thead><tr><th scope="col">Profissional</th>${times.map((time) => `<th scope="col"><time>${escapeHTML(time)}</time></th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function navigateProfessionalCarousel(direction) {
-  const carousel = document.querySelector("[data-professional-carousel]");
-  const cards = [...(carousel?.querySelectorAll(".public-professional-schedule") || [])];
-  if (!carousel || cards.length < 2) return;
-
-  if (professionalScheduleTimer) {
-    clearInterval(professionalScheduleTimer);
-    professionalScheduleTimer = null;
-  }
-
-  const savedIndex = Number(carousel.dataset.carouselIndex);
-  const visibleIndex = cards.reduce((best, card, index) =>
-    Math.abs(card.getBoundingClientRect().left - carousel.getBoundingClientRect().left)
-      < Math.abs(cards[best].getBoundingClientRect().left - carousel.getBoundingClientRect().left) ? index : best, 0);
-  const currentIndex = carousel.dataset.carouselIndex === undefined ? visibleIndex : savedIndex;
-  const nextIndex = (currentIndex + direction + cards.length) % cards.length;
-  carousel.dataset.carouselIndex = String(nextIndex);
-  carousel.scrollTo({ left: cards[nextIndex].offsetLeft - cards[0].offsetLeft, behavior: "smooth" });
-  const position = document.querySelector("[data-professional-carousel-position]");
-  if (position) position.textContent = `${nextIndex + 1} de ${cards.length}`;
+function restoreScheduleScroll() {
+  const matrix = document.querySelector("[data-schedule-matrix]");
+  if (!matrix) return;
+  matrix.scrollLeft = state.scheduleScrollLeft;
+  matrix.addEventListener("scroll", () => { state.scheduleScrollLeft = matrix.scrollLeft; }, { passive: true });
 }
 
 function publicServiceCards(establishment) {
@@ -472,43 +448,6 @@ function startServiceCarousel() {
   serviceCarouselTimer = setInterval(() => {
     if (!carousel.matches(":hover") && !carousel.contains(document.activeElement)) moveServiceCarousel(1);
   }, 4000);
-}
-
-function updateProfessionalCarouselPosition() {
-  const carousel = document.querySelector("[data-professional-carousel]");
-  const label = document.querySelector("[data-professional-carousel-position]");
-  if (!carousel || !label) return;
-  const count = carousel.querySelectorAll(".public-professional-schedule").length;
-  const index = Math.min(count - 1, Math.max(0, Math.round(carousel.scrollLeft / Math.max(1, carousel.clientWidth))));
-  label.textContent = `${index + 1} de ${count}`;
-}
-
-function moveProfessionalCarousel(direction = 1) {
-  const carousel = document.querySelector("[data-professional-carousel]");
-  if (!carousel) return;
-  const cards = carousel.querySelectorAll(".public-professional-schedule");
-  if (cards.length < 2) return;
-  const current = Math.round(carousel.scrollLeft / Math.max(1, carousel.clientWidth));
-  const next = (current + direction + cards.length) % cards.length;
-  carousel.scrollTo({ left: next * carousel.clientWidth, behavior: "smooth" });
-  setTimeout(updateProfessionalCarouselPosition, 350);
-}
-
-function startProfessionalCarousel() {
-  clearInterval(professionalScheduleTimer);
-  const carousel = document.querySelector("[data-professional-carousel]");
-  if (!carousel || carousel.querySelectorAll(".public-professional-schedule").length < 2) return;
-  const selectedCard = carousel.querySelector(".schedule-slot.selected")?.closest(".public-professional-schedule");
-  if (selectedCard) {
-    const cards = [...carousel.querySelectorAll(".public-professional-schedule")];
-    carousel.scrollLeft = cards.indexOf(selectedCard) * carousel.clientWidth;
-    updateProfessionalCarouselPosition();
-  }
-  carousel.addEventListener("scroll", updateProfessionalCarouselPosition, { passive: true });
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  professionalScheduleTimer = setInterval(() => {
-    if (!carousel.matches(":hover") && !carousel.contains(document.activeElement)) moveProfessionalCarousel(1);
-  }, 5000);
 }
 
 function publicAppointmentLookup() {
@@ -766,7 +705,7 @@ function renderEstablishmentPublic(establishment) {
     ${publicCheckInModal()}${publicQueueModal(establishment, data)}${employeeAccessModal(establishment)}</div>`;
   requestAnimationFrame(() => {
     startServiceCarousel();
-    startProfessionalCarousel();
+    restoreScheduleScroll();
     if (state.publicLookup.scanning) void startQrScanner();
   });
   void refreshCloudData(establishment, "public", state.booking.date);
@@ -874,7 +813,7 @@ function startQueueClock(establishment, monitor = false) {
     const modalPanel = document.querySelector(".public-queue-modal .queue-panel");
     if (modalPanel) modalPanel.outerHTML = queuePanel(establishment, data, false, false);
     const schedule = document.querySelector(".public-schedule-body");
-    if (schedule) { schedule.innerHTML = publicSchedule(establishment); startProfessionalCarousel(); }
+    if (schedule) { schedule.innerHTML = publicSchedule(establishment); restoreScheduleScroll(); }
   }, 1000);
 }
 
@@ -916,8 +855,6 @@ function render() {
   monitorClockTimer = null;
   clearInterval(serviceCarouselTimer);
   serviceCarouselTimer = null;
-  clearInterval(professionalScheduleTimer);
-  professionalScheduleTimer = null;
   const current = route();
   if (current === "home") return renderHome();
   if (current === "login") return renderLogin();
@@ -956,8 +893,6 @@ document.addEventListener("click", async (event) => {
   if (open) return navigate(`/${open.dataset.openEstablishment}`);
   if (event.target.closest("[data-service-carousel-prev]")) { moveServiceCarousel(-1); return; }
   if (event.target.closest("[data-service-carousel-next]")) { moveServiceCarousel(1); return; }
-  if (event.target.closest("[data-professional-carousel-prev]")) { navigateProfessionalCarousel(-1); return; }
-  if (event.target.closest("[data-professional-carousel-next]")) { navigateProfessionalCarousel(1); return; }
   const publicSlot = event.target.closest("[data-public-slot]");
   if (publicSlot) {
     state.booking.professional = publicSlot.dataset.professionalName;
