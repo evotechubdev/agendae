@@ -46,7 +46,7 @@ export function scheduledTicket(establishment, time, professional, service) {
   const index = orderedTimes.findIndex((slot) => timeMinutes(slot) === timeMinutes(time));
   if (index < 0) return "";
   const position = String(index + 1).padStart(2, "0");
-  return `${professionalInitial(professional)}${serviceInitials(service)}-${position}`;
+  return `${professionalInitial(professional)}-${serviceInitials(service)}${position}`;
 }
 
 export function queueView(establishment, data, clock) {
@@ -59,7 +59,7 @@ export function queueView(establishment, data, clock) {
   const scheduled = entries
     .filter((item) => item.date === clock.date && validSlot(item) && !["concluido", "cancelado"].includes(item.status))
     .map((item) => ({ ...item, ticket: scheduledTicket(establishment, item.time, item.professional, item.service), kind: "scheduled" }))
-    .filter((item) => /^[A-Z]{3}-\d{2,}$/.test(item.ticket))
+    .filter((item) => /^[A-Z]-[A-Z]{2}\d{2,}$/.test(item.ticket))
     .sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time) || a.professional.localeCompare(b.professional));
   const current = [];
   const pausedPosition = (professional, time = null) => ({ date: clock.date, time, professional, kind: "scheduled", ticket: null, ticketState: "paused" });
@@ -81,7 +81,7 @@ export function queueView(establishment, data, clock) {
     }
     const service = appointment?.service || (status?.currentTime === time ? status.currentService : undefined);
     const ticket = scheduledTicket(establishment, time, professional, service);
-    if (!/^[A-Z]{3}-\d{2,}$/.test(ticket)) {
+    if (!/^[A-Z]-[A-Z]{2}\d{2,}$/.test(ticket)) {
       current.push(pausedPosition(professional, time));
       continue;
     }
