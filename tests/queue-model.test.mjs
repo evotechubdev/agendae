@@ -81,7 +81,7 @@ test("senha SI muda ao avançar na grade e não usa serviço de outro horário o
   assert.equal(queueView(establishment, data, { ...clock, minutes: 10 * 60 + 30 }).current[0].ticket, "JSI-05");
 });
 
-test("grade individual mostra pausados e exclui profissionais fora do expediente", () => {
+test("grade individual mantém posições pausadas sem código dentro e fora do expediente", () => {
   const individual = { professionals: [
     { name: "João", availableTimes: ["09:00", "10:00", "11:00"] },
     { name: "Maria", availableTimes: ["11:00", "12:00"] },
@@ -90,9 +90,12 @@ test("grade individual mostra pausados e exclui profissionais fora do expediente
   const view = queueView(individual, { todaySlots: [], staffStatuses: [
     { professional: "João", paused: true, pausedDate: clock.date, currentDate: clock.date, currentTime: "10:00" },
   ] }, clock);
-  assert.deepEqual(view.current.map((item) => [item.ticket, item.ticketState]), [["RSI-01", "in-service"], ["JSI-02", "paused"]]);
-  assert.deepEqual(queueView(individual, {}, { ...clock, minutes: 8 * 60 }).current, []);
-  assert.deepEqual(queueView(individual, {}, { ...clock, minutes: 13 * 60 }).current, []);
+  assert.deepEqual(view.current.map((item) => [item.professional, item.ticket, item.ticketState]), [["João", null, "paused"], ["Maria", null, "paused"], ["Ricardo", "RSI-01", "in-service"]]);
+  for (const minutes of [8 * 60, 13 * 60]) {
+    const outside = queueView(individual, {}, { ...clock, minutes }).current;
+    assert.deepEqual(outside.map((item) => item.professional), ["João", "Maria", "Ricardo"]);
+    assert.ok(outside.every((item) => item.ticketState === "paused" && item.ticket === null));
+  }
 });
 
 test("horários livres, reservados, atuais, pausados e encerrados usam estados distintos", () => {
@@ -111,7 +114,7 @@ test("horários livres, reservados, atuais, pausados e encerrados usam estados d
   assert.deepEqual(Object.values(TICKET_STATES), ["Livre", "Reservado", "Em Atendimento", "Pausado", "Encerrado"]);
 });
 
-test("pausar e retomar mantém a senha e muda apenas o estado do atendimento atual", () => {
+test("pausar esconde o código e retomar recupera a senha do atendimento atual", () => {
   const data = {
     todaySlots: [
       { date: clock.date, time: "10:00", professional: "Ricardo", service: "Cabelo Tesoura" },
@@ -120,11 +123,11 @@ test("pausar e retomar mantém a senha e muda apenas o estado do atendimento atu
     staffStatuses: [{ professional: "Ricardo", currentDate: clock.date, currentTime: "10:00", paused: true, pausedDate: clock.date }],
   };
   const paused = queueView({ ...establishment, professionals: ["Ricardo"] }, data, clock);
-  assert.equal(paused.current[0].ticket, "RCT-04");
+  assert.equal(paused.current[0].ticket, null);
   assert.equal(paused.current[0].ticketState, "paused");
   assert.equal(paused.waiting[0].ticketState, "reserved");
   const resumed = queueView({ ...establishment, professionals: ["Ricardo"] }, { ...data, staffStatuses: [{ ...data.staffStatuses[0], paused: false }] }, clock);
-  assert.equal(resumed.current[0].ticket, paused.current[0].ticket);
+  assert.equal(resumed.current[0].ticket, "RCT-04");
   assert.equal(resumed.current[0].ticketState, "in-service");
 });
 
@@ -139,7 +142,32 @@ test("atendimento concluído no horário atual não reaparece como SI", () => {
   const view = queueView({ ...establishment, professionals: ["Ricardo"] }, { todaySlots: [
     { date: clock.date, time: "10:00", professional: "Ricardo", service: "Cabelo Tesoura", status: "concluido" },
   ] }, clock);
-  assert.deepEqual(view.current, []);
+  assert.equal(view.current.length, 1);
+  assert.equal(view.current[0].ticket, null);
+  assert.equal(view.current[0].ticketState, "paused");
+});
+
+test("fim do expediente pausa as posições mesmo com atendimento antigo salvo no banco", () => {
+  const data = {
+    todaySlots: [{ date: clock.date, time: "10:00", professional: "Ricardo", service: "Cabelo Tesoura", status: "atendendo" }],
+    staffStatuses: [{ professional: "Ricardo", currentDate: clock.date, currentTime: "10:00", currentService: "Cabelo Tesoura" }],
+  };
+  const before = queueView(establishment, data, clock).current;
+  assert.equal(before[2].ticket, "RCT-04");
+  const after = queueView(establishment, data, { ...clock, minutes: 13 * 60 }).current;
+  assert.deepEqual(after.map((item) => item.professional), before.map((item) => item.professional));
+  assert.equal(after.length, 3);
+  assert.ok(after.every((item) => item.ticketState === "paused" && item.ticket === null && item.time === null));
+});
+
+test("pausa sem atendimento salvo mantém a posição e não reaproveita a pausa de ontem", () => {
+  const paused = queueView(establishment, { staffStatuses: [{ professional: "Maria", paused: true, pausedDate: clock.date }] }, clock);
+  assert.deepEqual(paused.current.map((item) => item.professional), establishment.professionals);
+  assert.equal(paused.current[1].ticketState, "paused");
+  assert.equal(paused.current[1].ticket, null);
+  const active = queueView(establishment, { staffStatuses: [{ professional: "Maria", paused: true, pausedDate: "2026-09-24" }] }, clock);
+  assert.equal(active.current[1].ticket, "MSI-04");
+  assert.equal(active.current[1].ticketState, "in-service");
 });
 
 test("serviço ausente ou vazio recebe SI", () => {

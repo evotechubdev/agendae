@@ -1014,3 +1014,80 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-professional-schedule header .professional-status.in-service,.staff-operational-status.in-service { border: 1px solid #185ac7; color: #185ac7; background: #edf4ff; }
 .public-professional-schedule header .professional-status.paused,.staff-operational-status.paused { border: 1px solid #c92525; color: #c92525; background: #fff0f0; }
 .queue-board,.queue-display-content { grid-template-columns: minmax(0,1fr); }
+
+/* Fit the public agenda and services to the available viewport. */
+.est-page:has(.public-direct-content) { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: visible; }
+.est-page:has(.public-direct-content) .est-topbar { height: 56px; flex: 0 0 auto; }
+.est-page:has(.public-direct-content) .public-live-strip { flex: 0 0 auto; }
+.est-page:has(.public-direct-content) .public-live-inner { min-height: 72px; padding: 6px 0; }
+.public-live-current { min-height: 0; padding-top: 0; padding-bottom: 0; }
+.public-live-current .current-ticket-list { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); grid-auto-flow: row; gap: 8px; margin-top: 4px; padding-bottom: 0; overflow: visible; }
+.public-live-current .current-ticket-card { min-width: 0; padding: 5px 8px; gap: 3px; }
+.public-live-current .current-ticket-card > strong { font-size: 16px; line-height: 1.1; }
+.public-live-current .current-ticket-detail { font-size: 10px; line-height: 1.2; }
+.public-direct-content { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0 auto; padding: 8px 0; }
+.public-direct-content .booking-zone { flex: 1; min-height: 0; }
+.public-direct-content .public-agenda-layout { height: 100%; min-height: 0; grid-template-columns: minmax(0,1fr) 230px; gap: 10px; }
+.public-direct-content .public-schedule-panel,.public-direct-content .public-agenda-side,.public-direct-content .public-services-panel { height: 100%; min-height: 0; }
+.public-direct-content .public-schedule-body { min-height: 0; padding: 10px; }
+.public-direct-content .schedule-command-bar { flex: 0 0 auto; grid-template-columns: auto minmax(0,1fr) auto; gap: 8px; margin-bottom: 8px; }
+.public-direct-content .schedule-date-toolbar { grid-column: auto; }
+.public-direct-content .quick-dates button,.public-direct-content .schedule-date-field input { min-height: 36px; height: 36px; padding-top: 4px; padding-bottom: 4px; }
+.public-direct-content .ticket-status-legend { gap: 5px; margin: 0; }
+.public-direct-content .ticket-status-legend > span { padding: 3px 5px; font-size: 9px; }
+.public-direct-content .professional-carousel,.public-direct-content .public-schedules { flex: 1; min-height: 0; height: 100%; }
+.public-direct-content .public-professional-schedule { height: 100%; min-height: 0; padding: 9px; display: grid; grid-template-rows: auto minmax(0,1fr); }
+.public-direct-content .public-professional-schedule header { margin-bottom: 6px; }
+.public-direct-content .public-slot-grid { min-height: 0; grid-template-columns: repeat(8,minmax(0,1fr)); grid-auto-rows: minmax(28px,1fr); gap: 5px; }
+.public-direct-content .schedule-slot { min-height: 28px; padding: 2px; }
+.public-direct-content .schedule-slot strong { font-size: 11px; line-height: 1.15; }
+.public-direct-content .schedule-slot small { margin-top: 1px; font-size: 8px; line-height: 1.15; text-transform: none; }
+.public-direct-content .public-services-panel .compact-panel-head { flex: 0 0 auto; min-height: 0; padding: 8px 10px; }
+.public-direct-content .public-services { flex: 1; min-height: 0; padding: 8px; }
+.public-direct-content .service-list { height: 100%; min-height: 0; grid-template-columns: minmax(0,1fr); grid-auto-rows: minmax(36px,1fr); gap: 6px; }
+.public-direct-content .service-card-display { min-height: 36px; padding: 5px; grid-template-columns: 26px minmax(0,1fr) auto; gap: 5px; }
+.public-direct-content .service-icon { width: 26px; height: 26px; font-size: 15px; }
+.public-direct-content .service-card-display strong { font-size: 11px; }
+.public-direct-content .service-card-display small,.public-direct-content .service-price { font-size: 9px; }
+.queue-panel .queue-board { min-height: 0; }
+.queue-panel .queue-current { min-height: 0; padding: 12px; }
+.queue-panel .current-ticket-list { margin-top: 8px; }
+.queue-panel .current-ticket-card { padding: 8px; gap: 4px; }
+@media (max-width: 1100px) {
+  .public-direct-content .schedule-command-bar { grid-template-columns: minmax(0,1fr) auto; }
+  .public-direct-content .schedule-date-toolbar { grid-column: 1/-1; }
+  .public-direct-content .public-slot-grid { grid-template-columns: repeat(6,minmax(0,1fr)); }
+}
+@media (max-width: 899px) {
+  .public-direct-content .public-agenda-layout { grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr) minmax(176px,.32fr); gap: 8px; }
+  .public-direct-content .public-agenda-side { grid-template-columns: minmax(0,1fr); }
+  .public-direct-content .public-services-panel .compact-panel-head { min-height: 0; padding: 5px 8px; }
+  .public-direct-content .compact-business-hours { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; }
+  .public-direct-content .service-list { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
+}
+@media (max-width: 720px) {
+  .est-page:has(.public-direct-content) .public-live-inner { position: relative; grid-template-columns: minmax(0,1fr); min-height: 76px; padding: 6px 0; }
+  .public-live-current { border: 0; background: transparent; padding: 0; gap: 10px; }
+  .public-live-card:first-child { padding-left: 0; }
+  .est-page:has(.public-direct-content) .public-queue-button { position: absolute; top: 3px; right: 0; min-width: 105px; width: auto; min-height: 24px; height: 24px; padding: 4px 8px; font-size: 9px; }
+  .public-live-current .current-ticket-card { padding: 4px; }
+  .public-live-current .current-ticket-card > strong { font-size: 13px; }
+  .public-live-current .current-ticket-detail { font-size: 9px; }
+  .public-direct-content .public-schedule-body { padding: 6px; }
+  .public-direct-content .public-professional-schedule { padding: 6px; }
+  .public-direct-content .public-slot-grid { gap: 3px; }
+  .public-direct-content .schedule-command-bar { grid-template-columns: minmax(0,1fr) auto; }
+  .public-direct-content .schedule-date-toolbar { grid-column: 1; grid-row: 1; min-width: 0; }
+  .public-direct-content .schedule-date-field { min-width: 0; }
+  .public-direct-content .schedule-date-field input { min-width: 0; width: 100%; }
+  .public-direct-content .professional-carousel-controls { grid-column: 2; grid-row: 1; width: auto; }
+  .public-direct-content .professional-carousel-controls > span { min-width: 36px; }
+  .public-direct-content .professional-carousel-controls button { width: 25px; height: 28px; }
+  .public-direct-content .ticket-status-legend { grid-column: 1/-1; }
+  .public-direct-content .ticket-status-legend { gap: 4px; }
+  .public-direct-content .ticket-status-legend > span { padding: 2px 4px; font-size: 8px; }
+  .public-direct-content .schedule-slot small { font-size: 7px; letter-spacing: -.35px; white-space: nowrap; }
+  .est-page:has(.public-direct-content) .est-header-actions .btn { min-width: 0; width: auto; padding: 7px 9px; font-size: 9px; }
+  .est-page:has(.public-direct-content) .est-header-business strong { max-width: 120px; font-size: 11px; }
+  .est-page:has(.public-direct-content) .est-topbar-inner { gap: 8px; }
+}

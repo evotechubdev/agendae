@@ -637,6 +637,7 @@ async function startQrScanner() {
 }
 
 function queueDetail(item) {
+  if (item?.ticketState === "paused") return item.professional;
   return item?.kind === "scheduled" ? `${item.time} · ${item.professional}` : (item?.servicePoint || "Fila avulsa");
 }
 
@@ -649,7 +650,7 @@ function queueBadge(item, monitor = false) {
 }
 
 function currentTicketCards(current, showNames = false, monitor = false) {
-  return `<div class="current-ticket-list">${current.map((item) => `<article class="current-ticket-card ticket-state-${item.ticketState}"><strong>${escapeHTML(item.ticket)}</strong><span class="current-ticket-detail">${escapeHTML(queueDetail(item))}</span>${queueBadge(item, monitor)}${showNames && item.client ? `<span class="queue-customer">${escapeHTML(item.client)}</span>` : ""}</article>`).join("") || '<p class="current-ticket-empty">Nenhum atendimento no momento</p>'}</div>`;
+  return `<div class="current-ticket-list">${current.map((item) => `<article class="current-ticket-card ticket-state-${item.ticketState}"><strong>${escapeHTML(item.ticketState === "paused" ? TICKET_STATES.paused : item.ticket)}</strong><span class="current-ticket-detail">${escapeHTML(queueDetail(item))}</span>${showNames && item.ticketState === "in-service" && item.client ? `<span class="queue-customer">${escapeHTML(item.client)}</span>` : ""}</article>`).join("") || '<p class="current-ticket-empty">Nenhum profissional cadastrado</p>'}</div>`;
 }
 
 function ticketStatusLegend() {

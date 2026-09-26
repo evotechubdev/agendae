@@ -62,28 +62,37 @@ export function queueView(establishment, data, clock) {
     .filter((item) => /^[A-Z]{3}-\d{2,}$/.test(item.ticket))
     .sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time) || a.professional.localeCompare(b.professional));
   const current = [];
+  const pausedPosition = (professional, time = null) => ({ date: clock.date, time, professional, kind: "scheduled", ticket: null, ticketState: "paused" });
   for (const professional of professionals) {
     const times = scheduleTimes(establishment, professional);
     const status = activeStaff.find((item) => item.professional === professional);
     const ongoing = scheduled.filter((item) => item.professional === professional && item.status === "atendendo").at(-1);
     const onShift = times.length && clock.minutes >= timeMinutes(times[0]) && clock.minutes <= timeMinutes(times.at(-1));
     const time = status?.currentTime || ongoing?.time || (onShift ? times.filter((slot) => timeMinutes(slot) <= clock.minutes).at(-1) : null);
-    if (!time) continue;
+    if (!onShift || paused.has(professional) || !time) {
+      current.push(pausedPosition(professional, onShift ? time : null));
+      continue;
+    }
     const appointment = entries.find((item) => item.date === clock.date && item.time === time && item.professional === professional)
       || (data.slots || []).find((item) => item.date === clock.date && item.time === time && item.professional === professional);
-    if (["concluido", "cancelado"].includes(appointment?.status)) continue;
+    if (["concluido", "cancelado"].includes(appointment?.status)) {
+      current.push(pausedPosition(professional, time));
+      continue;
+    }
     const service = appointment?.service || (status?.currentTime === time ? status.currentService : undefined);
     const ticket = scheduledTicket(establishment, time, professional, service);
-    if (!/^[A-Z]{3}-\d{2,}$/.test(ticket)) continue;
-    current.push({ ...appointment, date: clock.date, time, professional, service, kind: "scheduled", unbooked: !appointment, ticket });
+    if (!/^[A-Z]{3}-\d{2,}$/.test(ticket)) {
+      current.push(pausedPosition(professional, time));
+      continue;
+    }
+    current.push({ ...appointment, date: clock.date, time, professional, service, kind: "scheduled", unbooked: !appointment, ticket, ticketState: "in-service" });
   }
-  current.sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time) || a.professional.localeCompare(b.professional));
   const currentSlots = new Set(current.map((item) => `${item.time}|${item.professional}`));
   const upcoming = scheduled.filter((item) => !currentSlots.has(`${item.time}|${item.professional}`) && (publicSlots
     ? timeMinutes(item.time) >= clock.minutes
     : ["confirmado", "presente"].includes(item.status)));
   return {
-    current: current.map((item) => ({ ...item, ticketState: paused.has(item.professional) ? "paused" : "in-service" })),
+    current,
     waiting: upcoming.map((item) => ({ ...item, ticketState: "reserved" })),
   };
 }
