@@ -1,16 +1,47 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { queueView, scheduledTicket } from "../frontend/queue-model.mjs";
+import { queueView, scheduledTicket, serviceInitials } from "../frontend/queue-model.mjs";
 
-const establishment = { queuePrefix: "B" };
+const establishment = {
+  queuePrefix: "B",
+  availableTimes: ["08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00"],
+  professionals: ["João", "Maria", "Ricardo"],
+};
 const clock = { date: "2026-09-25", minutes: 10 * 60 };
 
-test("senha do painel é estável e distingue profissionais no mesmo horário", () => {
-  const first = scheduledTicket(establishment, "10:30", "João");
-  assert.match(first, /^B-1030-[A-Z0-9]{4}$/);
-  assert.equal(first, scheduledTicket(establishment, "10:30", "João"));
-  assert.notEqual(first, scheduledTicket(establishment, "10:30", "Maria"));
-  assert.notEqual(first, scheduledTicket(establishment, "11:00", "João"));
+test("senha usa inicial do profissional, serviço e posição na grade completa", () => {
+  assert.equal(scheduledTicket(establishment, "12:00", "Ricardo", "Cabelo Tesoura"), "RCT-08");
+  assert.equal(scheduledTicket(establishment, "12:00", "Ricardo", "Cabelo Máquina"), "RCM-08");
+  assert.equal(scheduledTicket(establishment, "12:00", "Ricardo", "Cabelo Completo"), "RCC-08");
+  assert.equal(scheduledTicket(establishment, "08:30", "João", "Cabelo Tesoura"), "JCT-01");
+  assert.equal(scheduledTicket(establishment, "12:00", "Maria", "Cabelo Tesoura"), "MCT-08");
+});
+
+test("numeração respeita grade individual, ordenação e horários duplicados", () => {
+  const individual = { ...establishment, professionals: [{ name: "Álvaro", availableTimes: ["11:00", "09:00", "09:00", "10:00"] }] };
+  assert.equal(scheduledTicket(individual, "11:00", "Álvaro", "Cabelo de Máquina"), "ACM-03");
+  assert.equal(scheduledTicket({ ...individual, scheduleMode: "establishment" }, "11:00", "Álvaro", "Cabelo Máquina"), "ACM-06");
+  assert.equal(scheduledTicket(individual, "12:00", "Álvaro", "Cabelo Máquina"), "ACM---");
+  assert.equal(serviceInitials("Barba"), "BA");
+});
+
+test("profissionais com a mesma inicial não ocultam agendamentos da fila", () => {
+  const view = queueView({ ...establishment, professionals: ["João", "José"] }, {
+    appointments: [
+      { date: clock.date, time: "10:30", professional: "João", service: "Cabelo Tesoura", status: "atendendo" },
+      { date: clock.date, time: "10:30", professional: "José", service: "Cabelo Tesoura", status: "confirmado" },
+    ],
+  }, clock);
+  assert.equal(view.current.length, 1);
+  assert.equal(view.waiting[0].professional, "José");
+});
+
+test("atendimento sem agendamento carregado usa o serviço salvo no status", () => {
+  const view = queueView(establishment, {
+    todaySlots: [],
+    staffStatuses: [{ currentDate: clock.date, currentTime: "12:00", professional: "Ricardo", currentService: "Cabelo Tesoura" }],
+  }, clock);
+  assert.equal(view.current[0].ticket, "RCT-08");
 });
 
 test("painel público liga atendimento atual ao horário e ordena próximos agendamentos", () => {

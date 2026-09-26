@@ -697,6 +697,16 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .admin-grid .queue-head-actions { margin-top: 12px; justify-content: space-between; }
 .queue-admin-actions { grid-template-columns: 1fr 1fr; padding-top: 18px; border-top: 1px solid var(--line); }
 .queue-admin-actions [data-next-ticket] { grid-column: 1/-1; }
+.ticket-legend { padding: 18px 24px; border-top: 1px solid var(--line); background: #f8faff; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.ticket-legend h3 { margin: 0 0 10px; color: var(--navy); font-size: 13px; }
+.ticket-legend p { margin: 10px 0 0; }
+.ticket-legend-example { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+.ticket-legend-example > strong { padding: 5px 10px; border-radius: 8px; background: var(--blue-soft); color: var(--blue); font-size: 16px; white-space: nowrap; }
+.ticket-legend-example > span { flex: 1 1 180px; }
+.ticket-legend-group { margin-top: 12px; }
+.ticket-legend-group h4 { margin: 0 0 5px; color: var(--navy); font-size: 11px; }
+.ticket-legend-group > div { display: flex; flex-wrap: wrap; gap: 5px 12px; }
+.ticket-legend-group b { color: var(--blue); }
 .btn-priority { color: #7a3800; border: 1px solid #edbd7b; background: #fff2dc; }
 .btn-priority:hover { background: #ffe5ba; }
 .loading-page { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 22px; background: var(--canvas); color: var(--muted); font-size: 13px; }
