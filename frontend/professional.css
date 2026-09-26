@@ -1199,6 +1199,8 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-timeline .matrix-person strong { white-space: nowrap; }
 .schedule-timeline .schedule-matrix tbody th { padding: 2px 6px; }
 .schedule-timeline .matrix-slot { height: 42px; }
+.matrix-pause-reason { color: inherit; font-size: 9px; font-weight: 500; line-height: 1; }
+.current-ticket-card .current-ticket-reason { color: var(--ticket-color); font-size: 10px; line-height: 1.1; }
 .schedule-timeline .matrix-slot-tight { padding: 1px 0; }
 .schedule-timeline .matrix-slot-tight .matrix-ticket-code { font-size: 9px; letter-spacing: -.4px; }
 .schedule-timeline .schedule-matrix thead th { font-size: 10px; padding: 2px 0; }

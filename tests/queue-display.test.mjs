@@ -22,3 +22,9 @@ test("bolinha só recebe a classe preta se todos estiverem encerrados", () => {
   assert.doesNotMatch(context.liveStatusDot([{ ticketState: "paused" }]), /live-dot closed/);
   assert.doesNotMatch(context.liveStatusDot([]), /live-dot closed/);
 });
+
+test("pausa de almoço exibe o motivo abaixo de Pausado sem código de senha", () => {
+  const html = context.currentTicketCards([{ professional: "Renam Silva", ticketState: "paused", ticket: null, pauseReason: "Almoço", kind: "scheduled" }]);
+  assert.match(html, /<strong>Pausado<\/strong><small class="current-ticket-reason">Almoço<\/small>/);
+  assert.doesNotMatch(html, /null|RSI-/);
+});

@@ -50,6 +50,7 @@ test("painel pausa apenas os profissionais em almoço e retoma automaticamente s
   const atNoon = queueView(establishment, data, { date, minutes: 12 * 60 });
   assert.deepEqual(atNoon.current.map((item) => [item.professional, item.ticketState]), [["Renam", "paused"], ["Carlos", "in-service"], ["Marcos", "in-service"]]);
   assert.equal(atNoon.current[0].ticket, null);
+  assert.equal(atNoon.current[0].pauseReason, "Almoço");
   const atOne = queueView(establishment, data, { date, minutes: 13 * 60 });
   assert.deepEqual(atOne.current.map((item) => item.ticketState), ["in-service", "paused", "paused"]);
   assert.equal(atOne.current[0].ticket, "RSI-04");
@@ -73,6 +74,8 @@ test("agenda exibe Pausado em vermelho para almoço em vez de senha agendável",
   assert.match(html, /class="matrix-slot ticket-state-paused"[^>]*disabled/);
   assert.match(html, /Pausado, almoço de Marcos, 12:15 às 13:15/);
   assert.match(html, /matrix-ticket-code">Pausado<\/strong>/);
+  assert.match(html, /<strong class="matrix-ticket-code">Pausado<\/strong><small class="matrix-pause-reason">Almoço<\/small>/);
+  assert.match(html, /<time datetime="\d{2}:\d{2}" title="\d{2}:\d{2}">\d{2}:\d{2}<\/time>/);
 });
 
 const apiSource = readFileSync(new URL("../frontend/firebase-service.js", import.meta.url), "utf8");

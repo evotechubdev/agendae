@@ -75,8 +75,9 @@ export function queueView(establishment, data, clock) {
     const ongoing = scheduled.filter((item) => item.professional === professional && item.status === "atendendo").at(-1);
     const onShift = times.length && clock.minutes >= timeMinutes(times[0]) && clock.minutes <= timeMinutes(times.at(-1));
     const time = status?.currentTime || ongoing?.time || (onShift ? times.filter((slot) => timeMinutes(slot) <= clock.minutes).at(-1) : null);
-    if (!onShift || paused.has(professional) || isLunchTime(lunchBreakFor(establishment, professional), clock.minutes) || !time) {
-      current.push(inactivePosition(professional, onShift ? time : null));
+    const onLunch = isLunchTime(lunchBreakFor(establishment, professional), clock.minutes);
+    if (!onShift || paused.has(professional) || onLunch || !time) {
+      current.push({ ...inactivePosition(professional, onShift ? time : null), ...(onLunch ? { pauseReason: "Almoço" } : {}) });
       continue;
     }
     const appointment = entries.find((item) => item.date === clock.date && item.time === time && item.professional === professional)
