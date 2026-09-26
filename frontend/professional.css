@@ -707,6 +707,22 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .ticket-legend-group h4 { margin: 0 0 5px; color: var(--navy); font-size: 11px; }
 .ticket-legend-group > div { display: flex; flex-wrap: wrap; gap: 5px 12px; }
 .ticket-legend-group b { color: var(--blue); }
+.current-ticket-list { width: 100%; display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,160px),1fr)); gap: 12px; margin-top: 14px; }
+.current-ticket-card { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 10px; border: 1px solid #d6e0ec; border-radius: 12px; text-align: center; }
+.queue-current .current-ticket-card > strong { margin: 0; font-size: clamp(24px,3vw,32px); letter-spacing: -.5px; overflow-wrap: anywhere; }
+.current-ticket-detail { font-size: 12px; overflow-wrap: anywhere; }
+.current-ticket-empty { font-size: 12px; }
+.queue-display-current { padding: 24px; }
+.queue-display-current .current-ticket-list { grid-template-columns: repeat(auto-fit,minmax(min(100%,220px),1fr)); }
+.queue-display-current .current-ticket-card { padding: 24px 12px; border-color: rgba(255,255,255,.2); background: rgba(255,255,255,.04); }
+.queue-display-current .current-ticket-card > strong { color: var(--yellow); font: 800 clamp(28px,4vw,64px) "Manrope",sans-serif; overflow-wrap: anywhere; }
+.queue-display-current .current-ticket-detail { color: #d7e7ff; font-size: clamp(13px,1.5vw,20px); }
+.public-live-current > div { min-width: 0; width: 100%; }
+.public-live-current .current-ticket-list { grid-template-columns: 1fr; gap: 6px; margin-top: 6px; }
+.public-live-current .current-ticket-card { flex-direction: row; justify-content: flex-start; flex-wrap: wrap; gap: 4px 10px; padding: 6px 8px; border-color: rgba(255,255,255,.16); }
+.public-live-current .current-ticket-card > strong { margin: 0; font-size: 17px; }
+.public-live-current .current-ticket-detail { color: #c9d7ee; font-size: 10px; }
+.public-live-current .current-ticket-card > .normal-badge,.public-live-current .current-ticket-card > .scheduled-badge,.public-live-current .current-ticket-card > .priority-badge { display: none; }
 .btn-priority { color: #7a3800; border: 1px solid #edbd7b; background: #fff2dc; }
 .btn-priority:hover { background: #ffe5ba; }
 .loading-page { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 22px; background: var(--canvas); color: var(--muted); font-size: 13px; }
@@ -989,3 +1005,24 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .public-queue-button { min-height: 68px; height: auto; padding: 8px; }
   .appointment-row { grid-template-columns: 43px minmax(0,1fr); }
 }
+
+/* Shared colors for tickets, time slots and their legends. */
+.ticket-state-free { --ticket-color: #16803c; --ticket-soft: #edf9f0; }
+.ticket-state-reserved { --ticket-color: #64707e; --ticket-soft: #f0f2f5; }
+.ticket-state-in-service { --ticket-color: #185ac7; --ticket-soft: #edf4ff; }
+.ticket-state-paused { --ticket-color: #c92525; --ticket-soft: #fff0f0; }
+.ticket-state-closed { --ticket-color: #171717; --ticket-soft: #ededed; }
+.ticket-status-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 10px 0; font-size: 10px; font-weight: 700; }
+.ticket-status-legend > span { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid var(--ticket-color); border-radius: 7px; color: var(--ticket-color); background: var(--ticket-soft); white-space: nowrap; }
+.ticket-status-legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--ticket-color); }
+.schedule-slot[class*="ticket-state-"],.est-page:has(.public-direct-content) .schedule-slot[class*="ticket-state-"] { border: 2px solid var(--ticket-color); color: var(--ticket-color); background: var(--ticket-soft); box-shadow: none; }
+.schedule-slot[class*="ticket-state-"] strong,.schedule-slot[class*="ticket-state-"] small,.est-page:has(.public-direct-content) .schedule-slot[class*="ticket-state-"] strong,.est-page:has(.public-direct-content) .schedule-slot[class*="ticket-state-"] small { color: var(--ticket-color); }
+.est-page:has(.public-direct-content) .schedule-slot.available:hover { border-color: var(--ticket-color); box-shadow: 0 0 0 2px #16803c22; }
+.est-page:has(.public-direct-content) .schedule-slot.available.selected { outline: 2px solid var(--blue); outline-offset: 2px; }
+.current-ticket-card[class*="ticket-state-"],.queue-display-current .current-ticket-card[class*="ticket-state-"],.public-live-current .current-ticket-card[class*="ticket-state-"] { border: 2px solid var(--ticket-color); }
+.ticket-status-label { padding: 4px 8px; border: 1px solid var(--ticket-color); border-radius: 7px; color: var(--ticket-color); background: var(--ticket-soft); font-size: 10px; font-weight: 800; white-space: nowrap; }
+.queue-current .ticket-status-label { color: var(--ticket-color); }
+.queue-row[class*="ticket-state-"],.monitor-waiting-row[class*="ticket-state-"] { margin: 5px 0; padding: 6px; border: 1px solid var(--ticket-color); border-radius: 8px; }
+.public-next-tickets span[class*="ticket-state-"] { border-color: var(--ticket-color); }
+.public-professional-schedule header .professional-status.in-service,.staff-operational-status.in-service { border: 1px solid #185ac7; color: #185ac7; background: #edf4ff; }
+.public-professional-schedule header .professional-status.paused,.staff-operational-status.paused { border: 1px solid #c92525; color: #c92525; background: #fff0f0; }

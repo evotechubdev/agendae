@@ -1,4 +1,4 @@
-import { queueView, scheduledTicket, professionalInitial, serviceInitials } from "./queue-model.mjs";
+import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, TICKET_STATES } from "./queue-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -399,24 +399,24 @@ function publicSchedule(establishment) {
     const staffStatus = staffStatusFor(data, professional.name);
     const isToday = state.booking.date === isoDate();
     const paused = isToday && professionalIsPaused(data, professional.name, state.booking.date);
-    const onShift = isToday && professionalIsOnShift(professional, state.booking.date);
+    const scheduleProfessional = { ...professional, availableTimes: times };
+    const onShift = isToday && professionalIsOnShift(scheduleProfessional, state.booking.date);
     const savedCurrentTime = isToday && staffStatus.currentDate === state.booking.date ? staffStatus.currentTime : null;
-    const currentTime = savedCurrentTime || (!paused && onShift ? currentProfessionalSlot(professional, state.booking.date) : null);
+    const currentTime = savedCurrentTime || (onShift ? currentProfessionalSlot(scheduleProfessional, state.booking.date) : null);
     const operationalLabel = !isToday
       ? `${freeCount} ${freeCount === 1 ? "livre" : "livres"}`
       : paused
-        ? "Atendimento em Pausa"
+        ? "Pausado"
         : onShift
-          ? "Em atendimento"
+          ? "Em Atendimento"
           : "Fora do expediente";
     const operationalClass = paused ? "paused" : onShift ? "in-service" : "off-shift";
     const buttons = times.map((time) => {
-      if (currentTime === time && paused) return `<button class="schedule-slot paused" type="button" disabled aria-label="${escapeHTML(time)} atendimento em pausa"><strong>${escapeHTML(time)}</strong><small>Em pausa</small></button>`;
-      if (currentTime === time) return `<button class="schedule-slot in-service" type="button" disabled aria-label="${escapeHTML(time)} em atendimento"><strong>${escapeHTML(time)}</strong><small>Em atendimento</small></button>`;
-      if (slotHasPassed(state.booking.date, time)) return `<button class="schedule-slot past" type="button" disabled aria-label="${escapeHTML(time)} encerrado"><strong>${escapeHTML(time)}</strong><small>Encerrado</small></button>`;
-      if (busy.has(time)) return `<button class="schedule-slot occupied" type="button" disabled aria-label="${escapeHTML(time)} agendado"><strong>${escapeHTML(time)}</strong><small>Agendado</small></button>`;
+      const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
+      const status = ticketState({ date: state.booking.date, time, booked: busy.has(time), currentTime, paused, status: appointment?.status }, currentSaoPauloClock());
+      if (status !== "free") return `<button class="schedule-slot ticket-state-${status}" type="button" disabled aria-label="${escapeHTML(time)} ${TICKET_STATES[status]}"><strong>${escapeHTML(time)}</strong><small>${TICKET_STATES[status]}</small></button>`;
       const selected = state.booking.step < 3 && state.booking.professional === professional.name && state.booking.time === time;
-      return `<button class="schedule-slot available ${selected ? "selected" : ""}" type="button" data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${selected}"><strong>${escapeHTML(time)}</strong><small>${selected ? "Selecionado" : "Livre"}</small></button>`;
+      return `<button class="schedule-slot available ticket-state-free ${selected ? "selected" : ""}" type="button" data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${selected}"><strong>${escapeHTML(time)}</strong><small>Livre${selected ? " · Selecionado" : ""}</small></button>`;
     }).join("");
     const headerAction = state.booking.time && state.booking.professional === professional.name && state.booking.step < 3
       ? `<button class="btn btn-primary btn-sm schedule-booking-button" type="button" data-booking-next aria-label="Agendar este horário: ${escapeHTML(state.booking.time)}">Agendar Este Horário</button>`
@@ -425,7 +425,7 @@ function publicSchedule(establishment) {
   }).join("");
   const controls = professionals.length > 1 ? `<div class="professional-carousel-controls"><span data-professional-carousel-position>1 de ${professionals.length}</span><button type="button" data-professional-carousel-prev aria-label="Profissional anterior">←</button><button type="button" data-professional-carousel-next aria-label="Próximo profissional">→</button></div>` : "";
   const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
-  return `<div class="schedule-command-bar"><div class="schedule-command-title"><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div><div class="schedule-legend"><div><span><i class="available"></i>Livre</span><span><i class="in-service"></i>Em atendimento</span><span><i class="past"></i>Encerrado</span></div></div>${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
+  return `<div class="schedule-command-bar"><div class="schedule-command-title"><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div>${ticketStatusLegend()}${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
 }
 
 function navigateProfessionalCarousel(direction) {
@@ -641,23 +641,32 @@ function queueDetail(item) {
 }
 
 function queueBadge(item, monitor = false) {
+  if (item?.ticketState) return `<span class="ticket-status-label ticket-state-${item.ticketState}">${TICKET_STATES[item.ticketState]}</span>`;
+  if (item?.kind === "scheduled" && !item.service) return `<span class="${monitor ? "monitor-normal" : "normal-badge"}">Serviço indefinido</span>`;
   if (item?.kind === "scheduled") return `<span class="${monitor ? "monitor-scheduled" : "scheduled-badge"}">Agendado</span>`;
   if (item?.priority === "preferencial") return `<span class="${monitor ? "monitor-priority" : "priority-badge"}">Preferencial</span>`;
   return `<span class="${monitor ? "monitor-normal" : "normal-badge"}">Avulso</span>`;
 }
 
+function currentTicketCards(current, showNames = false, monitor = false) {
+  return `<div class="current-ticket-list">${current.map((item) => `<article class="current-ticket-card ticket-state-${item.ticketState}"><strong>${escapeHTML(item.ticket)}</strong><span class="current-ticket-detail">${escapeHTML(queueDetail(item))}</span>${queueBadge(item, monitor)}${showNames && item.client ? `<span class="queue-customer">${escapeHTML(item.client)}</span>` : ""}</article>`).join("") || '<p class="current-ticket-empty">Nenhum atendimento no momento</p>'}</div>`;
+}
+
+function ticketStatusLegend() {
+  return `<div class="ticket-status-legend" aria-label="Legenda dos status das senhas">${Object.entries(TICKET_STATES).map(([state, label]) => `<span class="ticket-state-${state}"><i aria-hidden="true"></i>${label}</span>`).join("")}</div>`;
+}
+
 function queuePanel(establishment, data, showNames = true, showHeader = true) {
   const { current, waiting } = queueView(establishment, data, currentSaoPauloClock());
-  const called = current[0];
   return `<section class="panel queue-panel">${showHeader ? '<div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Horários agendados e fila avulsa em tempo real</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>' : ""}
-    <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small><strong>${escapeHTML(called?.ticket || "—")}</strong><div class="service-point">${called ? escapeHTML(queueDetail(called)) : "Nenhum atendimento iniciado"}</div>${called ? queueBadge(called) : ""}${showNames && called?.client ? `<span class="queue-customer">${escapeHTML(called.client)}</span>` : ""}${current.length > 1 ? `<div class="queue-current-extra"><small>Também em atendimento</small>${current.slice(1).map((item) => `<span><b>${escapeHTML(item.ticket)}</b> ${escapeHTML(queueDetail(item))}</span>`).join("")}</div>` : ""}</div>
-    <div class="queue-next"><div class="queue-list-title"><strong>Próximos horários e senhas</strong><span>${waiting.length} na sequência</span></div><div class="queue-list">${waiting.slice(0,6).map((item,index) => `<div class="queue-row"><span class="queue-position">${index + 1}º</span><span class="ticket">${escapeHTML(item.ticket)}</span><span class="queue-row-info"><strong>${escapeHTML(item.kind === "scheduled" ? queueDetail(item) : (showNames ? item.name || "Cliente avulso" : "Fila avulsa"))}</strong>${queueBadge(item)}</span><small>${index === 0 ? "Próxima" : "Na fila"}</small></div>`).join("") || '<div class="empty">Nenhum horário ou senha aguardando.</div>'}</div></div></div></section>`;
+    <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small>${currentTicketCards(current, showNames)}</div>
+    <div class="queue-next"><div class="queue-list-title"><strong>Próximos horários e senhas</strong><span>${waiting.length} na sequência</span></div><div class="queue-list">${waiting.slice(0,6).map((item,index) => `<div class="queue-row ticket-state-${item.ticketState}"><span class="queue-position">${index + 1}º</span><span class="ticket">${escapeHTML(item.ticket)}</span><span class="queue-row-info"><strong>${escapeHTML(item.kind === "scheduled" ? queueDetail(item) : (showNames ? item.name || "Cliente avulso" : "Fila avulsa"))}</strong>${queueBadge(item)}</span><small>${index === 0 ? "Próxima" : "Na fila"}</small></div>`).join("") || '<div class="empty">Nenhum horário ou senha aguardando.</div>'}</div></div></div></section>`;
 }
 
 function ticketLegend(establishment) {
   const professionals = professionalDirectory(establishment).map((item) => `<span><b>${escapeHTML(professionalInitial(item.name))}</b> ${escapeHTML(item.name)}</span>`).join("");
   const services = (establishment.services || []).map((item) => `<span><b>${escapeHTML(serviceInitials(item.name))}</b> ${escapeHTML(item.name)}</span>`).join("");
-  return `<section class="ticket-legend" aria-label="Legenda das senhas"><h3>Como ler as senhas</h3><p class="ticket-legend-example"><strong>RCT-08</strong><span><b>R</b>: inicial do profissional · <b>CT</b>: iniciais do serviço · <b>08</b>: 8º horário na agenda do profissional naquele dia.</span></p><p>Exemplos de serviço: <b>CT</b> = Cabelo Tesoura, <b>CM</b> = Cabelo Máquina, <b>CC</b> = Cabelo Completo.</p><div class="ticket-legend-group"><h4>Profissionais</h4><div>${professionals}</div></div><div class="ticket-legend-group"><h4>Serviços</h4><div>${services}</div></div><p>A contagem começa em 01 e inclui os horários ocupados e os que já passaram. Na agenda compartilhada, usa a grade do estabelecimento. Se o horário não estiver na grade cadastrada, aparece <b>--</b>.</p></section>`;
+  return `<section class="ticket-legend" aria-label="Legenda das senhas"><h3>Como ler as senhas</h3>${ticketStatusLegend()}<p class="ticket-legend-example"><strong>RCT-08</strong><span><b>R</b>: inicial do profissional · <b>CT</b>: iniciais do serviço · <b>08</b>: 8º horário na agenda do profissional naquele dia.</span></p><p>Exemplos de serviço: <b>CT</b> = Cabelo Tesoura, <b>CM</b> = Cabelo Máquina, <b>CC</b> = Cabelo Completo, <b>SI</b> = Serviço indefinido (sem serviço registrado para o horário).</p><div class="ticket-legend-group"><h4>Profissionais</h4><div>${professionals}</div></div><div class="ticket-legend-group"><h4>Serviços</h4><div>${services}</div></div><p>A contagem começa em 01 e inclui os horários ocupados e os que já passaram. Na agenda compartilhada, usa a grade do estabelecimento. Se o horário não estiver na grade cadastrada, aparece <b>--</b>.</p></section>`;
 }
 
 function publicQueueModal(establishment, data) {
@@ -710,7 +719,7 @@ function staffSchedulesMarkup(establishment, data) {
     const current = data.appointments.find((item) => item.professional === professional.name && item.status === "atendendo");
     const paused = professionalIsPaused(data, professional.name);
     const onShift = professionalIsOnShift(professional);
-    const label = paused ? "Atendimento em Pausa" : onShift ? `Em atendimento${current ? ` · ${current.time}` : ""}` : "Fora do expediente";
+    const label = paused ? "Pausado" : onShift ? `Em Atendimento${current ? ` · ${current.time}` : ""}` : "Fora do expediente";
     const statusClass = paused ? "paused" : onShift ? "in-service" : "off-shift";
     return `<section class="staff-schedule"><div class="staff-schedule-head"><span class="client-avatar">${initials(professional.name)}</span><span class="staff-schedule-person"><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")} · ${professional.freeTimes.length} livres</small></span><span class="staff-operational-status ${statusClass}">${escapeHTML(label)}</span></div><button class="staff-pause-button ${paused ? "resume" : ""}" type="button" data-toggle-professional-pause data-professional-name="${escapeHTML(professional.name)}" data-paused="${paused}">${paused ? "Retomar atendimento" : "Pausar atendimento"}</button><div class="staff-time-list">${professional.freeTimes.length ? professional.freeTimes.map((time) => `<span class="free-slot">${time}</span>`).join("") : '<span class="staff-full">Agenda preenchida</span>'}</div></section>`;
   }).join("");
@@ -749,12 +758,11 @@ function renderEstablishmentPublic(establishment) {
   const freeTimes = availableTimesFor(establishment, data, state.booking.date);
   const nextFree = freeTimes[0] || "—";
   const scheduleQueue = queueView(establishment, data, currentSaoPauloClock());
-  const currentTicket = scheduleQueue.current[0];
   const waitingTickets = scheduleQueue.waiting;
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : '<button class="btn btn-primary btn-sm" type="button" data-open-employee-access>Área do estabelecimento</button>'}</div></div></header>
-    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Atendendo agora</small><strong>${escapeHTML(currentTicket?.ticket || "—")}</strong><em>${currentTicket ? escapeHTML(queueDetail(currentTicket)) : "Nenhum atendimento iniciado"}</em></div></article><article class="public-live-card"><small>Próximas senhas</small><div class="public-next-tickets">${waitingTickets.slice(0,2).map((item) => `<span>${escapeHTML(item.ticket)}${item.kind === "scheduled" ? `<small>${escapeHTML(item.time)}</small>` : ""}</span>`).join("") || "<em>Ninguém aguardando</em>"}</div></article><article class="public-live-card public-next-slot"><small>Próximo horário livre</small><div><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></div></article><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button></div></section>
+    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Atendendo agora</small>${currentTicketCards(scheduleQueue.current)}</div></article><article class="public-live-card"><small>Próximas senhas</small><div class="public-next-tickets">${waitingTickets.slice(0,2).map((item) => `<span class="ticket-state-${item.ticketState}">${escapeHTML(item.ticket)}${item.kind === "scheduled" ? `<small>${escapeHTML(item.time)}</small>` : ""}</span>`).join("") || "<em>Ninguém aguardando</em>"}</div></article><article class="public-live-card public-next-slot"><small>Próximo horário livre</small><div><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></div></article><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button></div></section>
     <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
     ${state.booking.step > 1 ? bookingContent(establishment) : ""}
     ${publicCheckInModal()}${publicQueueModal(establishment, data)}${employeeAccessModal(establishment)}</div>`;
@@ -765,6 +773,7 @@ function renderEstablishmentPublic(establishment) {
   });
   void refreshCloudData(establishment, "public", state.booking.date);
   ensureQueueSubscription(establishment);
+  startQueueClock(establishment);
 }
 
 function appointmentRows(data, query = state.appointmentQuery) {
@@ -851,18 +860,39 @@ function updateMonitorClock() {
   if (target) target.textContent = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
 }
 
+function startQueueClock(establishment, monitor = false) {
+  clearInterval(monitorClockTimer);
+  const clockKey = () => { const clock = currentSaoPauloClock(); return `${clock.date}|${clock.minutes}`; };
+  let previousMinute = clockKey();
+  monitorClockTimer = setInterval(() => {
+    if (monitor) updateMonitorClock();
+    const minute = clockKey();
+    if (minute === previousMinute) return;
+    previousMinute = minute;
+    if (monitor) { renderQueueDisplay(establishment); return; }
+    const data = getData(establishment);
+    const { current, waiting } = queueView(establishment, data, currentSaoPauloClock());
+    const currentList = document.querySelector(".public-live-current .current-ticket-list");
+    if (currentList) currentList.outerHTML = currentTicketCards(current);
+    const nextList = document.querySelector(".public-next-tickets");
+    if (nextList) nextList.innerHTML = waiting.slice(0, 2).map((item) => `<span class="ticket-state-${item.ticketState}">${escapeHTML(item.ticket)}${item.kind === "scheduled" ? `<small>${escapeHTML(item.time)}</small>` : ""}</span>`).join("") || "<em>Ninguém aguardando</em>";
+    const modalPanel = document.querySelector(".public-queue-modal .queue-panel");
+    if (modalPanel) modalPanel.outerHTML = queuePanel(establishment, data, false, false);
+    const schedule = document.querySelector(".public-schedule-body");
+    if (schedule) { schedule.innerHTML = publicSchedule(establishment); startProfessionalCarousel(); }
+  }, 1000);
+}
+
 function renderQueueDisplay(establishment) {
   document.title = `Painel de senhas · ${establishment.name}`;
   const data = cloudCache.get(publicCacheKey(establishment, isoDate())) || { queue: [], slots: [], todayAppointments: 0 };
   const { current, waiting } = queueView(establishment, data, currentSaoPauloClock());
-  const called = current[0];
   app.innerHTML = `<main class="queue-display"><header class="queue-display-header"><div class="queue-display-brand">${logo()}<span>${escapeHTML(establishment.name)}</span></div><div class="queue-display-status"><span class="live-dot"></span> AO VIVO <strong data-monitor-clock></strong></div></header>
-    <section class="queue-display-content"><div class="queue-display-current"><small>SENHA EM ATENDIMENTO</small><strong>${escapeHTML(called?.ticket || "—")}</strong><div class="monitor-service-point"><span>${called?.kind === "scheduled" ? "Horário e profissional" : "Dirija-se para"}</span><b>${escapeHTML(called ? queueDetail(called) : "Aguardando chamada")}</b></div>${called ? queueBadge(called, true) : ""}${current.length > 1 ? `<div class="monitor-current-extra">${current.slice(1).map((item) => `<span>${escapeHTML(item.ticket)} · ${escapeHTML(queueDetail(item))}</span>`).join("")}</div>` : ""}</div>
-    <aside class="queue-display-next"><div class="monitor-next-title"><span>Próximos horários e senhas</span><b>${waiting.length} na sequência</b></div><div class="monitor-waiting-list">${waiting.slice(0,8).map((item, index) => `<div class="monitor-waiting-row"><span class="monitor-position">${index + 1}</span><div><strong>${escapeHTML(item.ticket)}</strong><small>${escapeHTML(queueDetail(item))}</small></div>${queueBadge(item, true)}</div>`).join("") || '<div class="monitor-empty">Fila sem espera</div>'}</div></aside></section>
+    <section class="queue-display-content"><div class="queue-display-current"><small>ATENDENDO AGORA</small>${currentTicketCards(current, false, true)}</div>
+    <aside class="queue-display-next"><div class="monitor-next-title"><span>Próximos horários e senhas</span><b>${waiting.length} na sequência</b></div><div class="monitor-waiting-list">${waiting.slice(0,8).map((item, index) => `<div class="monitor-waiting-row ticket-state-${item.ticketState}"><span class="monitor-position">${index + 1}</span><div><strong>${escapeHTML(item.ticket)}</strong><small>${escapeHTML(queueDetail(item))}</small></div>${queueBadge(item, true)}</div>`).join("") || '<div class="monitor-empty">Fila sem espera</div>'}</div></aside></section>
     <footer class="queue-display-footer"><span>Acompanhe a ordem e aguarde sua senha ser chamada.</span><div><button class="monitor-action" data-request-fullscreen>⛶ Tela cheia</button><a class="monitor-action" href="${href(`/${establishment.slug}?public=1#painel-senhas`)}" data-link>Fechar painel</a></div></footer></main>`;
   updateMonitorClock();
-  clearInterval(monitorClockTimer);
-  monitorClockTimer = setInterval(updateMonitorClock, 1000);
+  startQueueClock(establishment, true);
   void refreshCloudData(establishment, "public", isoDate());
   ensureQueueSubscription(establishment);
 }
