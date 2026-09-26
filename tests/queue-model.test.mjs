@@ -30,6 +30,46 @@ test("horário atual mostra todos os profissionais e SI sem reserva", () => {
   assert.deepEqual(view.waiting, []);
 });
 
+test("fila avulsa antiga não adiciona senhas ao painel dos três profissionais", () => {
+  const view = queueView(establishment, { queue: [
+    { ticket: "R-023", status: "atendendo" },
+    { ticket: "R-024", status: "aguardando" },
+    { ticket: "R-025", status: "aguardando" },
+    { ticket: "RCT-04", status: "atendendo" },
+  ] }, clock);
+  assert.equal(view.current.length, 3);
+  assert.deepEqual(view.current.map((item) => item.ticket), ["JSI-04", "MSI-04", "RSI-04"]);
+  assert.deepEqual(view.waiting, []);
+});
+
+test("registros duplicados ou profissionais não cadastrados não criam senhas extras", () => {
+  const duplicate = { date: clock.date, time: "10:00", professional: "Ricardo", service: "Cabelo Tesoura", status: "atendendo" };
+  const view = queueView({ ...establishment, professionals: [...establishment.professionals, "Ricardo"] }, {
+    todaySlots: [duplicate, duplicate, { ...duplicate, time: "09:30" }, { ...duplicate, professional: "Roberto" }],
+    staffStatuses: [
+      { professional: "Ricardo", currentDate: clock.date, currentTime: "10:00" },
+      { professional: "Roberto", currentDate: clock.date, currentTime: "10:00" },
+    ],
+  }, clock);
+  assert.equal(view.current.length, 3);
+  assert.equal(new Set(view.current.map((item) => item.professional)).size, 3);
+  assert.equal(view.current.find((item) => item.professional === "Ricardo").ticket, "RCT-04");
+  assert.ok(view.current.every((item) => /^[A-Z]{3}-\d{2,}$/.test(item.ticket)));
+  assert.ok(view.waiting.every((item) => establishment.professionals.includes(item.professional)));
+});
+
+test("horários fora da grade e ausência de profissionais não geram senhas", () => {
+  const data = {
+    todaySlots: [{ date: clock.date, time: "18:00", professional: "Ricardo", service: "Cabelo Tesoura", status: "atendendo" }],
+    staffStatuses: [{ professional: "Ricardo", currentDate: clock.date, currentTime: "18:00", currentService: "Cabelo Tesoura" }],
+    queue: [{ ticket: "R-023", status: "atendendo" }],
+  };
+  assert.deepEqual(queueView({ ...establishment, professionals: [] }, data, clock), { current: [], waiting: [] });
+  const view = queueView(establishment, data, clock);
+  assert.equal(view.current.find((item) => item.professional === "Ricardo").ticket, "RSI-04");
+  assert.deepEqual(view.waiting, []);
+});
+
 test("senha SI muda ao avançar na grade e não usa serviço de outro horário ou dia", () => {
   const data = { todaySlots: [
     { date: clock.date, time: "09:30", professional: "Ricardo", service: "Cabelo Tesoura" },
@@ -112,23 +152,23 @@ test("numeração respeita grade individual, ordenação e horários duplicados"
   const individual = { ...establishment, professionals: [{ name: "Álvaro", availableTimes: ["11:00", "09:00", "09:00", "10:00"] }] };
   assert.equal(scheduledTicket(individual, "11:00", "Álvaro", "Cabelo de Máquina"), "ACM-03");
   assert.equal(scheduledTicket({ ...individual, scheduleMode: "establishment" }, "11:00", "Álvaro", "Cabelo Máquina"), "ACM-06");
-  assert.equal(scheduledTicket(individual, "12:00", "Álvaro", "Cabelo Máquina"), "ACM---");
+  assert.equal(scheduledTicket(individual, "12:00", "Álvaro", "Cabelo Máquina"), "");
   assert.equal(serviceInitials("Barba"), "BA");
 });
 
 test("profissionais com a mesma inicial não ocultam agendamentos da fila", () => {
-  const view = queueView({ ...establishment, professionals: [] }, {
+  const view = queueView({ ...establishment, professionals: ["João", "José"] }, {
     appointments: [
       { date: clock.date, time: "10:30", professional: "João", service: "Cabelo Tesoura", status: "atendendo" },
       { date: clock.date, time: "10:30", professional: "José", service: "Cabelo Tesoura", status: "confirmado" },
     ],
   }, clock);
-  assert.equal(view.current.length, 1);
+  assert.equal(view.current.length, 2);
   assert.equal(view.waiting[0].professional, "José");
 });
 
 test("atendimento sem agendamento carregado usa o serviço salvo no status", () => {
-  const view = queueView({ ...establishment, professionals: [] }, {
+  const view = queueView({ ...establishment, professionals: ["Ricardo"] }, {
     todaySlots: [],
     staffStatuses: [{ currentDate: clock.date, currentTime: "12:00", professional: "Ricardo", currentService: "Cabelo Tesoura" }],
   }, clock);
@@ -136,7 +176,7 @@ test("atendimento sem agendamento carregado usa o serviço salvo no status", () 
 });
 
 test("painel público liga atendimento atual ao horário e ordena próximos agendamentos", () => {
-  const view = queueView({ ...establishment, professionals: [] }, {
+  const view = queueView({ ...establishment, professionals: ["João", "Maria"] }, {
     todaySlots: [
       { date: clock.date, time: "11:00", professional: "Maria" },
       { date: clock.date, time: "09:00", professional: "João" },
@@ -148,11 +188,11 @@ test("painel público liga atendimento atual ao horário e ordena próximos agen
   }, clock);
 
   assert.equal(view.current[0].ticket, scheduledTicket(establishment, "09:00", "João"));
-  assert.deepEqual(view.waiting.map((item) => item.time || item.ticket), ["10:30", "11:00", "B-001"]);
+  assert.deepEqual(view.waiting.map((item) => item.time), ["10:30", "11:00"]);
 });
 
 test("painel administrativo ignora concluídos e mostra horários atrasados ainda pendentes", () => {
-  const view = queueView({ ...establishment, professionals: [] }, {
+  const view = queueView({ ...establishment, professionals: ["João", "Maria"] }, {
     appointments: [
       { date: clock.date, time: "08:30", professional: "João", status: "presente" },
       { date: clock.date, time: "09:00", professional: "Maria", status: "concluido" },
@@ -162,12 +202,12 @@ test("painel administrativo ignora concluídos e mostra horários atrasados aind
     queue: [{ ticket: "B-002", status: "atendendo" }],
   }, clock);
 
-  assert.deepEqual(view.current.map((item) => item.kind), ["scheduled", "walk-in"]);
+  assert.deepEqual(view.current.map((item) => item.kind), ["scheduled", "scheduled"]);
   assert.deepEqual(view.waiting.map((item) => item.time), ["08:30"]);
 });
 
 test("dois profissionais em atendimento recebem senhas distintas", () => {
-  const view = queueView({ ...establishment, professionals: [] }, {
+  const view = queueView({ ...establishment, professionals: ["João", "Maria"] }, {
     todaySlots: [],
     staffStatuses: [
       { currentDate: clock.date, currentTime: "10:00", professional: "João" },
@@ -181,7 +221,7 @@ test("dois profissionais em atendimento recebem senhas distintas", () => {
 });
 
 test("horário concluído antes da hora não volta para a lista de próximas senhas", () => {
-  const view = queueView({ ...establishment, professionals: [] }, {
+  const view = queueView({ ...establishment, professionals: ["João", "Maria"] }, {
     todaySlots: [
       { date: clock.date, time: "10:30", professional: "João", status: "concluido" },
       { date: clock.date, time: "11:00", professional: "Maria", status: "atendendo" },
@@ -190,6 +230,6 @@ test("horário concluído antes da hora não volta para a lista de próximas sen
     queue: [],
   }, clock);
 
-  assert.deepEqual(view.current.map((item) => item.time), ["11:00"]);
+  assert.deepEqual(view.current.map((item) => item.time), ["10:00", "11:00"]);
   assert.deepEqual(view.waiting, []);
 });

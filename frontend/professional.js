@@ -657,16 +657,16 @@ function ticketStatusLegend() {
 }
 
 function queuePanel(establishment, data, showNames = true, showHeader = true) {
-  const { current, waiting } = queueView(establishment, data, currentSaoPauloClock());
-  return `<section class="panel queue-panel">${showHeader ? '<div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Horários agendados e fila avulsa em tempo real</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>' : ""}
+  const { current } = queueView(establishment, data, currentSaoPauloClock());
+  return `<section class="panel queue-panel">${showHeader ? '<div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Uma senha por profissional, no horário atual</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>' : ""}
     <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small>${currentTicketCards(current, showNames)}</div>
-    <div class="queue-next"><div class="queue-list-title"><strong>Próximos horários e senhas</strong><span>${waiting.length} na sequência</span></div><div class="queue-list">${waiting.slice(0,6).map((item,index) => `<div class="queue-row ticket-state-${item.ticketState}"><span class="queue-position">${index + 1}º</span><span class="ticket">${escapeHTML(item.ticket)}</span><span class="queue-row-info"><strong>${escapeHTML(item.kind === "scheduled" ? queueDetail(item) : (showNames ? item.name || "Cliente avulso" : "Fila avulsa"))}</strong>${queueBadge(item)}</span><small>${index === 0 ? "Próxima" : "Na fila"}</small></div>`).join("") || '<div class="empty">Nenhum horário ou senha aguardando.</div>'}</div></div></div></section>`;
+    </div></section>`;
 }
 
 function ticketLegend(establishment) {
   const professionals = professionalDirectory(establishment).map((item) => `<span><b>${escapeHTML(professionalInitial(item.name))}</b> ${escapeHTML(item.name)}</span>`).join("");
   const services = (establishment.services || []).map((item) => `<span><b>${escapeHTML(serviceInitials(item.name))}</b> ${escapeHTML(item.name)}</span>`).join("");
-  return `<section class="ticket-legend" aria-label="Legenda das senhas"><h3>Como ler as senhas</h3>${ticketStatusLegend()}<p class="ticket-legend-example"><strong>RCT-08</strong><span><b>R</b>: inicial do profissional · <b>CT</b>: iniciais do serviço · <b>08</b>: 8º horário na agenda do profissional naquele dia.</span></p><p>Exemplos de serviço: <b>CT</b> = Cabelo Tesoura, <b>CM</b> = Cabelo Máquina, <b>CC</b> = Cabelo Completo, <b>SI</b> = Serviço indefinido (sem serviço registrado para o horário).</p><div class="ticket-legend-group"><h4>Profissionais</h4><div>${professionals}</div></div><div class="ticket-legend-group"><h4>Serviços</h4><div>${services}</div></div><p>A contagem começa em 01 e inclui os horários ocupados e os que já passaram. Na agenda compartilhada, usa a grade do estabelecimento. Se o horário não estiver na grade cadastrada, aparece <b>--</b>.</p></section>`;
+  return `<section class="ticket-legend" aria-label="Legenda das senhas"><h3>Como ler as senhas</h3>${ticketStatusLegend()}<p class="ticket-legend-example"><strong>RCT-08</strong><span><b>R</b>: inicial do profissional · <b>CT</b>: iniciais do serviço · <b>08</b>: 8º horário na agenda do profissional naquele dia.</span></p><p>Exemplos de serviço: <b>CT</b> = Cabelo Tesoura, <b>CM</b> = Cabelo Máquina, <b>CC</b> = Cabelo Completo, <b>SI</b> = Serviço indefinido (sem serviço registrado para o horário).</p><div class="ticket-legend-group"><h4>Profissionais</h4><div>${professionals}</div></div><div class="ticket-legend-group"><h4>Serviços</h4><div>${services}</div></div><p>A contagem começa em 01 e inclui os horários ocupados e os que já passaram. Na agenda compartilhada, usa a grade do estabelecimento. Somente horários da grade cadastrada geram senhas no painel.</p></section>`;
 }
 
 function publicQueueModal(establishment, data) {
@@ -823,7 +823,7 @@ function renderAdmin(establishment) {
   document.title = `Painel · ${establishment.name} — Agendae`;
   const data = getData(establishment);
   const today = data.appointments.filter((item) => item.date === isoDate());
-  const waiting = data.queue.filter((item) => item.status === "aguardando").length;
+  const waiting = queueView(establishment, data, currentSaoPauloClock()).waiting.length;
   const completed = today.filter((item) => item.status === "concluido").length;
   const freeSlots = usesEmployeeSchedules(establishment)
     ? professionalAvailability(establishment, data).flatMap((professional) => professional.freeTimes).sort()
@@ -841,7 +841,6 @@ function renderAdmin(establishment) {
   const queueSection = app.querySelector(".admin-grid .queue-panel");
   if (queueSection) {
     queueSection.insertAdjacentHTML("beforeend", ticketLegend(establishment));
-    queueSection.insertAdjacentHTML("beforeend", `<div class="queue-admin-actions"><button class="btn btn-soft btn-sm" data-add-ticket data-priority="normal">+ Senha avulsa</button><button class="btn btn-priority btn-sm" data-add-ticket data-priority="preferencial">+ Preferencial</button><button class="btn btn-primary btn-sm" data-next-ticket>Chamar próxima avulsa</button></div>`);
   }
   void refreshCloudData(establishment, "admin");
   void loadCheckInConfig(establishment);
@@ -881,10 +880,9 @@ function startQueueClock(establishment, monitor = false) {
 function renderQueueDisplay(establishment) {
   document.title = `Painel de senhas · ${establishment.name}`;
   const data = cloudCache.get(publicCacheKey(establishment, isoDate())) || { queue: [], slots: [], todayAppointments: 0 };
-  const { current, waiting } = queueView(establishment, data, currentSaoPauloClock());
+  const { current } = queueView(establishment, data, currentSaoPauloClock());
   app.innerHTML = `<main class="queue-display"><header class="queue-display-header"><div class="queue-display-brand">${logo()}<span>${escapeHTML(establishment.name)}</span></div><div class="queue-display-status"><span class="live-dot"></span> AO VIVO <strong data-monitor-clock></strong></div></header>
     <section class="queue-display-content"><div class="queue-display-current"><small>ATENDENDO AGORA</small>${currentTicketCards(current, false, true)}</div>
-    <aside class="queue-display-next"><div class="monitor-next-title"><span>Próximos horários e senhas</span><b>${waiting.length} na sequência</b></div><div class="monitor-waiting-list">${waiting.slice(0,8).map((item, index) => `<div class="monitor-waiting-row ticket-state-${item.ticketState}"><span class="monitor-position">${index + 1}</span><div><strong>${escapeHTML(item.ticket)}</strong><small>${escapeHTML(queueDetail(item))}</small></div>${queueBadge(item, true)}</div>`).join("") || '<div class="monitor-empty">Fila sem espera</div>'}</div></aside></section>
     <footer class="queue-display-footer"><span>Acompanhe a ordem e aguarde sua senha ser chamada.</span><div><button class="monitor-action" data-request-fullscreen>⛶ Tela cheia</button><a class="monitor-action" href="${href(`/${establishment.slug}?public=1#painel-senhas`)}" data-link>Fechar painel</a></div></footer></main>`;
   updateMonitorClock();
   startQueueClock(establishment, true);
@@ -1171,9 +1169,6 @@ document.addEventListener("click", async (event) => {
     }
     return;
   }
-  const addTicketButton = event.target.closest("[data-add-ticket]");
-  if (addTicketButton) await addTicket(addTicketButton.dataset.priority || "normal");
-  if (event.target.closest("[data-next-ticket]")) await callNext();
   const confirmPresenceButton = event.target.closest("[data-confirm-presence]");
   if (confirmPresenceButton) {
     const establishment = activeEstablishment();
@@ -1371,41 +1366,6 @@ document.addEventListener("submit", async (event) => {
     }
   }
 });
-
-async function addTicket(priority = "normal") {
-  const establishment = activeEstablishment();
-  const data = getData(establishment);
-  const prefix = establishment.queuePrefix;
-  const nextNumber = data.queue.reduce((max, item) => Math.max(max, Number(item.ticket.split("-")[1]) || 0), 0) + 1;
-  const ticket = `${prefix}-${String(nextNumber).padStart(3,"0")}`;
-  try {
-    if (!firebaseApi || !session()) throw new Error("Sessão indisponível.");
-    await firebaseApi.addQueueTicket(establishment.slug, ticket, "Cliente sem agendamento", priority, establishment.defaultServicePoint || "Atendimento");
-  } catch (error) {
-    toast(firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Entre novamente para alterar a fila.", "!");
-    return;
-  }
-  cloudCache.delete(`admin:${establishment.slug}`);
-  invalidatePublicCache(establishment.slug);
-  toast(`Senha ${ticket}${priority === "preferencial" ? " preferencial" : ""} adicionada.`);
-  render();
-}
-
-async function callNext() {
-  const establishment = activeEstablishment();
-  let remoteTicket;
-  try {
-    if (!firebaseApi || !session()) throw new Error("Sessão indisponível.");
-    remoteTicket = await firebaseApi.callNextTicket(establishment.slug, establishment.defaultServicePoint || "Atendimento");
-  } catch (error) {
-    toast(firebaseApi ? firebaseApi.firebaseErrorMessage(error) : "Entre novamente para alterar a fila.", "!");
-    return;
-  }
-  cloudCache.delete(`admin:${establishment.slug}`);
-  invalidatePublicCache(establishment.slug);
-  toast(remoteTicket ? `Senha ${remoteTicket} chamada.` : "Fila concluída.", remoteTicket ? "✓" : "○");
-  render();
-}
 
 window.addEventListener("popstate", render);
 document.addEventListener("keydown", (event) => {
