@@ -425,7 +425,7 @@ function publicSchedule(establishment) {
   }).join("");
   const controls = professionals.length > 1 ? `<div class="professional-carousel-controls"><span data-professional-carousel-position>1 de ${professionals.length}</span><button type="button" data-professional-carousel-prev aria-label="Profissional anterior">←</button><button type="button" data-professional-carousel-next aria-label="Próximo profissional">→</button></div>` : "";
   const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
-  return `<div class="schedule-command-bar"><div class="schedule-command-title"><span class="schedule-step-number">1</span><div><h2>Agenda de ${prettyDate(state.booking.date, true)}</h2><p>Selecione um horário livre para agendar</p></div></div><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div>${ticketStatusLegend()}${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
+  return `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div>${ticketStatusLegend()}${controls}</div><div class="professional-carousel"><div class="public-schedules" data-professional-carousel>${schedules || '<div class="schedule-empty">Nenhum profissional disponível.</div>'}</div></div>`;
 }
 
 function navigateProfessionalCarousel(direction) {
@@ -755,14 +755,11 @@ function renderEstablishmentPublic(establishment) {
   document.title = `${establishment.name} — Agendae`;
   if (new URLSearchParams(location.search).has("checkin")) state.publicLookup.open = true;
   const data = getData(establishment);
-  const freeTimes = availableTimesFor(establishment, data, state.booking.date);
-  const nextFree = freeTimes[0] || "—";
   const scheduleQueue = queueView(establishment, data, currentSaoPauloClock());
-  const waitingTickets = scheduleQueue.waiting;
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : '<button class="btn btn-primary btn-sm" type="button" data-open-employee-access>Área do estabelecimento</button>'}</div></div></header>
-    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Atendendo agora</small>${currentTicketCards(scheduleQueue.current)}</div></article><article class="public-live-card"><small>Próximas senhas</small><div class="public-next-tickets">${waitingTickets.slice(0,2).map((item) => `<span class="ticket-state-${item.ticketState}">${escapeHTML(item.ticket)}${item.kind === "scheduled" ? `<small>${escapeHTML(item.time)}</small>` : ""}</span>`).join("") || "<em>Ninguém aguardando</em>"}</div></article><article class="public-live-card public-next-slot"><small>Próximo horário livre</small><div><strong>${nextFree}</strong><em>${prettyDate(state.booking.date)}</em></div></article><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button></div></section>
+    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Atendendo agora</small>${currentTicketCards(scheduleQueue.current)}</div></article><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button></div></section>
     <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
     ${state.booking.step > 1 ? bookingContent(establishment) : ""}
     ${publicCheckInModal()}${publicQueueModal(establishment, data)}${employeeAccessModal(establishment)}</div>`;
@@ -871,11 +868,9 @@ function startQueueClock(establishment, monitor = false) {
     previousMinute = minute;
     if (monitor) { renderQueueDisplay(establishment); return; }
     const data = getData(establishment);
-    const { current, waiting } = queueView(establishment, data, currentSaoPauloClock());
+    const { current } = queueView(establishment, data, currentSaoPauloClock());
     const currentList = document.querySelector(".public-live-current .current-ticket-list");
     if (currentList) currentList.outerHTML = currentTicketCards(current);
-    const nextList = document.querySelector(".public-next-tickets");
-    if (nextList) nextList.innerHTML = waiting.slice(0, 2).map((item) => `<span class="ticket-state-${item.ticketState}">${escapeHTML(item.ticket)}${item.kind === "scheduled" ? `<small>${escapeHTML(item.time)}</small>` : ""}</span>`).join("") || "<em>Ninguém aguardando</em>";
     const modalPanel = document.querySelector(".public-queue-modal .queue-panel");
     if (modalPanel) modalPanel.outerHTML = queuePanel(establishment, data, false, false);
     const schedule = document.querySelector(".public-schedule-body");
