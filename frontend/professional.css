@@ -1091,3 +1091,52 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .est-page:has(.public-direct-content) .est-header-business strong { max-width: 120px; font-size: 11px; }
   .est-page:has(.public-direct-content) .est-topbar-inner { gap: 8px; }
 }
+
+/* One common timeline, with a separate row for each professional. */
+.public-direct-content .schedule-command-bar { grid-template-columns: auto minmax(0,1fr); margin-bottom: 12px; }
+.public-direct-content .schedule-command-bar .schedule-date-toolbar { grid-column: auto; }
+.public-direct-content .schedule-command-bar .ticket-status-legend { grid-column: auto; justify-content: flex-end; }
+.schedule-matrix-wrap { flex: 1; min-height: 0; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; scrollbar-width: thin; scrollbar-color: #aebed4 #f1f5f9; }
+.schedule-matrix-wrap:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.schedule-matrix { width: 100%; min-width: calc(128px + var(--matrix-columns) * 40px); height: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.schedule-matrix caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.matrix-person-column { width: 128px; }
+.schedule-matrix th,.schedule-matrix td { padding: 5px 3px; border-right: 1px solid #edf1f6; border-bottom: 1px solid #e5ebf3; text-align: center; }
+.schedule-matrix tr > :last-child { border-right: 0; }
+.schedule-matrix tbody tr:last-child > * { border-bottom: 0; }
+.schedule-matrix thead th { height: 38px; background: #f5f8fc; color: #56657c; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.schedule-matrix thead th:first-child { position: sticky; left: 0; z-index: 3; padding-left: 12px; text-align: left; color: var(--navy); }
+.schedule-matrix tbody th { position: sticky; left: 0; z-index: 2; padding: 10px; background: #fff; text-align: left; box-shadow: 5px 0 10px -8px #526a8e; }
+.schedule-matrix tbody tr:hover td { background-color: #fafcff; }
+.matrix-person { display: flex; align-items: center; gap: 8px; }
+.matrix-person > span:last-child { min-width: 0; }
+.matrix-person strong { display: block; color: var(--navy); font: 800 12px "Manrope",sans-serif; overflow-wrap: anywhere; }
+.matrix-person small { display: block; margin-top: 3px; color: #75849a; font-size: 9px; font-weight: 500; }
+.matrix-avatar { width: 27px; height: 27px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; color: #235aaa; background: #edf3fc; font-size: 10px; font-weight: 800; }
+.matrix-slot { width: 100%; height: 38px; padding: 0; border: 1px solid var(--ticket-color); border-radius: 7px; background: var(--ticket-soft); color: var(--ticket-color); font-size: 16px; font-weight: 700; transition: box-shadow .15s,transform .15s; }
+.matrix-slot:disabled { cursor: default; }
+.matrix-slot:not(:disabled):hover { box-shadow: 0 0 0 2px #16803c22; transform: translateY(-1px); }
+.matrix-slot:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.matrix-slot.selected { border-width: 2px; outline: 2px solid var(--blue); outline-offset: 1px; }
+.schedule-matrix .matrix-unavailable { background: repeating-linear-gradient(135deg,#fcfdff,#fcfdff 5px,#f6f8fb 5px,#f6f8fb 6px); color: #aeb8c8; font-size: 12px; }
+.schedule-matrix .matrix-row-selected > th { background: #f3f7ff; }
+.matrix-book-button { width: 100%; min-height: 27px; margin-top: 9px; padding: 5px; border: 0; border-radius: 6px; color: #fff; background: var(--blue); font-size: 9px; font-weight: 800; white-space: nowrap; }
+.matrix-book-button:hover { background: var(--navy-2); }
+.matrix-book-button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (max-width: 1100px) {
+  .public-direct-content .schedule-command-bar { grid-template-columns: minmax(0,1fr); }
+  .public-direct-content .schedule-command-bar .ticket-status-legend { justify-content: flex-start; }
+}
+@media (max-width: 720px) {
+  .public-direct-content .schedule-command-bar { gap: 7px; margin-bottom: 9px; }
+  .public-direct-content .schedule-command-bar .schedule-date-toolbar { grid-column: 1; grid-row: auto; }
+  .public-direct-content .schedule-command-bar .ticket-status-legend { grid-column: 1; }
+  .schedule-matrix { min-width: calc(104px + var(--matrix-columns) * 40px); }
+  .matrix-person-column { width: 104px; }
+  .schedule-matrix tbody th { padding: 7px; }
+  .matrix-person { gap: 6px; }
+  .matrix-person strong { font-size: 11px; }
+  .matrix-person small { font-size: 8px; }
+  .matrix-avatar { width: 23px; height: 23px; font-size: 9px; }
+  .matrix-slot { height: 32px; }
+}
