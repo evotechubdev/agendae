@@ -235,11 +235,13 @@ export function observePublicState(slug, callback) {
   let staffStatuses = [];
   let todaySlots = null;
   let professionalLunchBreaks = null;
+  let establishmentHours = null;
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
   const todaySlotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", today));
-  const emit = () => callback({ queue, staffStatuses, ...(todaySlots ? { todaySlots } : {}), ...(professionalLunchBreaks ? { professionalLunchBreaks } : {}) });
+  const emit = () => callback({ queue, staffStatuses, ...(todaySlots ? { todaySlots } : {}), ...(professionalLunchBreaks ? { professionalLunchBreaks } : {}), ...(establishmentHours ? { establishmentHours } : {}) });
   const unsubscribeEstablishment = onSnapshot(doc(db, "establishments", slug), (snapshot) => {
     const establishment = snapshot.data() || {};
+    establishmentHours = establishment.hours || [];
     professionalLunchBreaks = { ...Object.fromEntries((establishment.professionals || []).filter((item) => item.lunchBreak).map((item) => [item.name, item.lunchBreak])), ...establishment.professionalLunchBreaks };
     emit();
   }, () => emit());

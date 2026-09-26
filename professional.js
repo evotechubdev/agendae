@@ -409,7 +409,7 @@ function publicSchedule(establishment) {
       if (segment.type === "unavailable") return `<td colspan="${span}" class="matrix-unavailable"><span aria-label="Sem horário cadastrado">—</span></td>`;
       if (segment.type === "lunch") {
         const label = `Pausado, almoço de ${professional.name}, ${professional.lunchBreak.start} às ${professional.lunchBreak.end}`;
-        return `<td colspan="${span}"><button class="matrix-slot ticket-state-paused" type="button" disabled aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">Pausado</strong><i class="matrix-status-dot" aria-hidden="true"></i></button></td>`;
+        return `<td colspan="${span}"><button class="matrix-slot ticket-state-paused" type="button" disabled aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">Pausado</strong><small class="matrix-pause-reason">Almoço</small><i class="matrix-status-dot" aria-hidden="true"></i></button></td>`;
       }
       const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
       const status = ticketState({ date: state.booking.date, time, booked: Boolean(appointment), currentTime, paused, status: appointment?.status }, clock);
@@ -427,14 +427,14 @@ function publicSchedule(establishment) {
   if (!professionals.length || !times.length) return `${toolbar}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
   const width = Math.min(1180, window.innerWidth - 36) - (window.innerWidth >= 900 ? window.innerWidth <= 1100 ? 190 : 240 : 0) - 24;
   const unitsPerHeading = majorStep / step;
-  const majorColumns = Math.max(6, Math.min(36, Math.floor((width - 100) / 18 / 6) * 6));
+  const majorColumns = Math.max(3, Math.min(18, Math.floor((width - 100) / 32 / 3) * 3));
   const bands = scheduleBands(times, window.innerWidth >= 900 ? majorColumns * unitsPerHeading : times.length);
   const columns = Math.max(...bands.map((band) => band.times.length));
-  return `${toolbar}<div class="schedule-matrix-bands schedule-timeline" style="--matrix-bands:${bands.length};--timeline-track-width:${18 / unitsPerHeading}px">${bands.map((band) => {
-    const headers = band.times.flatMap((time, index) => index % unitsPerHeading ? [] : [`<th scope="col" colspan="${Math.min(unitsPerHeading, band.times.length - index)}" class="${time.endsWith(":00") ? "timeline-hour" : ""}"><time datetime="${time}" title="${time}">${time.endsWith(":00") ? `${Number(time.slice(0, 2))}h` : time.slice(3)}</time></th>`]).join("");
+  return `${toolbar}<div class="schedule-matrix-bands schedule-timeline" style="--matrix-bands:${bands.length};--timeline-track-width:${32 / unitsPerHeading}px">${bands.map((band) => {
+    const headers = band.times.flatMap((time, index) => index % unitsPerHeading ? [] : [`<th scope="col" colspan="${Math.min(unitsPerHeading, band.times.length - index)}" class="${time.endsWith(":00") ? "timeline-hour" : ""}"><time datetime="${time}" title="${time}">${time}</time></th>`]).join("");
     const padding = columns - band.times.length;
     const rows = renderRows(band.start, band.end).replaceAll("</tr>", `${padding ? `<td colspan="${padding}" class="matrix-timeline-padding"></td>` : ""}</tr>`);
-    return `<div class="schedule-matrix-wrap" data-schedule-matrix aria-label="Horários de ${band.times[0]} a ${band.times.at(-1)}"><table class="schedule-matrix" style="--matrix-columns:${columns}"><caption>Linha do tempo de ${band.times[0]} a ${band.times.at(-1)}, em intervalos de 10 minutos</caption><colgroup><col class="matrix-person-column">${Array.from({ length: columns }, () => "<col>").join("")}</colgroup><thead><tr><th scope="col">Equipe<small class="timeline-range">${band.times[0]}–${band.times.at(-1)}</small></th>${headers}${padding ? `<th colspan="${padding}" class="matrix-timeline-padding"></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<div class="schedule-matrix-wrap" data-schedule-matrix aria-label="Horários de ${band.times[0]} a ${band.times.at(-1)}"><table class="schedule-matrix" style="--matrix-columns:${columns}"><caption>Linha do tempo de ${band.times[0]} a ${band.times.at(-1)}, em intervalos de 20 minutos</caption><colgroup><col class="matrix-person-column">${Array.from({ length: columns }, () => "<col>").join("")}</colgroup><thead><tr><th scope="col">Equipe<small class="timeline-range">${band.times[0]}–${band.times.at(-1)}</small></th>${headers}${padding ? `<th colspan="${padding}" class="matrix-timeline-padding"></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>`;
   }).join("")}</div>`;
 }
 
@@ -608,7 +608,7 @@ function queueBadge(item, monitor = false) {
 }
 
 function currentTicketCards(current, showNames = false, monitor = false) {
-  return `<div class="current-ticket-list">${current.map((item) => `<article class="current-ticket-card ticket-state-${item.ticketState}"><strong>${escapeHTML(["paused", "closed"].includes(item.ticketState) ? TICKET_STATES[item.ticketState] : item.ticket)}</strong><span class="current-ticket-detail">${escapeHTML(queueDetail(item))}</span>${showNames && item.ticketState === "in-service" && item.client ? `<span class="queue-customer">${escapeHTML(item.client)}</span>` : ""}</article>`).join("") || '<p class="current-ticket-empty">Nenhum profissional cadastrado</p>'}</div>`;
+  return `<div class="current-ticket-list">${current.map((item) => `<article class="current-ticket-card ticket-state-${item.ticketState}"><strong>${escapeHTML(["paused", "closed"].includes(item.ticketState) ? TICKET_STATES[item.ticketState] : item.ticket)}</strong>${item.pauseReason ? `<small class="current-ticket-reason">${escapeHTML(item.pauseReason)}</small>` : ""}<span class="current-ticket-detail">${escapeHTML(queueDetail(item))}</span>${showNames && item.ticketState === "in-service" && item.client ? `<span class="queue-customer">${escapeHTML(item.client)}</span>` : ""}</article>`).join("") || '<p class="current-ticket-empty">Nenhum profissional cadastrado</p>'}</div>`;
 }
 
 function liveStatusDot(current) {
@@ -643,6 +643,7 @@ function ensureQueueSubscription(establishment) {
   queueSubscriptionSlug = establishment.slug;
   queueSubscription = firebaseApi.observePublicState(establishment.slug, (live) => {
     if (live.professionalLunchBreaks) establishment.professionalLunchBreaks = live.professionalLunchBreaks;
+    if (live.establishmentHours) establishment.hours = live.establishmentHours;
     const prefix = `public:${establishment.slug}:`;
     const keys = [...cloudCache.keys()].filter((key) => key.startsWith(prefix));
     if (!keys.length) keys.push(publicCacheKey(establishment, isoDate()));

@@ -39,16 +39,16 @@ export function scheduleBands(times, columns) {
 
 export function scheduleTimeline(establishment) {
   const matrix = scheduleMatrix(establishment);
-  if (!matrix.times.length) return { ...matrix, step: 10, majorStep: 10 };
-  // Keep ten-minute headings, with smaller internal tracks for exact times such as 08:15.
+  if (!matrix.times.length) return { ...matrix, step: 20, majorStep: 20 };
+  // Keep twenty-minute headings, with smaller internal tracks for exact times such as 08:15.
   const gcd = (a, b) => b ? gcd(b, a % b) : a;
-  const step = matrix.times.reduce((value, time) => gcd(value, minutes(time)), 10);
-  const first = Math.floor(minutes(matrix.times[0]) / 10) * 10;
+  const first = Math.floor(minutes(matrix.times[0]) / 20) * 20;
   const slotDuration = (professional) => {
     const gaps = professional.availableTimes.slice(1).map((time, index) => minutes(time) - minutes(professional.availableTimes[index])).filter((gap) => gap > 0 && gap <= 120).sort((a, b) => a - b);
     return gaps.length ? gaps[Math.floor((gaps.length - 1) / 2)] : 30;
   };
-  const last = Math.ceil(Math.max(minutes(matrix.times.at(-1)), ...matrix.professionals.filter((professional) => professional.availableTimes.length).map((professional) => minutes(professional.availableTimes.at(-1)) + slotDuration(professional))) / 10) * 10;
+  const step = matrix.professionals.filter((professional) => professional.availableTimes.length).reduce((value, professional) => gcd(value, slotDuration(professional)), matrix.times.reduce((value, time) => gcd(value, minutes(time)), 20));
+  const last = Math.min(1440, Math.ceil(Math.max(minutes(matrix.times.at(-1)), ...matrix.professionals.filter((professional) => professional.availableTimes.length).map((professional) => minutes(professional.availableTimes.at(-1)) + slotDuration(professional))) / 20) * 20);
   const times = Array.from({ length: (last - first) / step }, (_, index) => {
     const value = first + index * step;
     return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
@@ -69,5 +69,5 @@ export function scheduleTimeline(establishment) {
     });
     return { ...professional, segments };
   });
-  return { times, professionals, step, majorStep: 10 };
+  return { times, professionals, step, majorStep: 20 };
 }
