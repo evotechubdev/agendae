@@ -1,5 +1,5 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
-import { scheduleTimeline, scheduleBands, lunchBreakFor, isLunchTime } from "./schedule-model.mjs";
+import { scheduleTimeline, scheduleBands, lunchBreakFor, isLunchTime, serviceFitsSlot } from "./schedule-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -393,7 +393,7 @@ function bookingContent(establishment) {
 
 function publicSchedule(establishment) {
   const data = getData(establishment);
-  const { times, professionals, step, majorStep, startTime, endTime } = scheduleTimeline(establishment);
+  const { times, professionals, step, majorStep, startTime, endTime } = scheduleTimeline(establishment, data.slots || []);
   const clock = currentSaoPauloClock();
   const isToday = state.booking.date === clock.date;
   const renderRows = (start, end) => professionals.map((professional) => {
@@ -417,7 +417,7 @@ function publicSchedule(establishment) {
       const chosen = selected === time;
       const label = `${ticket}, ${professional.name}, ${time}, ${TICKET_STATES[status]}${chosen ? ", selecionado" : ""}`;
       const action = status === "free" ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"` : 'disabled';
-      return `<td colspan="${span}"><button class="matrix-slot ${span * step <= 20 ? "matrix-slot-tight" : ""} ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">${escapeHTML(ticket)}</strong><small class="matrix-start-time">${escapeHTML(time)}</small><i class="matrix-status-dot" aria-hidden="true">${chosen ? "✓" : ""}</i></button></td>`;
+      return `<td colspan="${span}"><button class="matrix-slot ${span * step <= 20 ? "matrix-slot-tight" : ""} ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code"><span>${escapeHTML(ticket.slice(0, 3))}</span><span>${escapeHTML(ticket.slice(3))}</span></strong><small class="matrix-start-time">${escapeHTML(time)}</small><i class="matrix-status-dot" aria-hidden="true">${chosen ? "✓" : ""}</i></button></td>`;
     }).join("");
     return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span class="matrix-avatar" aria-hidden="true">${escapeHTML(Array.from(professional.name.trim())[0]?.toLocaleUpperCase("pt-BR") || "?")}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div></th>${cells}</tr>`;
   }).join("");
@@ -428,7 +428,7 @@ function publicSchedule(establishment) {
   const unitsPerHeading = majorStep / step;
   const bands = scheduleBands(times, times.length);
   const columns = Math.max(...bands.map((band) => band.times.length));
-  return `${toolbar}<div class="schedule-matrix-bands schedule-timeline" style="--matrix-bands:${bands.length};--timeline-track-width:${66 / unitsPerHeading}px">${bands.map((band) => {
+  return `${toolbar}<div class="schedule-matrix-bands schedule-timeline" style="--matrix-bands:${bands.length};--timeline-track-width:${78 / unitsPerHeading}px">${bands.map((band) => {
     const headers = band.times.flatMap((time, index) => index % unitsPerHeading ? [] : [`<th scope="col" colspan="${Math.min(unitsPerHeading, band.times.length - index)}" class="timeline-hour"><time datetime="${time}" title="${time}">${time}</time>${index + unitsPerHeading >= band.times.length ? `<span class="timeline-end-label">${endTime}</span>` : ""}</th>`]).join("");
     const padding = columns - band.times.length;
     const rows = renderRows(band.start, band.end).replaceAll("</tr>", `${padding ? `<td colspan="${padding}" class="matrix-timeline-padding"></td>` : ""}</tr>`);
@@ -659,7 +659,7 @@ function professionalAvailability(establishment, data, date = isoDate()) {
   return professionalDirectory(establishment).map((professional) => ({
     ...professional,
     freeTimes: (professional.availableTimes || []).filter((time) =>
-      !slotHasPassed(date, time) && !isLunchTime(professional.lunchBreak, time) && !slots.some((slot) => slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name))
+      !slotHasPassed(date, time) && serviceFitsSlot(establishment, professional.name, time, undefined, slots)
     ),
   }));
 }
@@ -668,7 +668,7 @@ function availableTimesFor(establishment, data, date = isoDate()) {
   if (!usesEmployeeSchedules(establishment)) {
     const busy = new Set((data.slots || []).map((slot) => slot.time));
     const professionals = professionalDirectory(establishment);
-    return (establishment.availableTimes || []).filter((time) => !slotHasPassed(date, time) && !busy.has(time) && professionals.some((professional) => !isLunchTime(professional.lunchBreak, time)));
+    return (establishment.availableTimes || []).filter((time) => !slotHasPassed(date, time) && !busy.has(time) && professionals.some((professional) => serviceFitsSlot(establishment, professional.name, time, undefined, data.slots || [])));
   }
   return [...new Set(professionalAvailability(establishment, data, date).flatMap((professional) => professional.freeTimes))].sort();
 }
