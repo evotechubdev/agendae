@@ -1,5 +1,5 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, TICKET_STATES } from "./queue-model.mjs";
-import { scheduleMatrix } from "./schedule-model.mjs";
+import { scheduleMatrix, scheduleBands } from "./schedule-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -15,6 +15,7 @@ let monitorClockTimer = null;
 let serviceCarouselTimer = null;
 let adminRefreshTimer = null;
 let qrScanner = null;
+let scheduleViewportWidth = window.innerWidth;
 const cloudCache = new Map();
 const cloudLoading = new Set();
 const professionalReconcileLoading = new Set();
@@ -394,14 +395,14 @@ function publicSchedule(establishment) {
   const { times, professionals } = scheduleMatrix(establishment);
   const clock = currentSaoPauloClock();
   const isToday = state.booking.date === clock.date;
-  const rows = professionals.map((professional) => {
+  const renderRows = (start, end) => professionals.map((professional) => {
     const staffStatus = staffStatusFor(data, professional.name);
     const paused = isToday && professionalIsPaused(data, professional.name, state.booking.date);
     const onShift = isToday && professionalIsOnShift(professional, state.booking.date);
     const savedCurrentTime = onShift && staffStatus.currentDate === state.booking.date ? staffStatus.currentTime : null;
     const currentTime = savedCurrentTime || (isToday ? currentProfessionalSlot(professional, state.booking.date) : null);
     const selected = state.booking.step < 3 && state.booking.professional === professional.name && state.booking.time;
-    const cells = professional.periods.map((time) => {
+    const cells = professional.periods.slice(start, end).map((time) => {
       if (!time) return '<td class="matrix-unavailable"><span aria-label="Sem horário cadastrado">—</span></td>';
       const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
       const status = ticketState({ date: state.booking.date, time, booked: Boolean(appointment), currentTime, paused, status: appointment?.status }, clock);
@@ -411,13 +412,15 @@ function publicSchedule(establishment) {
       const action = status === "free" ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"` : 'disabled';
       return `<td><button class="matrix-slot ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">${escapeHTML(ticket)}</strong><i class="matrix-status-dot" aria-hidden="true">${chosen ? "✓" : ""}</i></button></td>`;
     }).join("");
-    const action = selected ? `<button class="matrix-book-button" type="button" data-booking-next aria-label="Agendar ${escapeHTML(selected)} com ${escapeHTML(professional.name)}">Agendar ${escapeHTML(selected)} <span aria-hidden="true">→</span></button>` : "";
-    return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span class="matrix-avatar">${escapeHTML(initials(professional.name))}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div>${action}</th>${cells}</tr>`;
+    return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div></th>${cells}</tr>`;
   }).join("");
   const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
-  const toolbar = `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div>${ticketStatusLegend()}</div>`;
+  const bookingAction = state.booking.time && state.booking.professional && state.booking.step < 3 ? `<button class="matrix-book-button" type="button" data-booking-next aria-label="Agendar ${escapeHTML(state.booking.time)} com ${escapeHTML(state.booking.professional)}">${escapeHTML(state.booking.professional)} · ${escapeHTML(state.booking.time)} <span>Agendar →</span></button>` : "";
+  const toolbar = `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div>${ticketStatusLegend()}${bookingAction}</div>`;
   if (!professionals.length || !times.length) return `${toolbar}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
-  return `${toolbar}<div class="schedule-matrix-wrap" data-schedule-matrix tabindex="0" aria-label="Agenda de todos os profissionais na mesma linha do tempo"><table class="schedule-matrix" style="--matrix-columns:${times.length}"><caption>Disponibilidade dos profissionais na mesma linha do tempo</caption><colgroup><col class="matrix-person-column">${times.map(() => "<col>").join("")}</colgroup><thead><tr><th scope="col">Profissional</th>${times.map((time) => `<th scope="col"><time>${escapeHTML(time)}</time></th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  const width = Math.min(1180, window.innerWidth - 36) - (window.innerWidth >= 900 ? 240 : 0) - 24;
+  const bands = scheduleBands(times, window.innerWidth >= 900 ? Math.floor((width - 66) / 50) : times.length);
+  return `${toolbar}<div class="schedule-matrix-bands" style="--matrix-bands:${bands.length}">${bands.map((band) => `<div class="schedule-matrix-wrap" data-schedule-matrix aria-label="Horários de ${band.times[0]} a ${band.times.at(-1)}"><table class="schedule-matrix" style="--matrix-columns:${band.times.length}"><caption>Disponibilidade dos profissionais na mesma linha do tempo</caption><colgroup><col class="matrix-person-column">${band.times.map(() => "<col>").join("")}</colgroup><thead><tr><th scope="col">Equipe</th>${band.times.map((time) => `<th scope="col"><time>${escapeHTML(time)}</time></th>`).join("")}</tr></thead><tbody>${renderRows(band.start, band.end)}</tbody></table></div>`).join("")}</div>`;
 }
 
 function restoreScheduleScroll() {
@@ -699,8 +702,8 @@ function renderEstablishmentPublic(establishment) {
   const scheduleQueue = queueView(establishment, data, currentSaoPauloClock());
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
-    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div><div class="est-header-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : '<button class="btn btn-primary btn-sm" type="button" data-open-employee-access>Área do estabelecimento</button>'}</div></div></header>
-    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Atendendo agora</small>${currentTicketCards(scheduleQueue.current)}</div></article><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button></div></section>
+    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div></div></header>
+    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current"><span class="live-dot"></span><div><small>Atendendo agora</small>${currentTicketCards(scheduleQueue.current)}</div></article><div class="public-live-actions"><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : '<button class="btn btn-primary btn-sm" type="button" data-open-employee-access>Área do estabelecimento</button>'}</div></div></section>
     <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
     ${state.booking.step > 1 ? bookingContent(establishment) : ""}
     ${publicCheckInModal()}${publicQueueModal(establishment, data)}${employeeAccessModal(establishment)}</div>`;
@@ -1305,6 +1308,16 @@ document.addEventListener("submit", async (event) => {
 });
 
 window.addEventListener("popstate", render);
+window.addEventListener("resize", () => {
+  if (scheduleViewportWidth === window.innerWidth) return;
+  scheduleViewportWidth = window.innerWidth;
+  const schedule = document.querySelector(".public-schedule-body");
+  const establishment = activeEstablishment();
+  if (schedule && establishment) {
+    schedule.innerHTML = publicSchedule(establishment);
+    restoreScheduleScroll();
+  }
+});
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && state.employeeAccessOpen) {
     state.employeeAccessOpen = false;

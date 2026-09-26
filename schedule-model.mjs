@@ -17,3 +17,8 @@ function minutes(time) {
   const [hour, minute] = time.split(":").map(Number);
   return hour * 60 + minute;
 }
+
+export function scheduleBands(times, columns) {
+  const size = Math.max(1, Math.floor(Number(columns) || 1));
+  return Array.from({ length: Math.ceil(times.length / size) }, (_, index) => ({ start: index * size, end: Math.min(times.length, (index + 1) * size), times: times.slice(index * size, (index + 1) * size) }));
+}
