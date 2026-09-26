@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scheduleMatrix } from "../frontend/schedule-model.mjs";
+import { scheduleMatrix, scheduleBands } from "../frontend/schedule-model.mjs";
 
 test("colunas incluem os horários distintos de todos os profissionais sem criar disponibilidade", () => {
   const matrix = scheduleMatrix({ professionals: [
@@ -49,4 +49,12 @@ test("profissionais com intervalos de 20 e 30 minutos mantêm suas próprias dis
   assert.deepEqual(matrix.professionals[0].periods, ["08:00", "08:20", null, "08:40", "09:00", null]);
   assert.deepEqual(matrix.professionals[1].periods, ["08:00", null, "08:30", null, "09:00", null]);
   assert.deepEqual(matrix.professionals[2].periods, [null, null, null, null, "09:00", "09:30"]);
+});
+
+test("faixas consecutivas exibem todos os horários uma única vez, sem alterar a linha do tempo", () => {
+  const times = ["08:00", "08:20", "08:30", "08:40", "09:00", "09:20", "09:30"];
+  const bands = scheduleBands(times, 3);
+  assert.deepEqual(bands.map((band) => [band.start, band.end]), [[0, 3], [3, 6], [6, 7]]);
+  assert.deepEqual(bands.flatMap((band) => band.times), times);
+  assert.deepEqual(scheduleBands([], 3), []);
 });
