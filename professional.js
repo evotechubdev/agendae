@@ -681,15 +681,19 @@ function compactBusinessHours(establishment) {
   };
   const weekdayGroup = hours.find((item) => {
     const key = labelKey(item.label);
-    return (key.includes("seg") || key.includes("segunda")) && (key.includes("sex") || key.includes("sexta"));
+    return key.includes("diasuteis") || key === "uteis" || (key.includes("seg") && key.includes("sex"));
   });
-  const weekdays = ["segunda", "terca", "quarta", "quinta", "sexta"]
-    .map((day) => hours.find((item) => labelKey(item.label).startsWith(day)))
-    .filter(Boolean);
-  const weekdayValue = weekdayGroup?.value || weekdays[0]?.value || "";
+  const weekdays = [["seg", "Seg"], ["ter", "Ter"], ["qua", "Qua"], ["qui", "Qui"], ["sex", "Sex"]]
+    .map(([day, label]) => ({ label, value: hours.find((item) => labelKey(item.label).startsWith(day))?.value }))
+    .filter((item) => item.value);
+  const weekdayParts = weekdayGroup?.value
+    ? [{ label: "Seg a sex", value: weekdayGroup.value }]
+    : weekdays.length === 5 && weekdays.every((item) => range(item.value) === range(weekdays[0].value))
+      ? [{ label: "Seg a sex", value: weekdays[0].value }]
+      : weekdays;
   const saturday = hours.find((item) => labelKey(item.label).startsWith("sab"));
   const parts = [
-    weekdayValue ? `<span><strong>Seg a sex</strong> ${escapeHTML(range(weekdayValue))}</span>` : "",
+    ...weekdayParts.map((item) => `<span><strong>${item.label}</strong> ${escapeHTML(range(item.value))}</span>`),
     saturday?.value ? `<span><strong>Sáb</strong> ${escapeHTML(range(saturday.value))}</span>` : "",
   ].filter(Boolean);
   return parts.join('<i aria-hidden="true">•</i>') || `<span>${escapeHTML(establishment.todayHours || "Consulte o funcionamento")}</span>`;
