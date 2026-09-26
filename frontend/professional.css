@@ -119,6 +119,7 @@ img { display: block; max-width: 100%; }
 .est-facts { margin-top: 17px; display: flex; flex-wrap: wrap; gap: 17px; color: #e6edfa; font-size: 12px; }
 .live-ticket { min-width: 245px; padding: 20px; display: flex; align-items: center; gap: 15px; border: 1px solid rgba(255,255,255,.16); border-radius: 16px; background: rgba(255,255,255,.09); backdrop-filter: blur(10px); }
 .live-dot { width: 9px; height: 9px; border-radius: 50%; background: #4ee09d; box-shadow: 0 0 0 6px rgba(78,224,157,.14); }
+.live-dot.closed { background: #171717; box-shadow: 0 0 0 6px rgba(23,23,23,.18); }
 .live-ticket small,.live-ticket strong { display: block; }
 .live-ticket small { color: #bdcdeb; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
 .live-ticket strong { margin-top: 4px; font: 800 25px "Manrope",sans-serif; }
@@ -1160,7 +1161,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .est-page:has(.public-direct-content) .public-live-actions .btn { position: static; width: auto; min-width: 0; min-height: 34px; height: auto; padding: 8px 12px; font-size: 10px; }
 .public-direct-content .schedule-command-bar { grid-template-columns: auto minmax(0,1fr) auto; }
 .public-direct-content .schedule-command-bar .matrix-book-button { width: auto; min-height: 30px; margin: 0; padding: 6px 9px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.schedule-matrix-bands { flex: 0 1 auto; min-height: 0; display: grid; grid-template-rows: repeat(var(--matrix-bands),auto); align-content: start; gap: 7px; }
+.schedule-matrix-bands { flex: 0 0 auto; min-height: 0; display: grid; grid-template-rows: repeat(var(--matrix-bands),auto); align-content: start; gap: 7px; }
 .schedule-matrix-bands .schedule-matrix-wrap { min-height: 0; height: auto; overflow: visible; border-radius: 9px; }
 .schedule-matrix-bands .schedule-matrix { min-width: 0; width: 100%; height: auto; }
 .schedule-matrix-bands .matrix-person-column { width: 66px; }
@@ -1193,4 +1194,24 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .schedule-matrix-bands .schedule-matrix-wrap { overflow-x: auto; }
   .schedule-matrix-bands .schedule-matrix { min-width: calc(66px + var(--matrix-columns) * 50px); }
   .schedule-matrix-bands .matrix-slot { height: 32px; gap: 3px; }
+}
+.schedule-timeline .matrix-person-column { width: 100px; }
+.schedule-timeline .matrix-person strong { white-space: nowrap; }
+.schedule-timeline .schedule-matrix tbody th { padding: 2px 6px; }
+.schedule-timeline .matrix-slot { height: 42px; }
+.schedule-timeline .matrix-slot-tight { padding: 1px 0; }
+.schedule-timeline .matrix-slot-tight .matrix-ticket-code { font-size: 9px; letter-spacing: -.4px; }
+.schedule-timeline .schedule-matrix thead th { font-size: 10px; padding: 2px 0; }
+.schedule-timeline .timeline-range { display: block; margin-top: 1px; font-size: 8px; font-weight: 500; }
+.schedule-timeline .schedule-matrix thead .timeline-hour { color: var(--navy); background: #eaf0f9; font-weight: 800; }
+.schedule-timeline .matrix-timeline-padding { border: 0; background: #fafcff; }
+@media (max-width:899px) {
+  .schedule-timeline .schedule-matrix { min-width: calc(100px + var(--matrix-columns) * var(--timeline-track-width)); }
+  .schedule-timeline .matrix-slot { height: 42px; }
+}
+@media (max-width:1100px) {
+  .public-live-current .current-ticket-card.ticket-state-closed > strong { font-size: 14px; }
+}
+@media (min-width:900px) and (max-width:1100px) {
+  .public-direct-content .public-agenda-layout { grid-template-columns: minmax(0,1fr) 180px; }
 }
