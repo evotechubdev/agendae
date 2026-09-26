@@ -403,12 +403,13 @@ function publicSchedule(establishment) {
     const selected = state.booking.step < 3 && state.booking.professional === professional.name && state.booking.time;
     const cells = professional.periods.map((time) => {
       if (!time) return '<td class="matrix-unavailable"><span aria-label="Sem horário cadastrado">—</span></td>';
-        const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
-        const status = ticketState({ date: state.booking.date, time, booked: Boolean(appointment), currentTime, paused, status: appointment?.status }, clock);
-        const chosen = selected === time;
-        const label = `${professional.name}, ${time}, ${TICKET_STATES[status]}${chosen ? ", selecionado" : ""}`;
-        const action = status === "free" ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"` : 'disabled';
-        return `<td><button class="matrix-slot ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><span aria-hidden="true">${chosen ? "✓" : status === "free" ? "+" : status === "paused" ? "Ⅱ" : status === "in-service" ? "●" : status === "reserved" ? "•" : "—"}</span></button></td>`;
+      const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
+      const status = ticketState({ date: state.booking.date, time, booked: Boolean(appointment), currentTime, paused, status: appointment?.status }, clock);
+      const ticket = scheduledTicket(establishment, time, professional.name, appointment?.service);
+      const chosen = selected === time;
+      const label = `${ticket}, ${professional.name}, ${time}, ${TICKET_STATES[status]}${chosen ? ", selecionado" : ""}`;
+      const action = status === "free" ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"` : 'disabled';
+      return `<td><button class="matrix-slot ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">${escapeHTML(ticket)}</strong><i class="matrix-status-dot" aria-hidden="true">${chosen ? "✓" : ""}</i></button></td>`;
     }).join("");
     const action = selected ? `<button class="matrix-book-button" type="button" data-booking-next aria-label="Agendar ${escapeHTML(selected)} com ${escapeHTML(professional.name)}">Agendar ${escapeHTML(selected)} <span aria-hidden="true">→</span></button>` : "";
     return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span class="matrix-avatar">${escapeHTML(initials(professional.name))}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div>${action}</th>${cells}</tr>`;
