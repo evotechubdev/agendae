@@ -1,5 +1,5 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, TICKET_STATES } from "./queue-model.mjs";
-import { scheduleMatrix, scheduleBands } from "./schedule-model.mjs";
+import { scheduleMatrix, scheduleBands, lunchBreakFor, isLunchTime } from "./schedule-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -104,8 +104,8 @@ function initials(name) {
 
 function professionalDirectory(establishment) {
   return (establishment.professionals || []).map((professional) => typeof professional === "string"
-    ? { name: professional, availableTimes: establishment.availableTimes || [] }
-    : professional
+    ? { name: professional, availableTimes: establishment.availableTimes || [], lunchBreak: lunchBreakFor(establishment, professional) }
+    : { ...professional, lunchBreak: lunchBreakFor(establishment, professional.name) }
   );
 }
 
@@ -136,6 +136,7 @@ function professionalIsOnShift(professional, date = isoDate()) {
   if (!times.length) return false;
   const clock = currentSaoPauloClock();
   if (clock.date !== date) return false;
+  if (isLunchTime(professional.lunchBreak, clock.minutes)) return false;
   const toMinutes = (time) => {
     const [hour, minute] = String(time).split(":").map(Number);
     return (hour * 60) + minute;
@@ -243,7 +244,7 @@ async function reconcileProfessionalCoverage(establishment, data) {
       const staffStatus = staffStatusFor(data, professional.name);
       const current = appointments.find((item) => item.status === "atendendo");
       const hasEligible = appointments.some((item) => ["presente", "confirmado"].includes(item.status));
-      if (professionalIsPaused(data, professional.name, date)) continue;
+      if (professionalIsPaused(data, professional.name, date) || isLunchTime(professional.lunchBreak, currentSaoPauloClock().minutes)) continue;
       if (current) {
         if (staffStatus.currentAppointmentId !== current.id || staffStatus.currentDate !== date) {
           const synchronized = await firebaseApi.startNextProfessionalAppointment(establishment.slug, professional.name, date);
@@ -404,6 +405,10 @@ function publicSchedule(establishment) {
     const selected = state.booking.step < 3 && state.booking.professional === professional.name && state.booking.time;
     const cells = professional.periods.slice(start, end).map((time) => {
       if (!time) return '<td class="matrix-unavailable"><span aria-label="Sem horário cadastrado">—</span></td>';
+      if (isLunchTime(professional.lunchBreak, time)) {
+        const label = `Pausado, almoço de ${professional.name}, ${professional.lunchBreak.start} às ${professional.lunchBreak.end}`;
+        return `<td><button class="matrix-slot ticket-state-paused" type="button" disabled aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">Pausado</strong><i class="matrix-status-dot" aria-hidden="true"></i></button></td>`;
+      }
       const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
       const status = ticketState({ date: state.booking.date, time, booked: Boolean(appointment), currentTime, paused, status: appointment?.status }, clock);
       const ticket = scheduledTicket(establishment, time, professional.name, appointment?.service);
@@ -623,6 +628,7 @@ function ensureQueueSubscription(establishment) {
   if (queueSubscription) queueSubscription();
   queueSubscriptionSlug = establishment.slug;
   queueSubscription = firebaseApi.observePublicState(establishment.slug, (live) => {
+    if (live.professionalLunchBreaks) establishment.professionalLunchBreaks = live.professionalLunchBreaks;
     const prefix = `public:${establishment.slug}:`;
     const keys = [...cloudCache.keys()].filter((key) => key.startsWith(prefix));
     if (!keys.length) keys.push(publicCacheKey(establishment, isoDate()));
@@ -640,7 +646,7 @@ function professionalAvailability(establishment, data, date = isoDate()) {
   return professionalDirectory(establishment).map((professional) => ({
     ...professional,
     freeTimes: (professional.availableTimes || []).filter((time) =>
-      !slotHasPassed(date, time) && !slots.some((slot) => slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name))
+      !slotHasPassed(date, time) && !isLunchTime(professional.lunchBreak, time) && !slots.some((slot) => slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name))
     ),
   }));
 }
@@ -648,7 +654,8 @@ function professionalAvailability(establishment, data, date = isoDate()) {
 function availableTimesFor(establishment, data, date = isoDate()) {
   if (!usesEmployeeSchedules(establishment)) {
     const busy = new Set((data.slots || []).map((slot) => slot.time));
-    return (establishment.availableTimes || []).filter((time) => !slotHasPassed(date, time) && !busy.has(time));
+    const professionals = professionalDirectory(establishment);
+    return (establishment.availableTimes || []).filter((time) => !slotHasPassed(date, time) && !busy.has(time) && professionals.some((professional) => !isLunchTime(professional.lunchBreak, time)));
   }
   return [...new Set(professionalAvailability(establishment, data, date).flatMap((professional) => professional.freeTimes))].sort();
 }
@@ -663,8 +670,9 @@ function staffSchedulesMarkup(establishment, data) {
     const current = data.appointments.find((item) => item.professional === professional.name && item.status === "atendendo");
     const paused = professionalIsPaused(data, professional.name);
     const onShift = professionalIsOnShift(professional);
-    const label = paused ? "Pausado" : onShift ? `Em Atendimento${current ? ` · ${current.time}` : ""}` : "Fora do expediente";
-    const statusClass = paused ? "paused" : onShift ? "in-service" : "off-shift";
+    const onLunch = isLunchTime(professional.lunchBreak, currentSaoPauloClock().minutes);
+    const label = paused || onLunch ? "Pausado" : onShift ? `Em Atendimento${current ? ` · ${current.time}` : ""}` : "Fora do expediente";
+    const statusClass = paused || onLunch ? "paused" : onShift ? "in-service" : "off-shift";
     return `<section class="staff-schedule"><div class="staff-schedule-head"><span class="client-avatar">${initials(professional.name)}</span><span class="staff-schedule-person"><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")} · ${professional.freeTimes.length} livres</small></span><span class="staff-operational-status ${statusClass}">${escapeHTML(label)}</span></div><button class="staff-pause-button ${paused ? "resume" : ""}" type="button" data-toggle-professional-pause data-professional-name="${escapeHTML(professional.name)}" data-paused="${paused}">${paused ? "Retomar atendimento" : "Pausar atendimento"}</button><div class="staff-time-list">${professional.freeTimes.length ? professional.freeTimes.map((time) => `<span class="free-slot">${time}</span>`).join("") : '<span class="staff-full">Agenda preenchida</span>'}</div></section>`;
   }).join("");
 }
@@ -697,6 +705,13 @@ function compactBusinessHours(establishment) {
     saturday?.value ? `<span><strong>Sáb</strong> ${escapeHTML(range(saturday.value))}</span>` : "",
   ].filter(Boolean);
   return parts.join('<i aria-hidden="true">•</i>') || `<span>${escapeHTML(establishment.todayHours || "Consulte o funcionamento")}</span>`;
+}
+
+function lunchSchedulesMarkup(establishment) {
+  return `<section class="panel lunch-config-panel"><div class="panel-head"><div><h2>Horários de almoço</h2><p>Defina o intervalo de cada profissional. Durante o almoço, o atendimento fica pausado.</p></div></div><div class="lunch-config-list">${professionalDirectory(establishment).map((professional) => {
+    const interval = professional.lunchBreak;
+    return `<form class="lunch-config-form" data-lunch-form data-professional-name="${escapeHTML(professional.name)}"><strong>${escapeHTML(professional.name)}</strong><label>Início<input type="time" name="start" value="${interval?.start || ""}" aria-label="Início do almoço de ${escapeHTML(professional.name)}"></label><label>Fim<input type="time" name="end" value="${interval?.end || ""}" aria-label="Fim do almoço de ${escapeHTML(professional.name)}"></label><button type="submit" class="btn btn-primary btn-sm">Salvar</button><small>Deixe os dois campos vazios para remover o intervalo.</small></form>`;
+  }).join("")}</div></section>`;
 }
 
 function renderEstablishmentPublic(establishment) {
@@ -783,6 +798,7 @@ function renderAdmin(establishment) {
     <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}?public=1#agendar`)}" data-link>+ Novo agendamento</a></div></header>
       <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
       ${adminCheckInPanel(establishment, today)}
+      ${lunchSchedulesMarkup(establishment)}
       <section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Essa configuração vale para todos os novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="employee"><span>♙</span><strong>Agenda por funcionário</strong><small>Cada profissional tem seus próprios horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="establishment"><span>▣</span><strong>Agenda do estabelecimento</strong><small>Uma única grade compartilhada pela equipe.</small></button></div></section>
       <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p><span data-appointment-count>${today.length}</span> horários agendados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-search"><span class="appointment-search-icon" aria-hidden="true">⌕</span><input type="search" value="${escapeHTML(state.appointmentQuery)}" data-appointment-search aria-label="Pesquisar agendamento pelo nome ou senha" placeholder="Pesquisar por nome completo ou senha"><button type="button" data-clear-appointment-search aria-label="Limpar pesquisa" ${state.appointmentQuery ? "" : "hidden"}>×</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(establishment, data)}<section class="panel staff-availability-panel"><div class="panel-head"><div><h2>${usesEmployeeSchedules(establishment) ? "Agenda por profissional" : "Agenda do estabelecimento"}</h2><p>${usesEmployeeSchedules(establishment) ? "Disponibilidade individual de hoje" : "Disponibilidade compartilhada de hoje"}</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></div>
     </main></div>`;
@@ -794,6 +810,7 @@ function renderAdmin(establishment) {
   void loadCheckInConfig(establishment);
   adminRefreshTimer = setInterval(() => {
     if (route() !== establishment.slug || session()?.slug !== establishment.slug || new URLSearchParams(location.search).get("public") === "1") return;
+    if (document.activeElement?.closest("[data-lunch-form]")) return;
     cloudCache.delete(`admin:${establishment.slug}`);
     void refreshCloudData(establishment, "admin");
   }, 10000);
@@ -1190,6 +1207,32 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (event.target.matches("[data-lunch-form]")) {
+    const establishment = activeEstablishment();
+    if (!establishment || session()?.slug !== establishment.slug || !firebaseApi) return;
+    const form = new FormData(event.target);
+    const professionalName = event.target.dataset.professionalName;
+    const start = String(form.get("start") || "");
+    const end = String(form.get("end") || "");
+    const interval = start || end ? { start, end } : null;
+    if (interval && !lunchBreakFor({ ...establishment, professionalLunchBreaks: { [professionalName]: interval } }, professionalName)) {
+      toast("Informe início e fim do almoço, com o fim após o início.", "!");
+      return;
+    }
+    const button = event.target.querySelector("button[type=submit]");
+    button.disabled = true;
+    try {
+      establishment.professionalLunchBreaks = await firebaseApi.updateProfessionalLunchBreak(establishment.slug, professionalName, interval);
+      state.booking.time = null;
+      invalidatePublicCache(establishment.slug);
+      render();
+      toast(`Almoço de ${professionalName} atualizado.`);
+    } catch (error) {
+      button.disabled = false;
+      toast(firebaseApi.firebaseErrorMessage(error), "!");
+    }
+    return;
+  }
   if (event.target.id === "public-appointment-search-form") {
     const establishment = activeEstablishment();
     const lookupMethod = state.publicLookup.method;

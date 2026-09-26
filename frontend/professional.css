@@ -386,6 +386,14 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .free-slots { padding: 18px; display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
 .free-slot { height: 39px; display: grid; place-items: center; border: 1px dashed #b8c7dd; border-radius: 9px; color: var(--blue); background: #f9fbff; font-size: 11px; font-weight: 800; }
 .staff-schedules { padding: 8px 18px 18px; display: grid; gap: 6px; }
+.lunch-config-panel { margin-bottom: 18px; }
+.lunch-config-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: 12px; padding: 0 18px 18px; }
+.lunch-config-form { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.lunch-config-form > strong,.lunch-config-form > small { grid-column: 1/-1; }
+.lunch-config-form > strong { font-size: 12px; }
+.lunch-config-form label { display: grid; gap: 4px; color: var(--muted); font-size: 10px; }
+.lunch-config-form input { width: 100%; min-width: 0; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+.lunch-config-form > small { color: var(--muted); font-size: 9px; }
 .staff-schedule { padding: 14px 0; border-bottom: 1px solid var(--line); }
 .staff-schedule:last-child { border-bottom: 0; }
 .staff-schedule-head { display: flex; align-items: center; gap: 10px; }

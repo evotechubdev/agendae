@@ -1,4 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import { lunchBreakFor, isLunchTime } from "./schedule-model.mjs";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
@@ -167,6 +168,19 @@ export async function updateScheduleMode(slug, scheduleMode) {
   });
 }
 
+export async function updateProfessionalLunchBreak(slug, professionalName, interval) {
+  const reference = doc(db, "establishments", slug);
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    const establishment = snapshot.data();
+    if (!establishment || !(establishment.professionals || []).some((item) => (typeof item === "string" ? item : item.name) === professionalName)) throw new Error("Profissional não encontrado.");
+    if (interval && !lunchBreakFor({ ...establishment, professionalLunchBreaks: { [professionalName]: interval } }, professionalName)) throw new Error("Informe um intervalo de almoço válido.");
+    const professionalLunchBreaks = { ...establishment.professionalLunchBreaks, [professionalName]: interval };
+    transaction.update(reference, { professionalLunchBreaks, updatedAt: serverTimestamp() });
+    return professionalLunchBreaks;
+  });
+}
+
 export async function loadPublicData(slug, date) {
   const stateRef = doc(db, "establishments", slug, "public", "state");
   const slotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", date));
@@ -220,9 +234,15 @@ export function observePublicState(slug, callback) {
   let queue = [];
   let staffStatuses = [];
   let todaySlots = null;
+  let professionalLunchBreaks = null;
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
   const todaySlotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", today));
-  const emit = () => callback({ queue, staffStatuses, ...(todaySlots ? { todaySlots } : {}) });
+  const emit = () => callback({ queue, staffStatuses, ...(todaySlots ? { todaySlots } : {}), ...(professionalLunchBreaks ? { professionalLunchBreaks } : {}) });
+  const unsubscribeEstablishment = onSnapshot(doc(db, "establishments", slug), (snapshot) => {
+    const establishment = snapshot.data() || {};
+    professionalLunchBreaks = { ...Object.fromEntries((establishment.professionals || []).filter((item) => item.lunchBreak).map((item) => [item.name, item.lunchBreak])), ...establishment.professionalLunchBreaks };
+    emit();
+  }, () => emit());
   const unsubscribeQueue = onSnapshot(stateRef, (snapshot) => {
     const publicState = snapshot.exists() ? snapshot.data() : {};
     const current = publicState.current || (publicState.currentTicket ? { ticket: publicState.currentTicket } : null);
@@ -247,6 +267,7 @@ export function observePublicState(slug, callback) {
     unsubscribeQueue();
     unsubscribeStaff();
     unsubscribeSlots();
+    unsubscribeEstablishment();
   };
 }
 
@@ -290,11 +311,17 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
     : [slotRef, sharedSlotRef];
 
   await runTransaction(db, async (transaction) => {
-    const [existingSlots, lookupSnapshot, codeLookupSnapshot] = await Promise.all([
+    const [existingSlots, lookupSnapshot, codeLookupSnapshot, establishmentSnapshot] = await Promise.all([
       Promise.all(refsToCheck.map((reference) => transaction.get(reference))),
       transaction.get(lookupRef),
       transaction.get(codeLookupRef),
+      transaction.get(doc(db, "establishments", slug)),
     ]);
+    if (isLunchTime(lunchBreakFor(establishmentSnapshot.data() || {}, appointment.professional), appointment.time)) {
+      const error = new Error("Este profissional está em horário de almoço. Escolha outro horário.");
+      error.code = "agendae/slot-unavailable";
+      throw error;
+    }
     if (existingSlots.some((snapshot) => snapshot.exists())) {
       const error = new Error("Este horário acabou de ser reservado. Escolha outro.");
       error.code = "agendae/slot-unavailable";
@@ -405,10 +432,16 @@ export async function startProfessionalAppointment(slug, appointmentId, professi
   const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentId);
   const statusRef = doc(db, "establishments", slug, "staffStatus", documentKey(professional));
   return runTransaction(db, async (transaction) => {
-    const [appointmentSnapshot, statusSnapshot] = await Promise.all([transaction.get(appointmentRef), transaction.get(statusRef)]);
+    const [appointmentSnapshot, statusSnapshot, establishmentSnapshot] = await Promise.all([transaction.get(appointmentRef), transaction.get(statusRef), transaction.get(doc(db, "establishments", slug))]);
     if (!appointmentSnapshot.exists()) throw new Error("Atendimento não encontrado.");
     const appointment = appointmentSnapshot.data();
     const staffStatus = statusSnapshot.exists() ? statusSnapshot.data() : {};
+    const time = new Date().toLocaleTimeString("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    if (isLunchTime(lunchBreakFor(establishmentSnapshot.data() || {}, professional), time)) {
+      const error = new Error("Este profissional está em horário de almoço. O atendimento está pausado.");
+      error.code = "agendae/professional-paused";
+      throw error;
+    }
     if (staffStatus.paused && (!staffStatus.pausedDate || staffStatus.pausedDate === date)) {
       const error = new Error("Retome o atendimento do profissional antes de iniciar o próximo cliente.");
       error.code = "agendae/professional-paused";
