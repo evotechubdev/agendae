@@ -412,7 +412,7 @@ function publicSchedule(establishment) {
       const action = status === "free" ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"` : 'disabled';
       return `<td><button class="matrix-slot ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">${escapeHTML(ticket)}</strong><i class="matrix-status-dot" aria-hidden="true">${chosen ? "✓" : ""}</i></button></td>`;
     }).join("");
-    return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div></th>${cells}</tr>`;
+    return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span class="matrix-avatar" aria-hidden="true">${escapeHTML(Array.from(professional.name.trim())[0]?.toLocaleUpperCase("pt-BR") || "?")}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div></th>${cells}</tr>`;
   }).join("");
   const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
   const bookingAction = state.booking.time && state.booking.professional && state.booking.step < 3 ? `<button class="matrix-book-button" type="button" data-booking-next aria-label="Agendar ${escapeHTML(state.booking.time)} com ${escapeHTML(state.booking.professional)}">${escapeHTML(state.booking.professional)} · ${escapeHTML(state.booking.time)} <span>Agendar →</span></button>` : "";
