@@ -1198,18 +1198,22 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-timeline .matrix-person-column { width: 100px; }
 .schedule-timeline .matrix-person strong { white-space: nowrap; }
 .schedule-timeline .schedule-matrix tbody th { padding: 2px 6px; }
-.schedule-timeline .matrix-slot { height: 42px; }
+.schedule-timeline .matrix-slot { height: 48px; padding: 1px 0; }
+.schedule-timeline .matrix-ticket-code { letter-spacing: -.4px; }
+.matrix-start-time { color: inherit; font-size: 9px; font-weight: 500; line-height: 1; }
+.schedule-timeline .schedule-matrix-wrap { position: relative; }
+.timeline-end-label { position: absolute; top: 9px; right: 3px; z-index: 1; color: var(--navy); font-size: 9px; font-weight: 700; }
 .matrix-pause-reason { color: inherit; font-size: 9px; font-weight: 500; line-height: 1; }
 .current-ticket-card .current-ticket-reason { color: var(--ticket-color); font-size: 10px; line-height: 1.1; }
 .schedule-timeline .matrix-slot-tight { padding: 1px 0; }
 .schedule-timeline .matrix-slot-tight .matrix-ticket-code { font-size: 9px; letter-spacing: -.4px; }
-.schedule-timeline .schedule-matrix thead th { font-size: 10px; padding: 2px 0; }
+.schedule-timeline .schedule-matrix thead th { position: relative; font-size: 10px; padding: 2px 3px; text-align: left; }
 .schedule-timeline .timeline-range { display: block; margin-top: 1px; font-size: 8px; font-weight: 500; }
 .schedule-timeline .schedule-matrix thead .timeline-hour { color: var(--navy); background: #eaf0f9; font-weight: 800; }
 .schedule-timeline .matrix-timeline-padding { border: 0; background: #fafcff; }
 @media (max-width:899px) {
   .schedule-timeline .schedule-matrix { min-width: calc(100px + var(--matrix-columns) * var(--timeline-track-width)); }
-  .schedule-timeline .matrix-slot { height: 42px; }
+  .schedule-timeline .matrix-slot { height: 48px; }
 }
 @media (max-width:1100px) {
   .public-live-current .current-ticket-card.ticket-state-closed > strong { font-size: 14px; }

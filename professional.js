@@ -393,7 +393,7 @@ function bookingContent(establishment) {
 
 function publicSchedule(establishment) {
   const data = getData(establishment);
-  const { times, professionals, step, majorStep } = scheduleTimeline(establishment);
+  const { times, professionals, step, majorStep, startTime, endTime } = scheduleTimeline(establishment);
   const clock = currentSaoPauloClock();
   const isToday = state.booking.date === clock.date;
   const renderRows = (start, end) => professionals.map((professional) => {
@@ -417,7 +417,7 @@ function publicSchedule(establishment) {
       const chosen = selected === time;
       const label = `${ticket}, ${professional.name}, ${time}, ${TICKET_STATES[status]}${chosen ? ", selecionado" : ""}`;
       const action = status === "free" ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"` : 'disabled';
-      return `<td colspan="${span}"><button class="matrix-slot ${span * step <= 20 ? "matrix-slot-tight" : ""} ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">${escapeHTML(ticket)}</strong><i class="matrix-status-dot" aria-hidden="true">${chosen ? "✓" : ""}</i></button></td>`;
+      return `<td colspan="${span}"><button class="matrix-slot ${span * step <= 20 ? "matrix-slot-tight" : ""} ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">${escapeHTML(ticket)}</strong><small class="matrix-start-time">${escapeHTML(time)}</small><i class="matrix-status-dot" aria-hidden="true">${chosen ? "✓" : ""}</i></button></td>`;
     }).join("");
     return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span class="matrix-avatar" aria-hidden="true">${escapeHTML(Array.from(professional.name.trim())[0]?.toLocaleUpperCase("pt-BR") || "?")}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div></th>${cells}</tr>`;
   }).join("");
@@ -425,16 +425,14 @@ function publicSchedule(establishment) {
   const bookingAction = state.booking.time && state.booking.professional && state.booking.step < 3 ? `<button class="matrix-book-button" type="button" data-booking-next aria-label="Agendar ${escapeHTML(state.booking.time)} com ${escapeHTML(state.booking.professional)}">${escapeHTML(state.booking.professional)} · ${escapeHTML(state.booking.time)} <span>Agendar →</span></button>` : "";
   const toolbar = `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div>${ticketStatusLegend()}${bookingAction}</div>`;
   if (!professionals.length || !times.length) return `${toolbar}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
-  const width = Math.min(1180, window.innerWidth - 36) - (window.innerWidth >= 900 ? window.innerWidth <= 1100 ? 190 : 240 : 0) - 24;
   const unitsPerHeading = majorStep / step;
-  const majorColumns = Math.max(3, Math.min(18, Math.floor((width - 100) / 32 / 3) * 3));
-  const bands = scheduleBands(times, window.innerWidth >= 900 ? majorColumns * unitsPerHeading : times.length);
+  const bands = scheduleBands(times, times.length);
   const columns = Math.max(...bands.map((band) => band.times.length));
-  return `${toolbar}<div class="schedule-matrix-bands schedule-timeline" style="--matrix-bands:${bands.length};--timeline-track-width:${32 / unitsPerHeading}px">${bands.map((band) => {
-    const headers = band.times.flatMap((time, index) => index % unitsPerHeading ? [] : [`<th scope="col" colspan="${Math.min(unitsPerHeading, band.times.length - index)}" class="${time.endsWith(":00") ? "timeline-hour" : ""}"><time datetime="${time}" title="${time}">${time}</time></th>`]).join("");
+  return `${toolbar}<div class="schedule-matrix-bands schedule-timeline" style="--matrix-bands:${bands.length};--timeline-track-width:${66 / unitsPerHeading}px">${bands.map((band) => {
+    const headers = band.times.flatMap((time, index) => index % unitsPerHeading ? [] : [`<th scope="col" colspan="${Math.min(unitsPerHeading, band.times.length - index)}" class="timeline-hour"><time datetime="${time}" title="${time}">${time}</time>${index + unitsPerHeading >= band.times.length ? `<span class="timeline-end-label">${endTime}</span>` : ""}</th>`]).join("");
     const padding = columns - band.times.length;
     const rows = renderRows(band.start, band.end).replaceAll("</tr>", `${padding ? `<td colspan="${padding}" class="matrix-timeline-padding"></td>` : ""}</tr>`);
-    return `<div class="schedule-matrix-wrap" data-schedule-matrix aria-label="Horários de ${band.times[0]} a ${band.times.at(-1)}"><table class="schedule-matrix" style="--matrix-columns:${columns}"><caption>Linha do tempo de ${band.times[0]} a ${band.times.at(-1)}, em intervalos de 20 minutos</caption><colgroup><col class="matrix-person-column">${Array.from({ length: columns }, () => "<col>").join("")}</colgroup><thead><tr><th scope="col">Equipe<small class="timeline-range">${band.times[0]}–${band.times.at(-1)}</small></th>${headers}${padding ? `<th colspan="${padding}" class="matrix-timeline-padding"></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<div class="schedule-matrix-wrap" data-schedule-matrix aria-label="Expediente completo de ${startTime} a ${endTime}"><table class="schedule-matrix" style="--matrix-columns:${columns}"><caption>Expediente completo de ${startTime} a ${endTime}, em intervalos de uma hora</caption><colgroup><col class="matrix-person-column">${Array.from({ length: columns }, () => "<col>").join("")}</colgroup><thead><tr><th scope="col">Equipe<small class="timeline-range">${startTime}–${endTime}</small></th>${headers}${padding ? `<th colspan="${padding}" class="matrix-timeline-padding"></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>`;
   }).join("")}</div>`;
 }
 

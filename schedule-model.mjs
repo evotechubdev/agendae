@@ -39,16 +39,20 @@ export function scheduleBands(times, columns) {
 
 export function scheduleTimeline(establishment) {
   const matrix = scheduleMatrix(establishment);
-  if (!matrix.times.length) return { ...matrix, step: 20, majorStep: 20 };
-  // Keep twenty-minute headings, with smaller internal tracks for exact times such as 08:15.
+  if (!matrix.times.length) return { ...matrix, step: 60, majorStep: 60 };
+  // Hourly headings share exact internal tracks for each professional's start times.
   const gcd = (a, b) => b ? gcd(b, a % b) : a;
-  const first = Math.floor(minutes(matrix.times[0]) / 20) * 20;
+  const openingHours = (establishment.hours || []).flatMap((item) => {
+    const matches = [...String(item.value || "").matchAll(/\b(\d{1,2}):(\d{2})\b/g)].map((match) => Number(match[1]) * 60 + Number(match[2])).filter((value) => value >= 0 && value <= 1440);
+    return matches.length >= 2 && matches[1] > matches[0] ? [{ start: matches[0], end: matches[1] }] : [];
+  });
+  const first = Math.floor(Math.min(minutes(matrix.times[0]), ...openingHours.map((item) => item.start)) / 60) * 60;
   const slotDuration = (professional) => {
     const gaps = professional.availableTimes.slice(1).map((time, index) => minutes(time) - minutes(professional.availableTimes[index])).filter((gap) => gap > 0 && gap <= 120).sort((a, b) => a - b);
     return gaps.length ? gaps[Math.floor((gaps.length - 1) / 2)] : 30;
   };
-  const step = matrix.professionals.filter((professional) => professional.availableTimes.length).reduce((value, professional) => gcd(value, slotDuration(professional)), matrix.times.reduce((value, time) => gcd(value, minutes(time)), 20));
-  const last = Math.min(1440, Math.ceil(Math.max(minutes(matrix.times.at(-1)), ...matrix.professionals.filter((professional) => professional.availableTimes.length).map((professional) => minutes(professional.availableTimes.at(-1)) + slotDuration(professional))) / 20) * 20);
+  const step = matrix.professionals.filter((professional) => professional.availableTimes.length).reduce((value, professional) => gcd(value, slotDuration(professional)), matrix.times.reduce((value, time) => gcd(value, minutes(time)), 60));
+  const last = Math.min(1440, Math.ceil(Math.max(minutes(matrix.times.at(-1)), ...openingHours.map((item) => item.end), ...matrix.professionals.filter((professional) => professional.availableTimes.length).map((professional) => minutes(professional.availableTimes.at(-1)) + slotDuration(professional))) / 60) * 60);
   const times = Array.from({ length: (last - first) / step }, (_, index) => {
     const value = first + index * step;
     return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
@@ -69,5 +73,6 @@ export function scheduleTimeline(establishment) {
     });
     return { ...professional, segments };
   });
-  return { times, professionals, step, majorStep: 20 };
+  const formatTime = (value) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+  return { times, professionals, step, majorStep: 60, startTime: formatTime(first), endTime: formatTime(last) };
 }
