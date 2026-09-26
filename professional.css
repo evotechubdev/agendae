@@ -1013,3 +1013,4 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .queue-row[class*="ticket-state-"],.monitor-waiting-row[class*="ticket-state-"] { margin: 5px 0; padding: 6px; border: 1px solid var(--ticket-color); border-radius: 8px; }
 .public-professional-schedule header .professional-status.in-service,.staff-operational-status.in-service { border: 1px solid #185ac7; color: #185ac7; background: #edf4ff; }
 .public-professional-schedule header .professional-status.paused,.staff-operational-status.paused { border: 1px solid #c92525; color: #c92525; background: #fff0f0; }
+.queue-board,.queue-display-content { grid-template-columns: minmax(0,1fr); }
