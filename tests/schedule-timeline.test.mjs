@@ -4,11 +4,12 @@ import { scheduleTimeline, scheduleBands } from "../frontend/schedule-model.mjs"
 
 const minutes = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
 
-test("linha do tempo possui marcas de vinte minutos sem criar horários para reserva", () => {
+test("linha do tempo possui marcas de uma hora sem criar horários para reserva", () => {
   const timeline = scheduleTimeline({ professionals: [{ name: "A", availableTimes: ["08:00", "08:40", "09:20"] }, { name: "B", availableTimes: ["08:30", "09:00"] }] });
   assert.equal(timeline.step, 10);
-  assert.equal(timeline.majorStep, 20);
-  assert.deepEqual(timeline.times.filter((_, index) => index % (timeline.majorStep / timeline.step) === 0).slice(0, 4), ["08:00", "08:20", "08:40", "09:00"]);
+  assert.equal(timeline.majorStep, 60);
+  assert.deepEqual(timeline.times.filter((_, index) => index % (timeline.majorStep / timeline.step) === 0), ["08:00", "09:00"]);
+  assert.equal(timeline.endTime, "10:00");
   assert.ok(timeline.times.includes("08:10"));
   assert.ok(timeline.times.slice(1).every((time, index) => minutes(time) - minutes(timeline.times[index]) === 10));
   assert.deepEqual(timeline.professionals[0].segments.filter((segment) => segment.type === "slot").map((segment) => segment.time), ["08:00", "08:40", "09:20"]);
@@ -16,10 +17,10 @@ test("linha do tempo possui marcas de vinte minutos sem criar horários para res
   assert.equal(timeline.professionals[1].segments[0].type, "unavailable");
 });
 
-test("horários entre marcas de vinte minutos conservam a posição e o horário exatos", () => {
+test("horários entre marcas de uma hora conservam a posição e o horário exatos", () => {
   const timeline = scheduleTimeline({ professionals: [{ name: "A", availableTimes: ["08:15", "08:45", "09:15"] }] });
-  assert.equal(timeline.majorStep, 20);
-  assert.equal(timeline.step, 5);
+  assert.equal(timeline.majorStep, 60);
+  assert.equal(timeline.step, 15);
   const slots = timeline.professionals[0].segments.filter((segment) => segment.type === "slot");
   assert.deepEqual(slots.map((segment) => timeline.times[segment.start]), ["08:15", "08:45", "09:15"]);
   assert.deepEqual(slots.map((segment) => segment.time), ["08:15", "08:45", "09:15"]);
@@ -39,6 +40,14 @@ test("almoço ocupa seu intervalo inteiro e cada linha cobre todas as colunas se
 
 test("agenda vazia não inventa horários ou senhas", () => {
   assert.deepEqual(scheduleTimeline({ professionals: [] }).times, []);
+});
+
+test("expediente completo aparece mesmo quando a agenda individual cobre apenas parte do dia", () => {
+  const timeline = scheduleTimeline({ hours: [{ label: "Segunda a sexta", value: "08:00 — 19:00" }, { label: "Sábado", value: "08:00 — 17:00" }], professionals: [{ name: "A", availableTimes: ["10:00", "10:40", "11:20"] }] });
+  assert.equal(timeline.startTime, "08:00");
+  assert.equal(timeline.endTime, "19:00");
+  assert.equal(timeline.professionals[0].segments[0].type, "unavailable");
+  assert.deepEqual(timeline.professionals[0].segments.filter((segment) => segment.type === "slot").map((segment) => segment.time), ["10:00", "10:40", "11:20"]);
 });
 
 test("horário que começou durante o almoço não vira reserva disponível ao retornar", () => {

@@ -76,6 +76,7 @@ test("agenda exibe Pausado em vermelho para almoço em vez de senha agendável",
   assert.match(html, /matrix-ticket-code">Pausado<\/strong>/);
   assert.match(html, /<strong class="matrix-ticket-code">Pausado<\/strong><small class="matrix-pause-reason">Almoço<\/small>/);
   assert.match(html, /<time datetime="\d{2}:\d{2}" title="\d{2}:\d{2}">\d{2}:\d{2}<\/time>/);
+  assert.match(html, /<small class="matrix-start-time">11:30<\/small>/);
 });
 
 const apiSource = readFileSync(new URL("../frontend/firebase-service.js", import.meta.url), "utf8");
