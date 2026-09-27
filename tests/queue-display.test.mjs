@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { TICKET_STATES, allProfessionalsClosed } from "../frontend/queue-model.mjs";
-import { businessOpeningMinutes } from "../frontend/schedule-model.mjs";
+import { businessOpeningMinutes, businessDayIsClosed } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
-const context = vm.createContext({ TICKET_STATES, allProfessionalsClosed, businessOpeningMinutes, escapeHTML: (value) => String(value) });
+const context = vm.createContext({ TICKET_STATES, allProfessionalsClosed, businessOpeningMinutes, businessDayIsClosed, escapeHTML: (value) => String(value) });
 vm.runInContext(source.slice(source.indexOf("function queueDetail("), source.indexOf("function ticketStatusLegend(")), context);
 
 test("card encerrado mostra Encerrado e nome sem código ou horário nulo", () => {
@@ -72,4 +72,36 @@ test("abertura respeita o dia, o minuto exato e a grade quando não há horário
   establishment.hours.push({ label: "Segunda", value: "10:00 - 18:00" });
   assert.equal(businessOpeningMinutes(establishment, "2026-09-28"), 600);
   assert.equal(businessOpeningMinutes({ professionals: [{ name: "A", availableTimes: ["09:20"] }, { name: "B", availableTimes: ["08:40"] }] }, "2026-09-28"), 520);
+});
+
+test("domingo fechado mantém o aviso preto sem inventar atendimento ou pausa", () => {
+  context.state = { booking: { date: "2026-09-27" } };
+  context.queueView = () => { throw new Error("Dia fechado não deve gerar posições pausadas"); };
+  const establishment = { hours: [{ label: "Domingo", value: "Fechado" }], professionals: [{ name: "Renam", availableTimes: ["08:00"] }] };
+  for (const minutes of [19, 8 * 60, 12 * 60]) {
+    const html = context.publicCurrentAttendance(establishment, {}, { date: "2026-09-27", minutes });
+    assert.match(html, /live-dot closed/);
+    assert.match(html, /Expediente não Iniciado/);
+    assert.doesNotMatch(html, /Pausado|RSI-/);
+  }
+});
+
+test("a data antiga na tela após meia-noite não impede o aviso antes da abertura de hoje", () => {
+  context.state = { booking: { date: "2026-09-27" } };
+  const establishment = { hours: [{ label: "Segunda a sexta", value: "08:00 - 18:00" }] };
+  const html = context.publicCurrentAttendance(establishment, {}, { date: "2026-09-28", minutes: 19 });
+  assert.match(html, /live-dot closed/);
+  assert.match(html, /Expediente não Iniciado/);
+});
+
+test("painel da equipe e monitor compartilham o aviso anterior ao expediente", () => {
+  vm.runInContext(source.slice(source.indexOf("function queuePanel("), source.indexOf("function ticketLegend(")), context);
+  context.currentSaoPauloClock = () => ({ date: "2026-09-28", minutes: 479 });
+  const establishment = { hours: [{ label: "Segunda a sexta", value: "08:00 - 18:00" }] };
+  const panel = context.queuePanel(establishment, {}, true, false);
+  assert.match(panel, /live-dot closed/);
+  assert.match(panel, /Expediente não Iniciado/);
+  assert.doesNotMatch(panel, /Pausado/);
+  const view = context.attendanceView(establishment, {}, "2026-09-28");
+  assert.match(context.attendanceCards(view, false, true), /Expediente não Iniciado/);
 });

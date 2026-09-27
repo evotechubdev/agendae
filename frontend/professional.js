@@ -1,5 +1,5 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, ticketSubstatus, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
-import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessOpeningMinutes } from "./schedule-model.mjs";
+import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessOpeningMinutes, businessDayIsClosed } from "./schedule-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -696,22 +696,31 @@ function liveStatusDot(current, notStarted = false) {
   return `<span class="live-dot${inactive ? " closed" : ""}" aria-label="${notStarted ? "Expediente não Iniciado" : inactive ? "Todos os profissionais encerrados" : "Atendimento disponível"}"></span>`;
 }
 
-function publicCurrentAttendance(establishment, data, clock = currentSaoPauloClock()) {
+function attendanceView(establishment, data, date, clock = currentSaoPauloClock()) {
   const opening = businessOpeningMinutes(establishment, clock.date);
-  const beforeOpening = state.booking.date === clock.date && opening !== null && clock.minutes < opening;
-  if (state.booking.date > clock.date || beforeOpening) return `${liveStatusDot([], true)}<div><small>Atendendo agora</small><div class="public-live-not-started" role="status">Expediente não Iniciado</div></div>`;
-  const { current } = queueView(establishment, data, clock);
-  return `${liveStatusDot(current)}<div><small>Atendendo agora</small>${currentTicketCards(current)}</div>`;
+  const beforeOpening = opening !== null && clock.minutes < opening;
+  const notStarted = date > clock.date || beforeOpening || businessDayIsClosed(establishment, clock.date);
+  return { notStarted, current: notStarted ? [] : queueView(establishment, data, clock).current };
+}
+
+function attendanceCards(view, showNames = false, monitor = false) {
+  return view.notStarted ? '<div class="public-live-not-started" role="status">Expediente não Iniciado</div>' : currentTicketCards(view.current, showNames, monitor);
+}
+
+function publicCurrentAttendance(establishment, data, clock = currentSaoPauloClock()) {
+  const view = attendanceView(establishment, data, state.booking.date, clock);
+  return `${liveStatusDot(view.current, view.notStarted)}<div><small>Atendendo agora</small>${attendanceCards(view)}</div>`;
 }
 
 function ticketStatusLegend() {
   return `<div class="ticket-status-legend" aria-label="Legenda dos status das senhas">${Object.entries(TICKET_STATES).map(([state, label]) => `<span class="ticket-state-${state}"><i aria-hidden="true"></i>${label}</span>`).join("")}</div>`;
 }
 
-function queuePanel(establishment, data, showNames = true, showHeader = true) {
-  const { current } = queueView(establishment, data, currentSaoPauloClock());
+function queuePanel(establishment, data, showNames = true, showHeader = true, date) {
+  const clock = currentSaoPauloClock();
+  const view = attendanceView(establishment, data, date || clock.date, clock);
   return `<section class="panel queue-panel">${showHeader ? '<div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Uma senha por profissional, no horário atual</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>' : ""}
-    <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small>${currentTicketCards(current, showNames)}</div>
+    <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small>${view.notStarted ? liveStatusDot([], true) : ""}${attendanceCards(view, showNames)}</div>
     </div></section>`;
 }
 
@@ -723,7 +732,7 @@ function ticketLegend(establishment) {
 
 function publicQueueModal(establishment, data) {
   if (!state.queueModalOpen) return "";
-  return `<div class="booking-modal-backdrop" data-public-queue-backdrop><section class="booking-modal public-queue-modal" role="dialog" aria-modal="true" aria-labelledby="public-queue-modal-title"><div class="booking-modal-head"><div><small>ATUALIZAÇÃO EM TEMPO REAL</small><h2 id="public-queue-modal-title">Painel de Senhas</h2></div><button class="booking-modal-close" type="button" data-close-public-queue aria-label="Fechar painel de senhas">×</button></div><div class="public-queue-modal-body">${queuePanel(establishment, data, false, false)}</div></section></div>`;
+  return `<div class="booking-modal-backdrop" data-public-queue-backdrop><section class="booking-modal public-queue-modal" role="dialog" aria-modal="true" aria-labelledby="public-queue-modal-title"><div class="booking-modal-head"><div><small>ATUALIZAÇÃO EM TEMPO REAL</small><h2 id="public-queue-modal-title">Painel de Senhas</h2></div><button class="booking-modal-close" type="button" data-close-public-queue aria-label="Fechar painel de senhas">×</button></div><div class="public-queue-modal-body">${queuePanel(establishment, data, false, false, state.booking.date)}</div></section></div>`;
 }
 
 function ensureQueueSubscription(establishment) {
@@ -950,7 +959,7 @@ function startQueueClock(establishment, monitor = false) {
     const currentPanel = document.querySelector(".public-live-current");
     if (currentPanel) currentPanel.innerHTML = publicCurrentAttendance(establishment, data);
     const modalPanel = document.querySelector(".public-queue-modal .queue-panel");
-    if (modalPanel) modalPanel.outerHTML = queuePanel(establishment, data, false, false);
+    if (modalPanel) modalPanel.outerHTML = queuePanel(establishment, data, false, false, state.booking.date);
     const schedule = document.querySelector(".public-schedule-body");
     if (schedule) { schedule.innerHTML = publicSchedule(establishment); restoreScheduleScroll(); }
   }, 1000);
@@ -959,9 +968,10 @@ function startQueueClock(establishment, monitor = false) {
 function renderQueueDisplay(establishment) {
   document.title = `Painel de senhas · ${establishment.name}`;
   const data = cloudCache.get(publicCacheKey(establishment, isoDate())) || { queue: [], slots: [], todayAppointments: 0 };
-  const { current } = queueView(establishment, data, currentSaoPauloClock());
-  app.innerHTML = `<main class="queue-display"><header class="queue-display-header"><div class="queue-display-brand">${logo()}<span>${escapeHTML(establishment.name)}</span></div><div class="queue-display-status">${liveStatusDot(current)} AO VIVO <strong data-monitor-clock></strong></div></header>
-    <section class="queue-display-content"><div class="queue-display-current"><small>ATENDENDO AGORA</small>${currentTicketCards(current, false, true)}</div>
+  const clock = currentSaoPauloClock();
+  const view = attendanceView(establishment, data, clock.date, clock);
+  app.innerHTML = `<main class="queue-display"><header class="queue-display-header"><div class="queue-display-brand">${logo()}<span>${escapeHTML(establishment.name)}</span></div><div class="queue-display-status">${liveStatusDot(view.current, view.notStarted)} AO VIVO <strong data-monitor-clock></strong></div></header>
+    <section class="queue-display-content"><div class="queue-display-current"><small>ATENDENDO AGORA</small>${attendanceCards(view, false, true)}</div>
     <footer class="queue-display-footer"><span>Acompanhe a ordem e aguarde sua senha ser chamada.</span><div><button class="monitor-action" data-request-fullscreen>⛶ Tela cheia</button><a class="monitor-action" href="${href(`/${establishment.slug}?public=1#painel-senhas`)}" data-link>Fechar painel</a></div></footer></main>`;
   updateMonitorClock();
   startQueueClock(establishment, true);
