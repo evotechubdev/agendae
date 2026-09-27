@@ -93,7 +93,7 @@ function apiContext() {
       set: (ref, value) => writes.push({ ref, value }),
     }),
   });
-  for (const [name, next] of [["updateProfessionalLunchBreak", "loadPublicData"], ["createAppointment", "getOrCreateCheckInConfig"]]) {
+  for (const [name, next] of [["updateProfessionalLunchBreak", "updateProfessionalWorkPeriods"], ["createAppointment", "getOrCreateCheckInConfig"]]) {
     const start = apiSource.indexOf(`export async function ${name}(`);
     const end = apiSource.indexOf(`export async function ${next}(`, start);
     vm.runInContext(apiSource.slice(start, end).replace("export ", ""), context);

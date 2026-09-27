@@ -388,6 +388,20 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .free-slot { height: 39px; display: grid; place-items: center; border: 1px dashed #b8c7dd; border-radius: 9px; color: var(--blue); background: #f9fbff; font-size: 11px; font-weight: 800; }
 .staff-schedules { padding: 8px 18px 18px; display: grid; gap: 6px; }
 .lunch-config-panel { margin-bottom: 18px; }
+.work-config-panel { margin-bottom: 18px; }
+.work-config-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap: 12px; padding: 0 18px 18px; }
+.work-config-form { min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.work-config-heading { display: flex; align-items: center; gap: 9px; }
+.work-config-heading > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.work-config-heading strong { font-size: 12px; }
+.work-config-heading small,.work-config-note { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.work-config-duration { padding: 4px 6px; border-radius: 6px; background: #eef4ff; color: var(--navy); font-size: 9px; font-weight: 700; white-space: nowrap; }
+.work-period-list { display: grid; gap: 8px; }
+.work-period-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 24px; align-items: end; gap: 8px; }
+.work-period-row label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; }
+.work-period-row input { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: #f9fbff; color: var(--ink); }
+.work-period-remove { height: 35px; border: 0; border-radius: 6px; color: #bd2b32; background: #fff0f0; cursor: pointer; }
+.work-config-actions { display: flex; justify-content: space-between; gap: 8px; }
 .lunch-config-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: 12px; padding: 0 18px 18px; }
 .lunch-config-form { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 .lunch-config-form > strong,.lunch-config-form > small { grid-column: 1/-1; }
@@ -1206,7 +1220,10 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .matrix-pause-reason { color: inherit; font-size: 9px; font-weight: 500; line-height: 1; }
 .current-ticket-card .current-ticket-reason { color: var(--ticket-color); font-size: 10px; line-height: 1.1; }
 .schedule-timeline .matrix-slot-tight { padding: 1px 0; }
-.schedule-timeline .matrix-slot-tight .matrix-ticket-code { font-size: 9px; letter-spacing: -.6px; }
+.schedule-timeline .matrix-slot-tight { height: 54px; gap: 2px; }
+.schedule-timeline .matrix-slot-tight .matrix-ticket-code { font-size: 10px; letter-spacing: 0; }
+.schedule-timeline .matrix-slot-tight .matrix-ticket-code span { display: block; line-height: 1.05; }
+.schedule-timeline .matrix-pause-buffer .matrix-ticket-code { font-size: 12px; line-height: 1; }
 .schedule-timeline .schedule-matrix td { padding: 1px 0; }
 .schedule-timeline .schedule-matrix thead th { position: relative; font-size: 10px; padding: 2px 3px; text-align: left; }
 .schedule-timeline .timeline-range { display: block; margin-top: 1px; font-size: 8px; font-weight: 500; }
