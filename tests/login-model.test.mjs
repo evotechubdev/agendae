@@ -2,6 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loginCredentials } from "../frontend/login-model.mjs";
 
+test("admin da barbearia usa exatamente o e-mail informado", () => {
+  assert.deepEqual(loginCredentials(" ADMIN ", "barbeariadorenam"), {
+    email: "barbeariadorenam-admin@agendae.com.br",
+    legacyEmail: "admin@agendae.com.br",
+  });
+});
+
 test("login simples mantém os identificadores atual e antigo", () => {
   assert.deepEqual(loginCredentials(" Rénam ", "barbeariadorenam"), {
     email: "barbeariadorenam-renam@agendae.com.br",
