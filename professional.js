@@ -438,7 +438,7 @@ function publicSchedule(establishment) {
   const periods = scheduleDayPeriods(timeline);
   const key = `${establishment.slug || establishment.id || establishment.name}:${state.booking.date}`;
   if (state.scheduleTurn?.key !== key || !periods.some(period => period.id === state.scheduleTurn.id)) {
-    const preferred = isToday && clock.minutes >= 12 * 60 ? "afternoon" : "morning";
+    const preferred = isToday && clock.minutes >= 13 * 60 ? "afternoon" : "morning";
     state.scheduleTurn = { key, id: periods.find(period => period.id === preferred)?.id || periods[0].id, changedAt: Date.now() };
     state.scheduleScrollLeft = 0;
   }

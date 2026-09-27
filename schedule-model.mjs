@@ -96,7 +96,7 @@ export function scheduleBands(times, columns) {
 export function scheduleDayPeriods(timeline) {
   const times = timeline.times || [];
   if (!times.length) return [];
-  const split = times.findIndex(time => minutes(time) >= 12 * 60);
+  const split = times.findIndex(time => minutes(time) >= 13 * 60);
   const boundary = split < 0 ? times.length : split;
   return [{ id: "morning", label: "Manhã", start: 0, end: boundary }, { id: "afternoon", label: "Tarde", start: boundary, end: times.length }]
     .filter(period => period.end > period.start)
