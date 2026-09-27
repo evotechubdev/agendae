@@ -1276,3 +1276,36 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .schedule-timeline .matrix-slot-tight .matrix-start-time { font-size: 8px; }
   .schedule-timeline .matrix-slot-tight { height: 52px; gap: 2px; }
 }
+
+.public-direct-content .schedule-command-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.public-direct-content .schedule-command-bar .schedule-date-toolbar { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; align-items: center; }
+.public-direct-content .schedule-date-toolbar .schedule-date-field { flex: 0 0 auto; }
+.public-direct-content .schedule-date-toolbar .schedule-turn-controls { justify-content: flex-start; gap: 12px; margin: 0 0 0 8px; padding: 0; border: 0; background: none; }
+.public-direct-content .schedule-command-bar .ticket-status-legend { flex: 0 0 auto; margin-left: auto; }
+@media (min-width:701px) and (max-width:1100px) {
+  .public-direct-content .schedule-date-toolbar .quick-dates button { min-width: 62px; }
+  .public-direct-content .schedule-date-toolbar .schedule-date-field input { width: 120px; }
+  .public-direct-content .schedule-date-toolbar .schedule-turn-controls { gap: 8px; margin-left: 4px; }
+  .public-direct-content .schedule-turn-navigation { gap: 6px; }
+  .public-direct-content .schedule-turn-navigation > button { width: 24px; }
+  .public-direct-content .schedule-turn-title { min-width: 78px; }
+  .public-direct-content .schedule-turn-auto { font-size: 10px; }
+  .public-direct-content .schedule-command-bar .ticket-status-legend { gap: 4px; }
+  .public-direct-content .schedule-command-bar .ticket-status-legend > span { padding: 3px 4px; font-size: 8px; }
+}
+@media (max-width:700px) {
+  .public-direct-content .schedule-command-bar .schedule-date-toolbar { gap: 5px; }
+  .public-direct-content .schedule-date-toolbar .quick-dates button { min-width: 44px; min-height: 38px; padding: 4px; font-size: 10px; }
+  .public-direct-content .schedule-date-toolbar .quick-dates button small { font-size: 8px; }
+  .public-direct-content .schedule-date-toolbar .schedule-date-field input { width: 98px; height: 34px; padding: 4px; font-size: 9px; }
+  .public-direct-content .schedule-date-toolbar .schedule-turn-controls { gap: 5px; margin-left: 0; }
+  .public-direct-content .schedule-turn-navigation { gap: 3px; }
+  .public-direct-content .schedule-turn-navigation > button { width: 20px; height: 28px; font-size: 20px; }
+  .public-direct-content .schedule-turn-title { min-width: 50px; }
+  .public-direct-content .schedule-turn-title strong { font-size: 10px; }
+  .public-direct-content .schedule-turn-title small { font-size: 7px; }
+  .public-direct-content .schedule-turn-auto { gap: 4px; font-size: 8px; }
+  .public-direct-content .schedule-turn-auto input { width: 12px; height: 12px; }
+  .public-direct-content .schedule-turn-auto span { max-width: 75px; }
+  .public-direct-content .schedule-turn-auto small { font-size: 7px; }
+}
