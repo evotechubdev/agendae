@@ -9,9 +9,10 @@ const source = readFileSync(new URL("../frontend/professional.js", import.meta.u
 const establishment = { slug: "demo", professionals: [{ name: "Renam", ...schedule.scheduleFromPeriods([{ start: "08:00", end: "18:00" }]) }] };
 const timeline = schedule.scheduleTimeline(establishment);
 
-test("manhã e tarde dividem o expediente ao meio-dia sem perder horários", () => {
+test("manhã e tarde dividem o expediente às treze horas em dois turnos de cinco horas", () => {
   const periods = schedule.scheduleDayPeriods(timeline);
-  assert.deepEqual(periods.map(period => [period.id, period.startTime, period.endTime]), [["morning", "08:00", "12:00"], ["afternoon", "12:00", "18:00"]]);
+  assert.deepEqual(periods.map(period => [period.id, period.startTime, period.endTime]), [["morning", "08:00", "13:00"], ["afternoon", "13:00", "18:00"]]);
+  assert.ok(periods.every(period => (period.end - period.start) * timeline.step === 300));
   assert.deepEqual(periods.flatMap(period => period.times), timeline.times);
   assert.equal(periods[0].end, periods[1].start);
   assert.deepEqual(schedule.scheduleDayPeriods({ times: [] }), []);
@@ -34,18 +35,19 @@ function renderFixture(minutes = 8 * 60) {
 test("cada visualização mostra apenas seu turno e conserva a numeração do dia", () => {
   const { context, state } = renderFixture();
   let html = context.publicSchedule(establishment);
-  assert.match(html, /Manhã, de 08:00 a 12:00/);
+  assert.match(html, /Manhã, de 08:00 a 13:00/);
   assert.match(html, /RSI-01, Renam, 08:00/);
-  assert.doesNotMatch(html, /RSI-13, Renam, 12:00/);
+  assert.doesNotMatch(html, /RSI-16, Renam, 13:00/);
   state.scheduleTurn.id = "afternoon";
   html = context.publicSchedule(establishment);
-  assert.match(html, /Tarde, de 12:00 a 18:00/);
-  assert.match(html, /RSI-13, Renam, 12:00/);
+  assert.match(html, /Tarde, de 13:00 a 18:00/);
+  assert.match(html, /RSI-16, Renam, 13:00/);
   assert.doesNotMatch(html, /RSI-01, Renam, 08:00/);
   assert.match(html, /data-schedule-turn-auto checked/);
   state.scheduleAuto = false;
   assert.doesNotMatch(context.publicSchedule(establishment), /data-schedule-turn-auto checked/);
-  assert.match(renderFixture(13 * 60).context.publicSchedule(establishment), /Tarde, de 12:00 a 18:00/);
+  assert.match(renderFixture(12 * 60 + 59).context.publicSchedule(establishment), /Manhã, de 08:00 a 13:00/);
+  assert.match(renderFixture(13 * 60).context.publicSchedule(establishment), /Tarde, de 13:00 a 18:00/);
 });
 
 function timerFixture() {
@@ -63,14 +65,14 @@ function timerFixture() {
   return { context, state, body, timers, cleared, advance: value => { now = value; } };
 }
 
-test("um atendimento que atravessa o meio-dia mantém a mesma senha nos dois turnos", () => {
+test("um atendimento que atravessa as treze horas mantém a mesma senha nos dois turnos", () => {
   const { context, state } = renderFixture();
-  const booking = { date: "2026-09-26", time: "11:40", professional: "Renam", service: "Combo" };
+  const booking = { date: "2026-09-26", time: "12:40", professional: "Renam", service: "Combo" };
   context.getData = () => ({ slots: [booking] });
   const configured = { ...establishment, services: [{ name: "Combo", duration: 70 }] };
-  assert.match(context.publicSchedule(configured), /RCO-12, Renam, 11:40/);
+  assert.match(context.publicSchedule(configured), /RCO-15, Renam, 12:40/);
   state.scheduleTurn.id = "afternoon";
-  assert.match(context.publicSchedule(configured), /RCO-12, Renam, 11:40/);
+  assert.match(context.publicSchedule(configured), /RCO-15, Renam, 12:40/);
 });
 
 test("alternância automática troca os turnos a cada cinco segundos e para ao desmarcar", () => {
