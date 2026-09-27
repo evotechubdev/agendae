@@ -444,7 +444,9 @@ export async function getOrCreateCheckInConfig(slug) {
   });
 }
 
-export async function confirmPresenceWithQr(slug, appointmentId, checkInToken, date, presenceExists = true) {
+export async function confirmPresenceWithQr(slug, appointmentId, checkInToken, date, presenceExists = true, appointment) {
+  if (!appointment?.time || !appointment?.professional || appointment.date !== date) throw new Error("Horário do agendamento não encontrado.");
+  const slotRef = await existingAppointmentSlot({ get: getDoc }, slug, appointment);
   const appointmentRef = doc(db, "establishments", slug, "appointments", appointmentId);
   const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentId);
   const batch = writeBatch(db);
@@ -461,11 +463,15 @@ export async function confirmPresenceWithQr(slug, appointmentId, checkInToken, d
   };
   if (presenceExists) batch.update(presenceRef, presenceData);
   else batch.set(presenceRef, { appointmentId, date, ...presenceData });
+  if (slotRef) batch.update(slotRef, { ...presenceData, appointmentId });
   await batch.commit();
 }
 
 export async function confirmPresenceManually(slug, appointmentId) {
   const appointmentRef = doc(db, "establishments", slug, "appointments", appointmentId);
+  const appointmentSnapshot = await getDoc(appointmentRef);
+  if (!appointmentSnapshot.exists()) throw new Error("Agendamento não encontrado.");
+  const slotRef = await existingAppointmentSlot({ get: getDoc }, slug, appointmentSnapshot.data());
   const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentId);
   const batch = writeBatch(db);
   batch.update(appointmentRef, {
@@ -479,6 +485,7 @@ export async function confirmPresenceManually(slug, appointmentId) {
     checkedInAt: serverTimestamp(),
     checkInMethod: "employee",
   }, { merge: true });
+  if (slotRef) batch.update(slotRef, { appointmentId, status: "presente", checkedInAt: serverTimestamp(), checkInMethod: "employee" });
   await batch.commit();
 }
 

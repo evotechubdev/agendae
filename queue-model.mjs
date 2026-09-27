@@ -20,6 +20,10 @@ export function ticketState(item, clock) {
   return item.booked ? "reserved" : "free";
 }
 
+export function ticketSubstatus(item, state) {
+  return state === "reserved" && item?.status === "presente" ? "Presença Confirmada" : "";
+}
+
 function normalizedWords(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().match(/[A-Z0-9]+/g) || [];
 }

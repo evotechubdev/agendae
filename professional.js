@@ -1,4 +1,4 @@
-import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
+import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, ticketSubstatus, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
 import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods } from "./schedule-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
@@ -387,13 +387,14 @@ function closeSelectedBooking() {
   const selectedProfessional = state.booking.professional;
   state.booking.step = 1;
   state.booking.time = null;
+  resumeScheduleTurn();
   render();
   const slot = [...document.querySelectorAll("[data-public-slot]")].find(item => item.dataset.slotTime === selectedTime && item.dataset.professionalName === selectedProfessional);
   slot?.focus();
 }
 
 function publicAccessMenu(establishment, authenticated = false) {
-  return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg><span>Menu</span></summary><div class="public-internal-dropdown"><button type="button" data-open-public-queue><strong>Painel de Senhas</strong><small>Exibir o painel de atendimento</small></button>${authenticated ? `<a href="${href(`/${establishment.slug}`)}" data-link><strong>Área do estabelecimento</strong><small>Voltar ao painel da equipe</small></a>` : '<button type="button" data-open-employee-access><strong>Área do estabelecimento</strong><small>Acesso da equipe</small></button>'}</div></details>`;
+  return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento" title="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></summary><div class="public-internal-dropdown"><button type="button" data-open-public-queue><strong>Painel de Senhas</strong><small>Exibir o painel de atendimento</small></button>${authenticated ? `<a href="${href(`/${establishment.slug}`)}" data-link><strong>Área do estabelecimento</strong><small>Voltar ao painel da equipe</small></a>` : '<button type="button" data-open-employee-access><strong>Área do estabelecimento</strong><small>Acesso da equipe</small></button>'}</div></details>`;
 }
 
 function bookingContent(establishment) {
@@ -444,11 +445,12 @@ function publicSchedule(establishment) {
       }
       const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
       const status = ticketState({ date: state.booking.date, time, booked: Boolean(appointment), currentTime, paused, status: appointment?.status }, clock);
+      const substatus = ticketSubstatus(appointment, status);
       const ticket = scheduledTicket(establishment, time, professional.name, appointment?.service);
       const chosen = selected === time;
-      const label = `${ticket}, ${professional.name}, ${time}, ${TICKET_STATES[status]}${chosen ? ", selecionado" : ""}`;
+      const label = `${ticket}, ${professional.name}, ${time}, ${TICKET_STATES[status]}${substatus ? `, ${substatus}` : ""}${chosen ? ", selecionado" : ""}`;
       const action = status === "free" ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"` : 'disabled';
-      return `<td colspan="${span}"><button class="matrix-slot ${span * step <= 20 ? "matrix-slot-tight" : ""} ${span * step < 20 ? "matrix-slot-short" : ""} ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code"><span>${escapeHTML(ticket.slice(0, 3))}</span><span>${escapeHTML(ticket.slice(3))}</span></strong><small class="matrix-start-time">${escapeHTML(time)}</small><i class="matrix-status-dot" aria-hidden="true">${chosen ? "✓" : ""}</i></button></td>`;
+      return `<td colspan="${span}"><button class="matrix-slot ${span * step <= 20 ? "matrix-slot-tight" : ""} ${span * step < 20 ? "matrix-slot-short" : ""} ticket-state-${status} ${chosen ? "selected" : ""} ${substatus ? "has-confirmed-presence" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code"><span>${escapeHTML(ticket.slice(0, 3))}</span><span>${escapeHTML(ticket.slice(3))}</span></strong><small class="matrix-start-time">${escapeHTML(time)}</small><i class="matrix-status-dot" aria-hidden="true">${chosen || substatus ? "✓" : ""}</i>${substatus ? `<small class="matrix-presence-confirmed">${substatus}</small>` : ""}</button></td>`;
     }).join("");
     return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span class="matrix-avatar" aria-hidden="true">${escapeHTML(Array.from(professional.name.trim())[0]?.toLocaleUpperCase("pt-BR") || "?")}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div></th>${cells}</tr>`;
   }).join("");
@@ -509,6 +511,11 @@ function pauseScheduleTurn() {
   state.scheduleAuto = false;
   clearTimeout(scheduleTurnTimer);
   scheduleTurnTimer = null;
+}
+
+function resumeScheduleTurn() {
+  state.scheduleAuto = true;
+  if (state.scheduleTurn) state.scheduleTurn.changedAt = Date.now();
 }
 
 function restoreScheduleScroll() {
@@ -630,7 +637,7 @@ async function finishPublicCheckIn(rawValue) {
   await stopQrScanner();
   lookup.scanError = "";
   try {
-    await firebaseApi.confirmPresenceWithQr(establishment.slug, selected.appointmentId, token, selected.date, selected.presenceExists !== false);
+    await firebaseApi.confirmPresenceWithQr(establishment.slug, selected.appointmentId, token, selected.date, selected.presenceExists !== false, selected);
     selected.status = "presente";
     selected.presenceExists = true;
     lookup.scanning = false;
@@ -673,7 +680,7 @@ function queueDetail(item) {
 }
 
 function queueBadge(item, monitor = false) {
-  if (item?.ticketState) return `<span class="ticket-status-label ticket-state-${item.ticketState}">${TICKET_STATES[item.ticketState]}</span>`;
+  if (item?.ticketState) return `<span class="ticket-status-label ticket-state-${item.ticketState}">${TICKET_STATES[item.ticketState]}${ticketSubstatus(item, item.ticketState) ? '<small class="ticket-presence-substatus">✓ Presença Confirmada</small>' : ""}</span>`;
   if (item?.kind === "scheduled" && !item.service) return `<span class="${monitor ? "monitor-normal" : "normal-badge"}">Serviço indefinido</span>`;
   if (item?.kind === "scheduled") return `<span class="${monitor ? "monitor-scheduled" : "scheduled-badge"}">Agendado</span>`;
   if (item?.priority === "preferencial") return `<span class="${monitor ? "monitor-priority" : "priority-badge"}">Preferencial</span>`;
@@ -689,7 +696,7 @@ function liveStatusDot(current) {
 }
 
 function ticketStatusLegend() {
-  return `<div class="ticket-status-legend" aria-label="Legenda dos status das senhas">${Object.entries(TICKET_STATES).map(([state, label]) => `<span class="ticket-state-${state}"><i aria-hidden="true"></i>${label}</span>`).join("")}</div>`;
+  return `<div class="ticket-status-legend" aria-label="Legenda dos status das senhas">${Object.entries(TICKET_STATES).map(([state, label]) => `<span class="ticket-state-${state}"><i aria-hidden="true"></i>${label}</span>`).join("")}<span class="ticket-state-reserved" title="Substatus de Reservado"><i class="presence-legend-dot" aria-hidden="true">✓</i>Presença Confirmada</span></div>`;
 }
 
 function queuePanel(establishment, data, showNames = true, showHeader = true) {
@@ -723,7 +730,7 @@ function ensureQueueSubscription(establishment) {
     if (!keys.length) keys.push(publicCacheKey(establishment, isoDate()));
     for (const key of keys) {
       const cached = cloudCache.get(key) || { appointments: [], slots: [], todayAppointments: 0 };
-      cloudCache.set(key, { ...cached, ...live });
+      cloudCache.set(key, { ...cached, ...live, ...(live.todaySlots && key === publicCacheKey(establishment, isoDate()) ? { slots: live.todaySlots } : {}) });
     }
     const params = new URLSearchParams(location.search);
     if (route() === establishment.slug && (params.get("display") === "queue" || params.get("public") === "1" || session()?.slug !== establishment.slug)) render();
@@ -1106,7 +1113,7 @@ document.addEventListener("click", async (event) => {
   }
   if (event.target.matches("[data-booking-modal-backdrop]")) { closeSelectedBooking(); return; }
   if (event.target.closest("[data-booking-back]")) { event.preventDefault(); state.booking.step = 1; render(); document.querySelector("[data-selected-booking-popup] [data-booking-next]")?.focus?.(); return; }
-  if (event.target.closest("[data-new-booking]")) { state.booking = freshBooking(); render(); return; }
+  if (event.target.closest("[data-new-booking]")) { state.booking = freshBooking(); resumeScheduleTurn(); render(); return; }
   if (event.target.closest("[data-open-public-queue]")) {
     state.queueModalOpen = true;
     render();
