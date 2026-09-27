@@ -1,5 +1,5 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
-import { scheduleTimeline, scheduleBands, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods } from "./schedule-model.mjs";
+import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods } from "./schedule-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -16,6 +16,7 @@ let serviceCarouselTimer = null;
 let adminRefreshTimer = null;
 let qrScanner = null;
 let scheduleViewportWidth = window.innerWidth;
+let scheduleTurnTimer = null;
 const cloudCache = new Map();
 const cloudLoading = new Set();
 const professionalReconcileLoading = new Set();
@@ -28,6 +29,8 @@ const state = {
   booking: freshBooking(),
   appointmentQuery: "",
   scheduleScrollLeft: 0,
+  scheduleTurn: null,
+  scheduleAuto: true,
   publicLookup: freshPublicLookup(),
   queueModalOpen: false,
   employeeAccessOpen: false,
@@ -394,7 +397,8 @@ function bookingContent(establishment) {
 
 function publicSchedule(establishment) {
   const data = getData(establishment);
-  const { times, professionals, step, majorStep, startTime, endTime } = scheduleTimeline(establishment, data.slots || []);
+  const timeline = scheduleTimeline(establishment, data.slots || []);
+  const { times, professionals, step, majorStep } = timeline;
   const clock = currentSaoPauloClock();
   const isToday = state.booking.date === clock.date;
   const renderRows = (start, end) => professionals.map((professional) => {
@@ -423,7 +427,7 @@ function publicSchedule(establishment) {
       const chosen = selected === time;
       const label = `${ticket}, ${professional.name}, ${time}, ${TICKET_STATES[status]}${chosen ? ", selecionado" : ""}`;
       const action = status === "free" ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"` : 'disabled';
-      return `<td colspan="${span}"><button class="matrix-slot ${span * step <= 20 ? "matrix-slot-tight" : ""} ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code"><span>${escapeHTML(ticket.slice(0, 3))}</span><span>${escapeHTML(ticket.slice(3))}</span></strong><small class="matrix-start-time">${escapeHTML(time)}</small><i class="matrix-status-dot" aria-hidden="true">${chosen ? "✓" : ""}</i></button></td>`;
+      return `<td colspan="${span}"><button class="matrix-slot ${span * step <= 20 ? "matrix-slot-tight" : ""} ${span * step < 20 ? "matrix-slot-short" : ""} ticket-state-${status} ${chosen ? "selected" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code"><span>${escapeHTML(ticket.slice(0, 3))}</span><span>${escapeHTML(ticket.slice(3))}</span></strong><small class="matrix-start-time">${escapeHTML(time)}</small><i class="matrix-status-dot" aria-hidden="true">${chosen ? "✓" : ""}</i></button></td>`;
     }).join("");
     return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span class="matrix-avatar" aria-hidden="true">${escapeHTML(Array.from(professional.name.trim())[0]?.toLocaleUpperCase("pt-BR") || "?")}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div></th>${cells}</tr>`;
   }).join("");
@@ -431,15 +435,54 @@ function publicSchedule(establishment) {
   const bookingAction = state.booking.time && state.booking.professional && state.booking.step < 3 ? `<button class="matrix-book-button" type="button" data-booking-next aria-label="Agendar ${escapeHTML(state.booking.time)} com ${escapeHTML(state.booking.professional)}">${escapeHTML(state.booking.professional)} · ${escapeHTML(state.booking.time)} <span>Agendar →</span></button>` : "";
   const toolbar = `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div>${ticketStatusLegend()}${bookingAction}</div>`;
   if (!professionals.length || !times.length) return `${toolbar}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
+  const periods = scheduleDayPeriods(timeline);
+  const key = `${establishment.slug || establishment.id || establishment.name}:${state.booking.date}`;
+  if (state.scheduleTurn?.key !== key || !periods.some(period => period.id === state.scheduleTurn.id)) {
+    const preferred = isToday && clock.minutes >= 12 * 60 ? "afternoon" : "morning";
+    state.scheduleTurn = { key, id: periods.find(period => period.id === preferred)?.id || periods[0].id, changedAt: Date.now() };
+    state.scheduleScrollLeft = 0;
+  }
+  const period = periods.find(item => item.id === state.scheduleTurn.id);
+  const controls = `<div class="schedule-turn-controls"><div class="schedule-turn-navigation" role="group" aria-label="Turnos da agenda"><button type="button" data-schedule-turn-step="-1" aria-label="Turno anterior" ${periods.length < 2 ? "disabled" : ""}>‹</button><div class="schedule-turn-title" aria-live="polite"><strong>${period.label}</strong><small>${period.startTime}–${period.endTime}</small></div><button type="button" data-schedule-turn-step="1" aria-label="Próximo turno" ${periods.length < 2 ? "disabled" : ""}>›</button></div><label class="schedule-turn-auto"><input type="checkbox" data-schedule-turn-auto ${state.scheduleAuto !== false ? "checked" : ""} ${periods.length < 2 ? "disabled" : ""}><span>Alternar automaticamente<small>A cada 5 segundos</small></span></label></div>`;
   const unitsPerHeading = majorStep / step;
-  const bands = scheduleBands(times, times.length);
+  const bands = [period];
   const columns = Math.max(...bands.map((band) => band.times.length));
-  return `${toolbar}<div class="schedule-matrix-bands schedule-timeline" style="--matrix-bands:${bands.length};--timeline-track-width:${78 / unitsPerHeading}px">${bands.map((band) => {
-    const headers = band.times.flatMap((time, index) => index % unitsPerHeading ? [] : [`<th scope="col" colspan="${Math.min(unitsPerHeading, band.times.length - index)}" class="timeline-hour"><time datetime="${time}" title="${time}">${time}</time>${index + unitsPerHeading >= band.times.length ? `<span class="timeline-end-label">${endTime}</span>` : ""}</th>`]).join("");
+  return `${toolbar}${controls}<div class="schedule-matrix-bands schedule-timeline schedule-period-view" style="--matrix-bands:${bands.length};--timeline-track-width:${108 / unitsPerHeading}px">${bands.map((band) => {
+    const headers = band.times.flatMap((time, index) => index % unitsPerHeading ? [] : [`<th scope="col" colspan="${Math.min(unitsPerHeading, band.times.length - index)}" class="timeline-hour"><time datetime="${time}" title="${time}">${time}</time>${index + unitsPerHeading >= band.times.length ? `<span class="timeline-end-label">${band.endTime}</span>` : ""}</th>`]).join("");
     const padding = columns - band.times.length;
     const rows = renderRows(band.start, band.end).replaceAll("</tr>", `${padding ? `<td colspan="${padding}" class="matrix-timeline-padding"></td>` : ""}</tr>`);
-    return `<div class="schedule-matrix-wrap" data-schedule-matrix aria-label="Expediente completo de ${startTime} a ${endTime}"><table class="schedule-matrix" style="--matrix-columns:${columns}"><caption>Expediente completo de ${startTime} a ${endTime}, em intervalos de uma hora</caption><colgroup><col class="matrix-person-column">${Array.from({ length: columns }, () => "<col>").join("")}</colgroup><thead><tr><th scope="col">Equipe<small class="timeline-range">${startTime}–${endTime}</small></th>${headers}${padding ? `<th colspan="${padding}" class="matrix-timeline-padding"></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<div class="schedule-matrix-wrap" data-schedule-matrix aria-label="${band.label}, de ${band.startTime} a ${band.endTime}"><table class="schedule-matrix" style="--matrix-columns:${columns}"><caption>${band.label}, de ${band.startTime} a ${band.endTime}, em intervalos de uma hora</caption><colgroup><col class="matrix-person-column">${Array.from({ length: columns }, () => "<col>").join("")}</colgroup><thead><tr><th scope="col">Equipe<small class="timeline-range">${band.startTime}–${band.endTime}</small></th>${headers}${padding ? `<th colspan="${padding}" class="matrix-timeline-padding"></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>`;
   }).join("")}</div>`;
+}
+
+function moveScheduleTurn(establishment, direction = 1) {
+  const body = document.querySelector(".public-schedule-body");
+  if (!body) return;
+  const periods = scheduleDayPeriods(scheduleTimeline(establishment, getData(establishment).slots || []));
+  if (periods.length < 2) return;
+  const index = Math.max(0, periods.findIndex(period => period.id === state.scheduleTurn?.id));
+  const next = periods[(index + direction + periods.length) % periods.length];
+  const focused = document.activeElement;
+  const focusSelector = focused?.matches("[data-schedule-turn-auto]") ? "[data-schedule-turn-auto]" : focused?.matches("[data-schedule-turn-step]") ? `[data-schedule-turn-step="${focused.dataset.scheduleTurnStep}"]` : null;
+  state.scheduleTurn = { key: `${establishment.slug || establishment.id || establishment.name}:${state.booking.date}`, id: next.id, changedAt: Date.now() };
+  state.scheduleScrollLeft = 0;
+  body.innerHTML = publicSchedule(establishment);
+  restoreScheduleScroll();
+  if (focusSelector) body.querySelector(focusSelector)?.focus();
+  startScheduleTurnTimer(establishment);
+}
+
+function startScheduleTurnTimer(establishment) {
+  clearTimeout(scheduleTurnTimer);
+  scheduleTurnTimer = null;
+  if (state.scheduleAuto === false || !document.querySelector(".public-schedule-body")) return;
+  const periods = scheduleDayPeriods(scheduleTimeline(establishment, getData(establishment).slots || []));
+  if (periods.length < 2) return;
+  const elapsed = Date.now() - (state.scheduleTurn?.changedAt ?? Date.now());
+  scheduleTurnTimer = setTimeout(() => {
+    scheduleTurnTimer = null;
+    if (state.scheduleAuto !== false) moveScheduleTurn(establishment, 1);
+  }, Math.max(0, 5000 - elapsed));
 }
 
 function restoreScheduleScroll() {
@@ -762,6 +805,7 @@ function renderEstablishmentPublic(establishment) {
   void refreshCloudData(establishment, "public", state.booking.date);
   ensureQueueSubscription(establishment);
   startQueueClock(establishment);
+  startScheduleTurnTimer(establishment);
 }
 
 function appointmentRows(data, query = state.appointmentQuery) {
@@ -906,6 +950,8 @@ function renderNotFound() {
 }
 
 function render() {
+  clearTimeout(scheduleTurnTimer);
+  scheduleTurnTimer = null;
   clearInterval(adminRefreshTimer);
   adminRefreshTimer = null;
   clearInterval(monitorClockTimer);
@@ -932,6 +978,12 @@ function activeEstablishment() {
 }
 
 document.addEventListener("click", async (event) => {
+  const turnArrow = event.target.closest("[data-schedule-turn-step]");
+  if (turnArrow) {
+    const establishment = activeEstablishment();
+    if (establishment) moveScheduleTurn(establishment, Number(turnArrow.dataset.scheduleTurnStep));
+    return;
+  }
   const addPeriod = event.target.closest("[data-add-work-period]");
   if (addPeriod) {
     const form = addPeriod.closest("[data-work-form]");
@@ -1208,6 +1260,13 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-schedule-turn-auto]")) {
+    state.scheduleAuto = event.target.checked;
+    if (state.scheduleTurn) state.scheduleTurn.changedAt = Date.now();
+    const establishment = activeEstablishment();
+    if (establishment) startScheduleTurnTimer(establishment);
+    return;
+  }
   if (event.target.matches("[data-booking-date]")) {
     const selectedDate = event.target.value;
     const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(selectedDate) ? new Date(`${selectedDate}T12:00:00`) : null;

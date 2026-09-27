@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { lunchBreakFor, isLunchTime, scheduleMatrix, scheduleBands, scheduleTimeline } from "../frontend/schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, scheduleMatrix, scheduleBands, scheduleTimeline, scheduleDayPeriods } from "../frontend/schedule-model.mjs";
 import { queueView, scheduledTicket, ticketState, TICKET_STATES } from "../frontend/queue-model.mjs";
 
 const establishment = {
@@ -67,7 +67,7 @@ test("agenda exibe Pausado em vermelho para almoço em vez de senha agendável",
     getData: () => ({ slots: [] }), currentSaoPauloClock: () => ({ date, minutes: 12 * 60 }),
     professionalIsPaused: () => false, professionalIsOnShift: () => true, currentProfessionalSlot: () => "12:00", staffStatusFor: () => ({}),
     isoDate: () => date, prettyDate: () => "", ticketStatusLegend: () => "", escapeHTML: (value) => String(value),
-    scheduleTimeline, scheduleBands, isLunchTime, scheduledTicket, ticketState, TICKET_STATES,
+    scheduleTimeline, scheduleBands, scheduleDayPeriods, isLunchTime, scheduledTicket, ticketState, TICKET_STATES,
   });
   vm.runInContext(source.slice(start, end), context);
   const html = context.publicSchedule(establishment);
@@ -76,7 +76,7 @@ test("agenda exibe Pausado em vermelho para almoço em vez de senha agendável",
   assert.match(html, /matrix-ticket-code">Pausado<\/strong>/);
   assert.match(html, /<strong class="matrix-ticket-code">Pausado<\/strong><small class="matrix-pause-reason">Almoço<\/small>/);
   assert.match(html, /<time datetime="\d{2}:\d{2}" title="\d{2}:\d{2}">\d{2}:\d{2}<\/time>/);
-  assert.match(html, /<small class="matrix-start-time">11:30<\/small>/);
+  assert.match(html, /<small class="matrix-start-time">12:00<\/small>/);
 });
 
 const apiSource = readFileSync(new URL("../frontend/firebase-service.js", import.meta.url), "utf8");

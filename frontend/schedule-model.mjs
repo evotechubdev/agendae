@@ -93,6 +93,16 @@ export function scheduleBands(times, columns) {
   return Array.from({ length: Math.ceil(times.length / size) }, (_, index) => ({ start: index * size, end: Math.min(times.length, (index + 1) * size), times: times.slice(index * size, (index + 1) * size) }));
 }
 
+export function scheduleDayPeriods(timeline) {
+  const times = timeline.times || [];
+  if (!times.length) return [];
+  const split = times.findIndex(time => minutes(time) >= 12 * 60);
+  const boundary = split < 0 ? times.length : split;
+  return [{ id: "morning", label: "Manhã", start: 0, end: boundary }, { id: "afternoon", label: "Tarde", start: boundary, end: times.length }]
+    .filter(period => period.end > period.start)
+    .map(period => ({ ...period, times: times.slice(period.start, period.end), startTime: times[period.start], endTime: times[period.end] || timeline.endTime }));
+}
+
 export function serviceDurationFor(establishment, professionalName, service) {
   const professional = (establishment.professionals || []).find((item) => (typeof item === "string" ? item : item.name) === professionalName);
   const key = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
