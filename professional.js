@@ -377,6 +377,7 @@ function employeeAccessModal(establishment) {
 
 function selectedBookingPopup(establishment) {
   const booking = state.booking;
+  if (businessDayIsClosed(establishment, booking.date)) return "";
   if (booking.step !== 1 || !booking.time || !booking.professional) return "";
   const professional = (establishment.professionals || []).find(item => (typeof item === "string" ? item : item.name) === booking.professional);
   return `<div class="booking-modal-backdrop" data-selected-booking-backdrop><section class="booking-modal selected-booking-popup" data-selected-booking-popup role="dialog" aria-modal="true" aria-labelledby="selected-booking-title"><div class="booking-modal-head"><div><small>AGENDAMENTO</small><h2 id="selected-booking-title">Horário selecionado</h2></div><button class="booking-modal-close" type="button" data-close-selected-booking aria-label="Fechar horário selecionado">×</button></div><div class="selected-booking-content"><div class="selected-booking-professional"><span class="selected-booking-avatar" aria-hidden="true">${escapeHTML(professionalInitial(booking.professional))}</span><div><strong>${escapeHTML(booking.professional)}</strong><small>${escapeHTML(professional?.role || "Profissional")}</small></div></div><div class="selected-booking-date"><strong>${escapeHTML(booking.time)}</strong><span>${prettyDate(booking.date, true)}</span></div><button class="btn btn-primary" type="button" data-booking-next>Agendar este horário</button><button class="selected-booking-cancel" type="button" data-close-selected-booking>Escolher outro horário</button></div></section></div>`;
@@ -399,6 +400,7 @@ function publicAccessMenu(establishment, authenticated = false) {
 
 function bookingContent(establishment) {
   const booking = state.booking;
+  if (booking.step < 3 && businessDayIsClosed(establishment, booking.date)) return "";
 
   if (booking.step === 2) return `<div class="booking-modal-backdrop" data-booking-modal-backdrop>
     <section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
@@ -456,6 +458,7 @@ function publicSchedule(establishment) {
   }).join("");
   const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
   const toolbar = (turnControls = "") => `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label>${turnControls}</div>${ticketStatusLegend()}</div>`;
+  if (businessDayIsClosed(establishment, state.booking.date)) return `${toolbar()}<div class="schedule-empty" role="status">Sem expediente neste dia. Escolha outra data para agendar.</div>`;
   if (!professionals.length || !times.length) return `${toolbar()}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
   const periods = scheduleDayPeriods(timeline);
   const key = `${establishment.slug || establishment.id || establishment.name}:${state.booking.date}`;
@@ -497,6 +500,7 @@ function moveScheduleTurn(establishment, direction = 1) {
 function startScheduleTurnTimer(establishment) {
   clearTimeout(scheduleTurnTimer);
   scheduleTurnTimer = null;
+  if (businessDayIsClosed(establishment, state.booking.date)) return;
   if (state.scheduleAuto === false || !document.querySelector(".public-schedule-body")) return;
   const periods = scheduleDayPeriods(scheduleTimeline(establishment, getData(establishment).slots || []));
   if (periods.length < 2) return;
@@ -691,25 +695,27 @@ function currentTicketCards(current, showNames = false, monitor = false) {
   return `<div class="current-ticket-list">${current.map((item) => `<article class="current-ticket-card ticket-state-${item.ticketState}"><strong>${escapeHTML(["paused", "closed"].includes(item.ticketState) ? TICKET_STATES[item.ticketState] : item.ticket)}</strong>${item.pauseReason ? `<small class="current-ticket-reason">${escapeHTML(item.pauseReason)}</small>` : ""}<span class="current-ticket-detail">${escapeHTML(queueDetail(item))}</span>${showNames && item.ticketState === "in-service" && item.client ? `<span class="queue-customer">${escapeHTML(item.client)}</span>` : ""}</article>`).join("") || '<p class="current-ticket-empty">Nenhum profissional cadastrado</p>'}</div>`;
 }
 
-function liveStatusDot(current, notStarted = false) {
+function liveStatusDot(current, notStarted = false, closedDay = false) {
   const inactive = notStarted || allProfessionalsClosed(current);
-  return `<span class="live-dot${inactive ? " closed" : ""}" aria-label="${notStarted ? "Expediente não Iniciado" : inactive ? "Todos os profissionais encerrados" : "Atendimento disponível"}"></span>`;
+  return `<span class="live-dot${inactive ? " closed" : ""}" aria-label="${closedDay ? "Sem expediente neste dia" : notStarted ? "Expediente não Iniciado" : inactive ? "Todos os profissionais encerrados" : "Atendimento disponível"}"></span>`;
 }
 
 function attendanceView(establishment, data, date, clock = currentSaoPauloClock()) {
   const opening = businessOpeningMinutes(establishment, clock.date);
   const beforeOpening = opening !== null && clock.minutes < opening;
-  const notStarted = date > clock.date || beforeOpening || businessDayIsClosed(establishment, clock.date);
-  return { notStarted, current: notStarted ? [] : queueView(establishment, data, clock).current };
+  const closedDay = businessDayIsClosed(establishment, date && date >= clock.date ? date : clock.date);
+  const notStarted = closedDay || date > clock.date || beforeOpening || businessDayIsClosed(establishment, clock.date);
+  return { notStarted, closedDay, current: notStarted ? [] : queueView(establishment, data, clock).current };
 }
 
 function attendanceCards(view, showNames = false, monitor = false) {
+  if (view.closedDay) return '<div class="public-live-not-started" role="status">Sem expediente neste dia</div>';
   return view.notStarted ? '<div class="public-live-not-started" role="status">Expediente não Iniciado</div>' : currentTicketCards(view.current, showNames, monitor);
 }
 
 function publicCurrentAttendance(establishment, data, clock = currentSaoPauloClock()) {
   const view = attendanceView(establishment, data, state.booking.date, clock);
-  return `${liveStatusDot(view.current, view.notStarted)}<div><small>Atendendo agora</small>${attendanceCards(view)}</div>`;
+  return `${liveStatusDot(view.current, view.notStarted, view.closedDay)}<div><small>Atendendo agora</small>${attendanceCards(view)}</div>`;
 }
 
 function ticketStatusLegend() {
@@ -720,7 +726,7 @@ function queuePanel(establishment, data, showNames = true, showHeader = true, da
   const clock = currentSaoPauloClock();
   const view = attendanceView(establishment, data, date || clock.date, clock);
   return `<section class="panel queue-panel">${showHeader ? '<div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Uma senha por profissional, no horário atual</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>' : ""}
-    <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small>${view.notStarted ? liveStatusDot([], true) : ""}${attendanceCards(view, showNames)}</div>
+    <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small>${view.notStarted ? liveStatusDot([], true, view.closedDay) : ""}${attendanceCards(view, showNames)}</div>
     </div></section>`;
 }
 
@@ -760,12 +766,13 @@ function professionalAvailability(establishment, data, date = isoDate()) {
   return professionalDirectory(establishment).map((professional) => ({
     ...professional,
     freeTimes: (professional.availableTimes || []).filter((time) =>
-      !slotHasPassed(date, time) && serviceFitsSlot(establishment, professional.name, time, undefined, slots)
+      !businessDayIsClosed(establishment, date) && !slotHasPassed(date, time) && serviceFitsSlot(establishment, professional.name, time, undefined, slots)
     ),
   }));
 }
 
 function availableTimesFor(establishment, data, date = isoDate()) {
+  if (businessDayIsClosed(establishment, date)) return [];
   if (!usesEmployeeSchedules(establishment)) {
     const busy = new Set((data.slots || []).map((slot) => slot.time));
     const professionals = professionalDirectory(establishment);
@@ -970,7 +977,7 @@ function renderQueueDisplay(establishment) {
   const data = cloudCache.get(publicCacheKey(establishment, isoDate())) || { queue: [], slots: [], todayAppointments: 0 };
   const clock = currentSaoPauloClock();
   const view = attendanceView(establishment, data, clock.date, clock);
-  app.innerHTML = `<main class="queue-display"><header class="queue-display-header"><div class="queue-display-brand">${logo()}<span>${escapeHTML(establishment.name)}</span></div><div class="queue-display-status">${liveStatusDot(view.current, view.notStarted)} AO VIVO <strong data-monitor-clock></strong></div></header>
+  app.innerHTML = `<main class="queue-display"><header class="queue-display-header"><div class="queue-display-brand">${logo()}<span>${escapeHTML(establishment.name)}</span></div><div class="queue-display-status">${liveStatusDot(view.current, view.notStarted, view.closedDay)} AO VIVO <strong data-monitor-clock></strong></div></header>
     <section class="queue-display-content"><div class="queue-display-current"><small>ATENDENDO AGORA</small>${attendanceCards(view, false, true)}</div>
     <footer class="queue-display-footer"><span>Acompanhe a ordem e aguarde sua senha ser chamada.</span><div><button class="monitor-action" data-request-fullscreen>⛶ Tela cheia</button><a class="monitor-action" href="${href(`/${establishment.slug}?public=1#painel-senhas`)}" data-link>Fechar painel</a></div></footer></main>`;
   updateMonitorClock();
@@ -1501,6 +1508,13 @@ document.addEventListener("submit", async (event) => {
   if (event.target.id === "booking-form") {
     const establishment = activeEstablishment();
     if (!establishment) return;
+    if (businessDayIsClosed(establishment, state.booking.date)) {
+      state.booking.step = 1;
+      state.booking.time = null;
+      render();
+      toast("Sem expediente neste dia. Escolha outra data para agendar.", "!");
+      return;
+    }
     if (slotHasPassed(state.booking.date, state.booking.time)) {
       state.booking.step = 1;
       state.booking.time = null;

@@ -39,10 +39,12 @@ function businessHoursForDate(establishment, date) {
 }
 
 export function businessDayIsClosed(establishment, date) {
-  return /fechado/i.test(businessHoursForDate(establishment, date)?.value || "");
+  const entry = businessHoursForDate(establishment, date);
+  return entry ? /fechado/i.test(entry.value || "") : Boolean(establishment.hours?.length);
 }
 
 export function businessOpeningMinutes(establishment, date) {
+  if (businessDayIsClosed(establishment, date)) return null;
   const entry = businessHoursForDate(establishment, date);
   if (entry) {
     if (/fechado/i.test(entry.value || "")) return null;
