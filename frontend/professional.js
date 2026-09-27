@@ -691,8 +691,15 @@ function currentTicketCards(current, showNames = false, monitor = false) {
   return `<div class="current-ticket-list">${current.map((item) => `<article class="current-ticket-card ticket-state-${item.ticketState}"><strong>${escapeHTML(["paused", "closed"].includes(item.ticketState) ? TICKET_STATES[item.ticketState] : item.ticket)}</strong>${item.pauseReason ? `<small class="current-ticket-reason">${escapeHTML(item.pauseReason)}</small>` : ""}<span class="current-ticket-detail">${escapeHTML(queueDetail(item))}</span>${showNames && item.ticketState === "in-service" && item.client ? `<span class="queue-customer">${escapeHTML(item.client)}</span>` : ""}</article>`).join("") || '<p class="current-ticket-empty">Nenhum profissional cadastrado</p>'}</div>`;
 }
 
-function liveStatusDot(current) {
-  return `<span class="live-dot${allProfessionalsClosed(current) ? " closed" : ""}" aria-label="${allProfessionalsClosed(current) ? "Todos os profissionais encerrados" : "Atendimento disponível"}"></span>`;
+function liveStatusDot(current, notStarted = false) {
+  const inactive = notStarted || allProfessionalsClosed(current);
+  return `<span class="live-dot${inactive ? " closed" : ""}" aria-label="${notStarted ? "Expediente não Iniciado" : inactive ? "Todos os profissionais encerrados" : "Atendimento disponível"}"></span>`;
+}
+
+function publicCurrentAttendance(establishment, data, clock = currentSaoPauloClock()) {
+  if (state.booking.date > clock.date) return `${liveStatusDot([], true)}<div><small>Atendendo agora</small><div class="public-live-not-started" role="status">Expediente não Iniciado</div></div>`;
+  const { current } = queueView(establishment, data, clock);
+  return `${liveStatusDot(current)}<div><small>Atendendo agora</small>${currentTicketCards(current)}</div>`;
 }
 
 function ticketStatusLegend() {
@@ -822,11 +829,10 @@ function renderEstablishmentPublic(establishment) {
   document.title = `${establishment.name} — Agendae`;
   if (new URLSearchParams(location.search).has("checkin")) state.publicLookup.open = true;
   const data = getData(establishment);
-  const scheduleQueue = queueView(establishment, data, currentSaoPauloClock());
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div></div></header>
-    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${liveStatusDot(scheduleQueue.current)}<div><small>Atendendo agora</small>${currentTicketCards(scheduleQueue.current)}</div></article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
+    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${publicCurrentAttendance(establishment, data)}</article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
     <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
     ${state.booking.step > 1 ? bookingContent(establishment) : selectedBookingPopup(establishment)}
     ${publicCheckInModal()}${publicQueueModal(establishment, data)}${employeeAccessModal(establishment)}</div>`;
@@ -939,11 +945,8 @@ function startQueueClock(establishment, monitor = false) {
     previousMinute = minute;
     if (monitor) { renderQueueDisplay(establishment); return; }
     const data = getData(establishment);
-    const { current } = queueView(establishment, data, currentSaoPauloClock());
-    const currentList = document.querySelector(".public-live-current .current-ticket-list");
-    if (currentList) currentList.outerHTML = currentTicketCards(current);
-    const currentDot = document.querySelector(".public-live-current .live-dot");
-    if (currentDot) currentDot.outerHTML = liveStatusDot(current);
+    const currentPanel = document.querySelector(".public-live-current");
+    if (currentPanel) currentPanel.innerHTML = publicCurrentAttendance(establishment, data);
     const modalPanel = document.querySelector(".public-queue-modal .queue-panel");
     if (modalPanel) modalPanel.outerHTML = queuePanel(establishment, data, false, false);
     const schedule = document.querySelector(".public-schedule-body");
