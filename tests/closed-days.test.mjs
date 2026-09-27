@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import * as schedule from "../frontend/schedule-model.mjs";
 import * as queue from "../frontend/queue-model.mjs";
+import * as calendar from "../frontend/calendar-model.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
 const establishment = {
@@ -24,7 +25,7 @@ test("dia fechado explícito ou ausente no expediente não usa a grade diária c
 
 test("domingo às dez não mostra horários nem formulário e permite escolher segunda-feira", () => {
   const state = { booking: { step: 2, date: "2026-09-27", dateMode: "today", time: "10:20", professional: "Renam" } };
-  const context = vm.createContext({ ...schedule, ...queue, state,
+  const context = vm.createContext({ ...schedule, ...queue, ...calendar, state,
     getData: () => ({ slots: [] }), currentSaoPauloClock: () => ({ date: "2026-09-27", minutes: 600 }),
     isoDate: () => "2026-09-27", prettyDate: value => value, ticketStatusLegend: () => "", escapeHTML: value => String(value),
     staffStatusFor: () => ({}), professionalIsPaused: () => false, professionalIsOnShift: () => false,

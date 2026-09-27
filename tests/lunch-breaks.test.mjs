@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { renderBookingCalendar } from "../frontend/calendar-model.mjs";
 import { lunchBreakFor, isLunchTime, scheduleMatrix, scheduleBands, scheduleTimeline, scheduleDayPeriods, businessDayIsClosed, appointmentDurationMinutes } from "../frontend/schedule-model.mjs";
 import { queueView, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES } from "../frontend/queue-model.mjs";
 
@@ -67,7 +68,7 @@ test("agenda exibe Pausado em vermelho para almoço em vez de senha agendável",
     getData: () => ({ slots: [] }), currentSaoPauloClock: () => ({ date, minutes: 12 * 60 }),
     professionalIsPaused: () => false, professionalIsOnShift: () => true, currentProfessionalSlot: () => "12:00", staffStatusFor: () => ({}),
     isoDate: () => date, prettyDate: () => "", ticketStatusLegend: () => "", escapeHTML: (value) => String(value),
-    scheduleTimeline, scheduleBands, scheduleDayPeriods, businessDayIsClosed, isLunchTime, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES,
+    scheduleTimeline, scheduleBands, scheduleDayPeriods, businessDayIsClosed, renderBookingCalendar, isLunchTime, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES,
   });
   vm.runInContext(source.slice(start, end), context);
   const html = context.publicSchedule(establishment);

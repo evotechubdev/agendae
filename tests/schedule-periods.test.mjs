@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import * as schedule from "../frontend/schedule-model.mjs";
 import * as queue from "../frontend/queue-model.mjs";
+import * as calendar from "../frontend/calendar-model.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
 const establishment = { slug: "demo", professionals: [{ name: "Renam", ...schedule.scheduleFromPeriods([{ start: "08:00", end: "18:00" }]) }] };
@@ -23,7 +24,7 @@ test("manhã e tarde dividem o expediente às treze horas em dois turnos de cinc
 
 function renderFixture(minutes = 8 * 60) {
   const state = { booking: { date: "2026-09-26", dateMode: "today", step: 1 }, scheduleAuto: true };
-  const context = vm.createContext({ ...schedule, ...queue, state,
+  const context = vm.createContext({ ...schedule, ...queue, ...calendar, state,
     getData: () => ({ slots: [] }), currentSaoPauloClock: () => ({ date: "2026-09-26", minutes }),
     professionalIsPaused: () => false, professionalIsOnShift: () => true, currentProfessionalSlot: () => null, staffStatusFor: () => ({}),
     isoDate: () => "2026-09-26", prettyDate: () => "", ticketStatusLegend: () => "", escapeHTML: value => String(value),

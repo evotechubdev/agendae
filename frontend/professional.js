@@ -1,5 +1,6 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, ticketSubstatus, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
 import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
+import { renderBookingCalendar, shiftCalendarMonth } from "./calendar-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -31,6 +32,9 @@ const state = {
   scheduleScrollLeft: 0,
   scheduleTurn: null,
   scheduleAuto: true,
+  schedulePausedByCalendar: false,
+  calendarOpen: false,
+  calendarMonth: null,
   publicLookup: freshPublicLookup(),
   queueModalOpen: false,
   employeeAccessOpen: false,
@@ -201,6 +205,7 @@ function navigate(path) {
   history.pushState(null, "", href(path));
   if (route() !== previousRoute) state.publicLookup = freshPublicLookup();
   state.queueModalOpen = false;
+  state.calendarOpen = false;
   state.employeeAccessOpen = false;
   state.mobileMenu = false;
   render();
@@ -456,8 +461,7 @@ function publicSchedule(establishment) {
     }).join("");
     return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span class="matrix-avatar" aria-hidden="true">${escapeHTML(Array.from(professional.name.trim())[0]?.toLocaleUpperCase("pt-BR") || "?")}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div></th>${cells}</tr>`;
   }).join("");
-  const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
-  const toolbar = (turnControls = "") => `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label>${turnControls}</div>${ticketStatusLegend()}</div>`;
+  const toolbar = (turnControls = "") => `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div>${renderBookingCalendar({ selectedDate: state.booking.date, dateMode: state.booking.dateMode, today: isoDate(), month: state.calendarMonth, open: state.calendarOpen })}${turnControls}</div>${ticketStatusLegend()}</div>`;
   if (businessDayIsClosed(establishment, state.booking.date)) return `${toolbar()}<div class="schedule-empty" role="status">Sem expediente neste dia. Escolha outra data para agendar.</div>`;
   if (!professionals.length || !times.length) return `${toolbar()}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
   const periods = scheduleDayPeriods(timeline);
@@ -515,9 +519,12 @@ function pauseScheduleTurn() {
   state.scheduleAuto = false;
   clearTimeout(scheduleTurnTimer);
   scheduleTurnTimer = null;
+  const checkbox = document.querySelector("[data-schedule-turn-auto]");
+  if (checkbox) checkbox.checked = false;
 }
 
 function resumeScheduleTurn() {
+  if (state.schedulePausedByCalendar) return;
   state.scheduleAuto = true;
   if (state.scheduleTurn) state.scheduleTurn.changedAt = Date.now();
 }
@@ -982,7 +989,7 @@ function startQueueClock(establishment, monitor = false) {
     const modalPanel = document.querySelector(".public-queue-modal .queue-panel");
     if (modalPanel) modalPanel.outerHTML = queuePanel(establishment, data, false, false, state.booking.date);
     const schedule = document.querySelector(".public-schedule-body");
-    if (schedule) { schedule.innerHTML = publicSchedule(establishment); restoreScheduleScroll(); }
+    if (schedule && !state.calendarOpen && !document.activeElement?.closest("[data-booking-calendar]")) { schedule.innerHTML = publicSchedule(establishment); restoreScheduleScroll(); }
     const lookup = document.querySelector(".public-lookup-panel");
     if (lookup && !state.publicLookup.scanning && !lookup.contains(document.activeElement)) lookup.outerHTML = publicAppointmentLookup();
   }, 1000);
@@ -1048,7 +1055,75 @@ function activeEstablishment() {
   return establishments[route()];
 }
 
+function refreshBookingCalendar(focusSelector) {
+  const calendar = document.querySelector("[data-booking-calendar]");
+  if (calendar) calendar.outerHTML = renderBookingCalendar({ selectedDate: state.booking.date, dateMode: state.booking.dateMode, today: isoDate(), month: state.calendarMonth, open: state.calendarOpen });
+  if (focusSelector) requestAnimationFrame(() => document.querySelector(focusSelector)?.focus());
+}
+
+function selectBookingDate(selectedDate) {
+  pauseCalendarSchedule();
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(selectedDate) ? new Date(`${selectedDate}T12:00:00Z`) : null;
+  if (!parsed || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== selectedDate || selectedDate < isoDate()) {
+    toast("Escolha uma data válida a partir de hoje.", "!");
+    return false;
+  }
+  state.booking.date = selectedDate;
+  state.booking.dateMode = selectedDate === isoDate() ? "today" : "other";
+  state.booking.time = null;
+  state.booking.step = 1;
+  state.booking.confirmation = null;
+  state.calendarMonth = selectedDate.slice(0, 7);
+  state.calendarOpen = false;
+  const establishment = activeEstablishment();
+  if (establishment) cloudCache.delete(publicCacheKey(establishment));
+  render();
+  requestAnimationFrame(() => document.querySelector("[data-calendar-toggle]")?.focus());
+  return true;
+}
+
+function pauseCalendarSchedule() {
+  state.schedulePausedByCalendar = true;
+  pauseScheduleTurn();
+}
+
+function pauseCalendarInteraction(event) {
+  if (event.target.closest("[data-booking-calendar], [data-date-mode]")) pauseCalendarSchedule();
+}
+
+document.addEventListener("pointerdown", pauseCalendarInteraction);
+document.addEventListener("focusin", pauseCalendarInteraction);
+
 document.addEventListener("click", async (event) => {
+  if (state.calendarOpen && !event.target.closest("[data-booking-calendar]")) {
+    state.calendarOpen = false;
+    refreshBookingCalendar();
+  }
+  if (event.target.closest("[data-calendar-toggle]")) {
+    pauseCalendarSchedule();
+    state.calendarOpen = !state.calendarOpen;
+    if (state.calendarOpen) state.calendarMonth = state.booking.date.slice(0, 7);
+    refreshBookingCalendar(state.calendarOpen ? '[data-calendar-date][aria-pressed="true"]:not([disabled])' : "[data-calendar-toggle]");
+    return;
+  }
+  const calendarStep = event.target.closest("[data-calendar-month-step]");
+  if (calendarStep) {
+    pauseCalendarSchedule();
+    state.calendarMonth = shiftCalendarMonth(state.calendarMonth || state.booking.date.slice(0, 7), Number(calendarStep.dataset.calendarMonthStep));
+    refreshBookingCalendar(`[data-calendar-month-step="${calendarStep.dataset.calendarMonthStep}"]`);
+    return;
+  }
+  if (event.target.closest("[data-calendar-close]")) {
+    pauseCalendarSchedule();
+    state.calendarOpen = false;
+    refreshBookingCalendar("[data-calendar-toggle]");
+    return;
+  }
+  const calendarDate = event.target.closest("[data-calendar-date]");
+  if (calendarDate) {
+    selectBookingDate(calendarDate.dataset.calendarDate);
+    return;
+  }
   const openMenu = document.querySelector("[data-internal-menu][open]");
   if (openMenu && !openMenu.contains(event.target)) openMenu.open = false;
   if (event.target.closest("[data-close-selected-booking]") || event.target.matches("[data-selected-booking-backdrop]")) {
@@ -1132,12 +1207,7 @@ document.addEventListener("click", async (event) => {
   }
   const mode = event.target.closest("[data-date-mode]");
   if (mode) {
-    state.booking.dateMode = "today";
-    state.booking.date = isoDate();
-    state.booking.time = null;
-    const establishment = activeEstablishment();
-    if (establishment) cloudCache.delete(publicCacheKey(establishment));
-    render();
+    selectBookingDate(isoDate());
     return;
   }
   const time = event.target.closest("[data-time]");
@@ -1347,26 +1417,14 @@ document.addEventListener("click", async (event) => {
 document.addEventListener("change", (event) => {
   if (event.target.matches("[data-schedule-turn-auto]")) {
     state.scheduleAuto = event.target.checked;
+    if (event.target.checked) state.schedulePausedByCalendar = false;
     if (state.scheduleTurn) state.scheduleTurn.changedAt = Date.now();
     const establishment = activeEstablishment();
     if (establishment) startScheduleTurnTimer(establishment);
     return;
   }
   if (event.target.matches("[data-booking-date]")) {
-    const selectedDate = event.target.value;
-    const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(selectedDate) ? new Date(`${selectedDate}T12:00:00`) : null;
-    const validDate = parsedDate && !Number.isNaN(parsedDate.valueOf()) && parsedDate.toISOString().slice(0, 10) === selectedDate && selectedDate > isoDate();
-    if (!validDate) {
-      event.target.value = "";
-      toast("Escolha uma data válida a partir de amanhã.", "!");
-      return;
-    }
-    state.booking.date = selectedDate;
-    state.booking.dateMode = "other";
-    state.booking.time = null;
-    const establishment = activeEstablishment();
-    if (establishment) cloudCache.delete(publicCacheKey(establishment));
-    render();
+    selectBookingDate(event.target.value);
   }
   if (event.target.matches("[data-professional]")) { state.booking.professional = event.target.value; state.booking.time = null; render(); }
   if (event.target.matches("[data-booking-service]")) state.booking.serviceId = event.target.value;
@@ -1614,6 +1672,12 @@ window.addEventListener("resize", () => {
   }
 });
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.calendarOpen) {
+    event.preventDefault();
+    state.calendarOpen = false;
+    refreshBookingCalendar("[data-calendar-toggle]");
+    return;
+  }
   const openMenu = document.querySelector("[data-internal-menu][open]");
   if (event.key === "Escape" && openMenu) {
     openMenu.open = false;
