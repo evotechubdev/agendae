@@ -1224,6 +1224,32 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-timeline .matrix-slot-tight .matrix-ticket-code { font-size: 10px; letter-spacing: 0; }
 .schedule-timeline .matrix-slot-tight .matrix-ticket-code span { display: block; line-height: 1.05; }
 .schedule-timeline .matrix-pause-buffer .matrix-ticket-code { font-size: 12px; line-height: 1; }
+.schedule-turn-controls { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; padding: 8px 10px; border: 1px solid #e2e9f3; border-radius: 9px; background: #f7f9fd; }
+.schedule-turn-navigation { display: flex; align-items: center; gap: 10px; }
+.schedule-turn-navigation > button { width: 30px; height: 30px; padding: 0; border: 1px solid #dce4f0; border-radius: 7px; background: #fff; color: var(--navy); font: 500 23px/1 sans-serif; cursor: pointer; }
+.schedule-turn-navigation > button:hover { border-color: var(--blue); background: var(--blue-soft); }
+.schedule-turn-navigation > button:disabled { opacity: .4; cursor: default; }
+.schedule-turn-navigation > button:focus-visible,.schedule-turn-auto input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.schedule-turn-title { min-width: 105px; display: grid; gap: 3px; text-align: center; }
+.schedule-turn-title strong { color: var(--navy); font-size: 13px; line-height: 1.1; }
+.schedule-turn-title small { color: var(--muted); font-size: 10px; line-height: 1; }
+.schedule-turn-auto { display: flex; align-items: center; gap: 7px; color: var(--ink); font-size: 11px; font-weight: 600; cursor: pointer; }
+.schedule-turn-auto input { width: 15px; height: 15px; margin: 0; accent-color: var(--blue); }
+.schedule-turn-auto span { display: grid; gap: 3px; }
+.schedule-turn-auto small { color: var(--muted); font-size: 9px; font-weight: 400; }
+.schedule-period-view .matrix-slot { height: 54px; }
+.schedule-period-view .matrix-slot-tight .matrix-ticket-code { font-size: 11px; }
+.schedule-period-view .matrix-start-time { font-size: 10px; }
+@media (min-width:1200px) {
+  .schedule-period-view .matrix-slot-tight:not(.matrix-slot-short) .matrix-ticket-code span { display: inline; }
+}
+@media (max-width:520px) {
+  .schedule-turn-controls { gap: 6px; padding: 7px; }
+  .schedule-turn-navigation { gap: 5px; }
+  .schedule-turn-title { min-width: 78px; }
+  .schedule-turn-auto { gap: 5px; font-size: 9px; }
+  .schedule-turn-auto small { font-size: 8px; }
+}
 .schedule-timeline .schedule-matrix td { padding: 1px 0; }
 .schedule-timeline .schedule-matrix thead th { position: relative; font-size: 10px; padding: 2px 3px; text-align: left; }
 .schedule-timeline .timeline-range { display: block; margin-top: 1px; font-size: 8px; font-weight: 500; }
