@@ -58,6 +58,20 @@ Ao criar um agendamento, o cliente recebe uma senha de seis caracteres. Na pági
 
 As bibliotecas de QR ficam versionadas em `frontend/vendor/`, portanto a geração e a leitura não dependem de serviços externos de imagens. Para usar a câmera, o site precisa estar em HTTPS (ou em `localhost`) e o navegador deve receber permissão de acesso.
 
+### Expediente extra e janela de presença
+
+No painel, **Expediente extra** libera somente a data selecionada, usando as escalas dos profissionais. A exceção não se repete na semana seguinte. Para abrir outra data, cadastre uma nova liberação.
+
+A presença por QR ou pela equipe só é aceita na data real do agendamento, no fuso de São Paulo, de uma hora antes do início até o término previsto. Um atendimento das 09:20 com duração de 20 minutos permite confirmar das 08:20 às 09:40. A duração fica salva na reserva, e as regras do Firestore verificam a janela com o relógio do servidor.
+
+Publique também `firestore.rules` ao publicar o frontend: as novas reservas e consultas incluem `durationMinutes`. A preparação do QR no painel sincroniza as durações do catálogo para validar reservas antigas sem esse campo.
+
+Para testar as regras localmente com Java e Firebase CLI instalados:
+
+```bash
+firebase emulators:exec --only firestore --project demo-agendae --config firebase.emulator.json "node --test tests/firestore-presence.emulator.mjs"
+```
+
 ## Próxima etapa recomendada
 
 Criar a API multi-tenant com autenticação, autorização por estabelecimento, banco de dados, prevenção de conflito de horários, notificações e documentação OpenAPI. O frontend já separa os dados por identificador de estabelecimento para facilitar essa integração.

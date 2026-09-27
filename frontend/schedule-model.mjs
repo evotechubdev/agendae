@@ -39,12 +39,17 @@ function businessHoursForDate(establishment, date) {
 }
 
 export function businessDayIsClosed(establishment, date) {
+  if (establishment.extraWorkingDates?.[date] === true) return false;
   const entry = businessHoursForDate(establishment, date);
   return entry ? /fechado/i.test(entry.value || "") : Boolean(establishment.hours?.length);
 }
 
 export function businessOpeningMinutes(establishment, date) {
   if (businessDayIsClosed(establishment, date)) return null;
+  if (establishment.extraWorkingDates?.[date] === true) {
+    const first = scheduleMatrix(establishment).times[0];
+    return first ? minutes(first) : null;
+  }
   const entry = businessHoursForDate(establishment, date);
   if (entry) {
     if (/fechado/i.test(entry.value || "")) return null;
@@ -142,6 +147,20 @@ export function serviceDurationFor(establishment, professionalName, service) {
   const ordered = [...new Set(source.map(minutes).filter(Number.isFinite))].sort((a, b) => a - b);
   const gaps = ordered.slice(1).map((time, index) => time - ordered[index]).filter((gap) => gap > 0 && gap <= 120).sort((a, b) => a - b);
   return gaps.length ? gaps[Math.floor((gaps.length - 1) / 2)] : 30;
+}
+
+export function appointmentDurationMinutes(establishment, appointment) {
+  const saved = Number(appointment?.durationMinutes);
+  return Number.isInteger(saved) && saved > 0 ? saved : serviceDurationFor(establishment, appointment?.professional, appointment?.service);
+}
+
+export function appointmentPresenceWindow(establishment, appointment, now = new Date()) {
+  const start = new Date(`${appointment?.date}T${appointment?.time}:00-03:00`).getTime();
+  const end = start + appointmentDurationMinutes(establishment, appointment) * 60000;
+  const opens = start - 60 * 60000;
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(now);
+  const allowed = Number.isFinite(start) && appointment.date === today && now.getTime() >= opens && now.getTime() <= end;
+  return { allowed, opens, end };
 }
 
 export function serviceFitsSlot(establishment, professionalName, time, service, bookings = []) {

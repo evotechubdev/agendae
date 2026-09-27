@@ -1,5 +1,5 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, ticketSubstatus, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
-import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessOpeningMinutes, businessDayIsClosed } from "./schedule-model.mjs";
+import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -562,9 +562,9 @@ function publicAppointmentLookup() {
     : lookup.searched && !lookup.results.length
       ? `<div class="lookup-message">Nenhum agendamento foi encontrado com ${lookup.method === "code" ? "essa senha" : "esse nome completo"}.</div>`
       : lookup.results.map((item) => {
-        const canCheckIn = item.date === isoDate() && item.status === "confirmado";
+        const canCheckIn = item.status === "confirmado" && appointmentPresenceWindow(activeEstablishment(), item).allowed;
         const isPresent = item.status === "presente";
-        return `<article class="lookup-result checkin-result"><div><small>${prettyDate(item.date, true)}</small><strong>${escapeHTML(item.time)} · ${escapeHTML(item.service)}</strong><span>${escapeHTML(item.professional)}</span></div><div><em class="status ${escapeHTML(item.status || "confirmado")}">${escapeHTML(statusLabel(item.status))}</em>${canCheckIn ? `<button class="btn btn-primary btn-sm" type="button" data-start-checkin="${escapeHTML(item.appointmentId)}">Ler QR e confirmar</button>` : isPresent ? '<span class="presence-done">✓ Presença registrada</span>' : '<span class="presence-unavailable">Disponível no dia agendado</span>'}</div></article>`;
+        return `<article class="lookup-result checkin-result"><div><small>${prettyDate(item.date, true)}</small><strong>${escapeHTML(item.time)} · ${escapeHTML(item.service)}</strong><span>${escapeHTML(item.professional)}</span></div><div><em class="status ${escapeHTML(item.status || "confirmado")}">${escapeHTML(statusLabel(item.status))}</em>${canCheckIn ? `<button class="btn btn-primary btn-sm" type="button" data-start-checkin="${escapeHTML(item.appointmentId)}">Ler QR e confirmar</button>` : isPresent ? '<span class="presence-done">✓ Presença registrada</span>' : `<span class="presence-unavailable">${presenceWindowLabel(activeEstablishment(), item)}</span>`}</div></article>`;
       }).join("");
   const success = lookup.success ? `<div class="checkin-success" role="status"><span>✓</span><div><strong>Presença confirmada!</strong><p>${escapeHTML(lookup.success.time)} · ${escapeHTML(lookup.success.service)}. A equipe já pode ver que você chegou.</p></div></div>` : "";
   const scanner = lookup.scanning ? `<div class="booking-modal-backdrop" data-checkin-backdrop>
@@ -877,7 +877,7 @@ function appointmentRows(data, query = state.appointmentQuery) {
   return appointments.map((item) => {
     const paused = professionalIsPaused(data, item.professional);
     const action = item.status === "confirmado"
-      ? `<button class="btn btn-soft btn-sm" type="button" data-confirm-presence="${escapeHTML(item.id)}">Confirmar chegada</button>`
+      ? `<button class="btn btn-soft btn-sm" type="button" data-confirm-presence="${escapeHTML(item.id)}" ${appointmentPresenceWindow(establishment, item).allowed ? "" : "disabled"} title="${escapeHTML(presenceWindowLabel(establishment, item))}">Confirmar chegada</button>`
       : item.status === "presente" && paused
         ? '<span class="appointment-paused">Em pausa</span>'
         : item.status === "presente"
@@ -887,6 +887,19 @@ function appointmentRows(data, query = state.appointmentQuery) {
             : item.status === "concluido" ? '<span>✓ Finalizado</span>' : "";
     return `<div class="appointment-row"><span class="appt-time">${item.time}</span><span class="client"><span class="client-avatar">${initials(item.client)}</span><span><strong>${escapeHTML(item.client)}</strong><small>${escapeHTML(item.service)} · Painel ${escapeHTML(scheduledTicket(establishment, item.time, item.professional, item.service))}${item.checkInCode ? ` · Presença ${escapeHTML(item.checkInCode)}` : ""}</small></span></span><span class="professional">${escapeHTML(item.professional)}</span><span class="status ${escapeHTML(item.status)}">${escapeHTML(statusLabel(item.status))}</span><span class="appointment-presence-action">${action}</span></div>`;
   }).join("");
+}
+
+function presenceWindowLabel(establishment, appointment) {
+  const window = appointmentPresenceWindow(establishment, appointment);
+  if (!Number.isFinite(window.opens) || !Number.isFinite(window.end)) return "Horário do atendimento indisponível";
+  const format = value => new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return `Presença em ${prettyDate(appointment.date)}, das ${format(window.opens)} às ${format(window.end)}`;
+}
+
+function extraWorkingDatesMarkup(establishment) {
+  const today = currentSaoPauloClock().date;
+  const dates = Object.keys(establishment.extraWorkingDates || {}).filter(date => date >= today && establishment.extraWorkingDates[date] === true).sort();
+  return `<section class="panel extra-working-panel"><div class="panel-head"><div><h2>Expediente extra</h2><p>Libere o atendimento apenas na data escolhida, usando as escalas dos profissionais. Outros dias continuam com o expediente normal.</p></div></div><form class="extra-working-form" data-extra-working-form><label class="field"><span>Data do expediente extra</span><input type="date" name="date" min="${today}" value="${today}" required></label><input type="hidden" name="enabled" value="true"><button class="btn btn-primary btn-sm" type="submit">Liberar esta data</button></form><div class="extra-working-dates">${dates.map(date => `<form class="extra-working-date" data-extra-working-form><strong>${prettyDate(date, true)}</strong><input type="hidden" name="date" value="${date}"><input type="hidden" name="enabled" value="false"><button class="btn btn-outline btn-sm" type="submit">Remover expediente extra</button></form>`).join("") || '<p class="empty">Nenhum expediente extra programado.</p>'}</div></section>`;
 }
 
 async function loadCheckInConfig(establishment) {
@@ -927,6 +940,7 @@ function renderAdmin(establishment) {
     <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}?public=1#agendar`)}" data-link>+ Novo agendamento</a></div></header>
       <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
       ${adminCheckInPanel(establishment, today)}
+      ${extraWorkingDatesMarkup(establishment)}
       ${workSchedulesMarkup(establishment)}
       ${lunchSchedulesMarkup(establishment)}
       <section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Essa configuração vale para todos os novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="employee"><span>♙</span><strong>Agenda por funcionário</strong><small>Cada profissional tem seus próprios horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="establishment"><span>▣</span><strong>Agenda do estabelecimento</strong><small>Uma única grade compartilhada pela equipe.</small></button></div></section>
@@ -940,8 +954,8 @@ function renderAdmin(establishment) {
   void loadCheckInConfig(establishment);
   adminRefreshTimer = setInterval(() => {
     if (route() !== establishment.slug || session()?.slug !== establishment.slug || new URLSearchParams(location.search).get("public") === "1") return;
-    if (document.activeElement?.closest("[data-lunch-form], [data-work-form]")) return;
-    if (document.querySelector('[data-work-form][data-dirty="true"], [data-lunch-form][data-dirty="true"]')) return;
+    if (document.activeElement?.closest("[data-lunch-form], [data-work-form], [data-extra-working-form]")) return;
+    if (document.querySelector('[data-work-form][data-dirty="true"], [data-lunch-form][data-dirty="true"], [data-extra-working-form][data-dirty="true"]')) return;
     cloudCache.delete(`admin:${establishment.slug}`);
     void refreshCloudData(establishment, "admin");
   }, 10000);
@@ -969,6 +983,8 @@ function startQueueClock(establishment, monitor = false) {
     if (modalPanel) modalPanel.outerHTML = queuePanel(establishment, data, false, false, state.booking.date);
     const schedule = document.querySelector(".public-schedule-body");
     if (schedule) { schedule.innerHTML = publicSchedule(establishment); restoreScheduleScroll(); }
+    const lookup = document.querySelector(".public-lookup-panel");
+    if (lookup && !state.publicLookup.scanning && !lookup.contains(document.activeElement)) lookup.outerHTML = publicAppointmentLookup();
   }, 1000);
 }
 
@@ -1172,6 +1188,11 @@ document.addEventListener("click", async (event) => {
   const startCheckInButton = event.target.closest("[data-start-checkin]");
   if (startCheckInButton) {
     const selectedId = startCheckInButton.dataset.startCheckin;
+    const selected = state.publicLookup.results.find(item => item.appointmentId === selectedId);
+    if (!selected || selected.status !== "confirmado" || !appointmentPresenceWindow(activeEstablishment(), selected).allowed) {
+      toast("A presença só pode ser confirmada na data do atendimento, de uma hora antes do início até o término previsto.", "!");
+      return;
+    }
     state.publicLookup.selectedId = selectedId;
     state.publicLookup.scanError = "";
     const scannedToken = new URLSearchParams(location.search).get("checkin");
@@ -1367,7 +1388,7 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("input", (event) => {
-  const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form]");
+  const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form], [data-extra-working-form]");
   if (scheduleForm) { scheduleForm.dataset.dirty = "true"; return; }
   if (!event.target.matches("[data-appointment-search]")) return;
   state.appointmentQuery = event.target.value;
@@ -1382,6 +1403,26 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (event.target.matches("[data-extra-working-form]")) {
+    const establishment = activeEstablishment();
+    if (!establishment || session()?.slug !== establishment.slug || !firebaseApi) return;
+    const form = new FormData(event.target);
+    const enabled = form.get("enabled") === "true";
+    const button = event.target.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      establishment.extraWorkingDates = await firebaseApi.updateExtraWorkingDate(establishment.slug, String(form.get("date")), enabled);
+      cloudCache.delete(`admin:${establishment.slug}`);
+      invalidatePublicCache(establishment.slug);
+      state.booking.time = null;
+      render();
+      toast(enabled ? "Expediente extra liberado somente para esta data." : "Expediente extra removido. O expediente normal foi mantido.");
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message || "Não foi possível salvar o expediente extra.", "!");
+    }
+    return;
+  }
   if (event.target.matches("[data-work-form]")) {
     const establishment = activeEstablishment();
     if (!establishment || session()?.slug !== establishment.slug || !firebaseApi) return;

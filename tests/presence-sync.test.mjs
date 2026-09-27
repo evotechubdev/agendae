@@ -2,14 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { appointmentPresenceWindow as realPresenceWindow } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/firebase-service.js", import.meta.url), "utf8");
-const appointment = { date: "2026-09-26", time: "09:00", professional: "Renam", service: "Corte" };
-function fixture(shared = false) {
+const appointment = { date: "2026-09-26", time: "09:00", professional: "Renam", service: "Corte", status: "confirmado", durationMinutes: 20 };
+function fixture(shared = false, now = "2026-09-26T09:00:00-03:00") {
   const writes = [];
   let committed = false;
   const slotId = `establishments/demo/slots/2026-09-26_0900_${shared ? "establishment" : "renam"}`;
   const context = vm.createContext({ db: {},
+    appointmentPresenceWindow: (establishment, item) => realPresenceWindow(establishment, item, new Date(now)),
     doc: (_db, ...parts) => parts.join("/"), documentKey: value => value.toLowerCase(), serverTimestamp: () => "now",
     getDoc: async ref => ({ ref, exists: () => ref === slotId || ref.endsWith("/appointments/id"), data: () => appointment }),
     writeBatch: () => ({ update: (ref, data) => writes.push({ ref, data }), set: (ref, data) => writes.push({ ref, data }), commit: async () => { committed = true; } }),
@@ -44,6 +46,18 @@ test("dados de horário ausentes ou divergentes não confirmam presença parcial
     await assert.rejects(f.context.confirmPresenceWithQr("demo", "id", "token", appointment.date, true, selected));
     assert.equal(f.writes.length, 0);
     assert.equal(f.committed, false);
+  }
+});
+
+test("QR e confirmação manual rejeitam véspera, atraso e antecipação sem gravação parcial", async () => {
+  for (const now of ["2026-09-25T09:00:00-03:00", "2026-09-26T07:59:59-03:00", "2026-09-26T09:20:01-03:00", "2026-09-27T09:00:00-03:00"]) {
+    for (const method of ["qr", "employee"]) {
+      const f = fixture(false, now);
+      const request = method === "qr" ? f.context.confirmPresenceWithQr("demo", "id", "token", appointment.date, true, appointment) : f.context.confirmPresenceManually("demo", "id");
+      await assert.rejects(request, /presença só pode ser confirmada/);
+      assert.equal(f.writes.length, 0);
+      assert.equal(f.committed, false);
+    }
   }
 });
 

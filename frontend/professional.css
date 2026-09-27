@@ -1298,6 +1298,11 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-internal-dropdown strong { font-size: 12px; }
 .public-internal-dropdown small { color: var(--muted); font-size: 10px; }
 .selected-booking-popup { max-width: 420px; }
+.extra-working-panel { margin-bottom: 20px; }
+.extra-working-form, .extra-working-date { display: flex; align-items: center; gap: 14px; padding: 16px 20px; flex-wrap: wrap; }
+.extra-working-form .field { display: grid; gap: 6px; margin: 0; }
+.extra-working-form input[type="date"] { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.extra-working-date { justify-content: space-between; border-top: 1px solid var(--line); font-size: 13px; }
 .selected-booking-popup .booking-modal-head { min-height: 74px; }
 .selected-booking-content { display: grid; gap: 18px; padding: 22px; }
 .selected-booking-professional { display: flex; align-items: center; gap: 12px; }

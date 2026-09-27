@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { lunchBreakFor, isLunchTime, scheduleMatrix, scheduleBands, scheduleTimeline, scheduleDayPeriods, businessDayIsClosed } from "../frontend/schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, scheduleMatrix, scheduleBands, scheduleTimeline, scheduleDayPeriods, businessDayIsClosed, appointmentDurationMinutes } from "../frontend/schedule-model.mjs";
 import { queueView, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES } from "../frontend/queue-model.mjs";
 
 const establishment = {
@@ -86,7 +86,7 @@ function apiContext() {
   const context = vm.createContext({
     db: {}, doc: (_db, ...parts) => parts.join("/"), collection: () => "appointments",
     documentKey: (value) => value, appointmentLookupKey: async () => "name", appointmentCodeLookupKey: async () => "code",
-    lunchBreakFor, isLunchTime, businessDayIsClosed, serverTimestamp: () => "timestamp",
+    lunchBreakFor, isLunchTime, businessDayIsClosed, appointmentDurationMinutes, serverTimestamp: () => "timestamp",
     runTransaction: async (_db, callback) => callback({
       get: async (ref) => ref === "establishments/demo" ? { exists: () => true, data: () => saved } : { exists: () => false },
       update: (ref, value) => { writes.push({ ref, value }); saved = { ...saved, ...value }; },

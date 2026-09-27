@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-import { lunchBreakFor, isLunchTime, scheduleFromPeriods, workPeriodsFor, serviceFitsSlot, businessDayIsClosed } from "./schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, scheduleFromPeriods, workPeriodsFor, serviceFitsSlot, businessDayIsClosed, appointmentDurationMinutes, appointmentPresenceWindow } from "./schedule-model.mjs";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
@@ -279,7 +279,7 @@ export function observePublicState(slug, callback) {
   const unsubscribeEstablishment = onSnapshot(doc(db, "establishments", slug), (snapshot) => {
     const establishment = snapshot.data() || {};
     establishmentHours = establishment.hours || [];
-    establishmentSchedule = { professionals: establishment.professionals || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee" };
+    establishmentSchedule = { professionals: establishment.professionals || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee", extraWorkingDates: establishment.extraWorkingDates || {} };
     professionalLunchBreaks = { ...Object.fromEntries((establishment.professionals || []).filter((item) => item.lunchBreak).map((item) => [item.name, item.lunchBreak])), ...establishment.professionalLunchBreaks };
     emit();
   }, () => emit());
@@ -363,6 +363,7 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
       throw error;
     }
     const establishment = establishmentSnapshot.data() || {};
+    const durationMinutes = appointmentDurationMinutes(establishment, { ...appointment, durationMinutes: undefined });
     if (businessDayIsClosed(establishment, appointment.date)) {
       const error = new Error("Sem expediente neste dia. Escolha outra data para agendar.");
       error.code = "agendae/slot-unavailable";
@@ -409,11 +410,13 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
     });
     transaction.set(appointmentRef, {
       ...appointment,
+      durationMinutes,
       status: "confirmado",
       createdAt: serverTimestamp(),
     });
     const publicAppointment = {
       appointmentId: appointmentRef.id,
+      durationMinutes,
       date: appointment.date,
       time: appointment.time,
       service: appointment.service,
@@ -440,8 +443,12 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
 
 export async function getOrCreateCheckInConfig(slug) {
   const configRef = doc(db, "establishments", slug, "checkIn", "config");
+  const establishmentRef = doc(db, "establishments", slug);
   return runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(configRef);
+    const [snapshot, establishmentSnapshot] = await Promise.all([transaction.get(configRef), transaction.get(establishmentRef)]);
+    const establishment = establishmentSnapshot.data() || {};
+    const serviceDurations = Object.fromEntries((establishment.services || []).map(service => [service.name, appointmentDurationMinutes(establishment, { service: service.name })]));
+    if (JSON.stringify(establishment.serviceDurations || {}) !== JSON.stringify(serviceDurations)) transaction.update(establishmentRef, { serviceDurations });
     if (snapshot.exists() && snapshot.data().token) return snapshot.data();
     const token = crypto.randomUUID().replace(/-/g, "");
     transaction.set(configRef, { token, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
@@ -451,6 +458,8 @@ export async function getOrCreateCheckInConfig(slug) {
 
 export async function confirmPresenceWithQr(slug, appointmentId, checkInToken, date, presenceExists = true, appointment) {
   if (!appointment?.time || !appointment?.professional || appointment.date !== date) throw new Error("Horário do agendamento não encontrado.");
+  const establishment = (await getDoc(doc(db, "establishments", slug))).data() || {};
+  if (!appointmentPresenceWindow(establishment, appointment).allowed) throw new Error("A presença só pode ser confirmada na data do atendimento, de uma hora antes do início até o término previsto.");
   const slotRef = await existingAppointmentSlot({ get: getDoc }, slug, appointment);
   const appointmentRef = doc(db, "establishments", slug, "appointments", appointmentId);
   const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentId);
@@ -476,6 +485,9 @@ export async function confirmPresenceManually(slug, appointmentId) {
   const appointmentRef = doc(db, "establishments", slug, "appointments", appointmentId);
   const appointmentSnapshot = await getDoc(appointmentRef);
   if (!appointmentSnapshot.exists()) throw new Error("Agendamento não encontrado.");
+  const appointment = appointmentSnapshot.data();
+  const establishment = (await getDoc(doc(db, "establishments", slug))).data() || {};
+  if (appointment.status !== "confirmado" || !appointmentPresenceWindow(establishment, appointment).allowed) throw new Error("A presença só pode ser confirmada na data do atendimento, de uma hora antes do início até o término previsto.");
   const slotRef = await existingAppointmentSlot({ get: getDoc }, slug, appointmentSnapshot.data());
   const presenceRef = doc(db, "establishments", slug, "appointmentPresence", appointmentId);
   const batch = writeBatch(db);
@@ -492,6 +504,22 @@ export async function confirmPresenceManually(slug, appointmentId) {
   }, { merge: true });
   if (slotRef) batch.update(slotRef, { appointmentId, status: "presente", checkedInAt: serverTimestamp(), checkInMethod: "employee" });
   await batch.commit();
+}
+
+export async function updateExtraWorkingDate(slug, date, enabled) {
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const selected = new Date(`${date}T12:00:00-03:00`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(selected.getTime()) || selected.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" }) !== date || date < today) throw new Error("Escolha hoje ou uma data futura para o expediente extra.");
+  const ref = doc(db, "establishments", slug);
+  return runTransaction(db, async transaction => {
+    const establishment = (await transaction.get(ref)).data() || {};
+    const extraWorkingDates = { ...establishment.extraWorkingDates };
+    if (enabled) extraWorkingDates[date] = true;
+    else delete extraWorkingDates[date];
+    const serviceDurations = Object.fromEntries((establishment.services || []).map(service => [service.name, appointmentDurationMinutes(establishment, { service: service.name })]));
+    transaction.update(ref, { extraWorkingDates, serviceDurations });
+    return extraWorkingDates;
+  });
 }
 
 async function professionalAppointments(slug, professional, date) {
