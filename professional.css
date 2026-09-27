@@ -121,6 +121,9 @@ img { display: block; max-width: 100%; }
 .live-dot { width: 9px; height: 9px; border-radius: 50%; background: #4ee09d; box-shadow: 0 0 0 6px rgba(78,224,157,.14); }
 .live-dot.closed { background: #171717; box-shadow: 0 0 0 6px rgba(23,23,23,.18); }
 .public-live-not-started { display: flex; align-items: center; width: fit-content; max-width: 100%; min-height: 44px; margin-top: 4px; padding: 8px 12px; border: 2px solid #171717; border-radius: 12px; color: #fff; background: #ffffff08; font-size: 14px; font-weight: 700; }
+.queue-current .public-live-not-started { color: var(--navy); background: #fff; }
+.queue-current > .live-dot { margin-top: 12px; margin-bottom: 8px; }
+.queue-display-current .public-live-not-started { margin-top: 20px; padding: 18px; font-size: clamp(18px,3vw,36px); text-align: center; }
 .live-ticket small,.live-ticket strong { display: block; }
 .live-ticket small { color: #bdcdeb; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
 .live-ticket strong { margin-top: 4px; font: 800 25px "Manrope",sans-serif; }
