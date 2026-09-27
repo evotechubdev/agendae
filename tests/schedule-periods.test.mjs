@@ -56,7 +56,7 @@ function timerFixture() {
   const state = { booking: { date: "2026-09-26" }, scheduleAuto: true, scheduleTurn: { key: "demo:2026-09-26", id: "morning", changedAt: 0 } };
   const body = { innerHTML: "" };
   const context = vm.createContext({ state, Date: { now: () => now },
-    document: { querySelector: () => body, activeElement: null },
+    document: { querySelector: selector => selector === ".public-schedule-body" ? body : null, activeElement: null },
     getData: () => ({ slots: [] }), scheduleTimeline: () => timeline, scheduleDayPeriods: schedule.scheduleDayPeriods,
     publicSchedule: () => state.scheduleTurn.id, restoreScheduleScroll: () => {},
     clearTimeout: id => cleared.push(id), setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; },
@@ -106,4 +106,32 @@ test("atualizações da agenda não reiniciam a contagem, mas as setas concedem 
   assert.equal(fixture.state.scheduleTurn.id, "afternoon");
   assert.equal(fixture.timers.at(-1).delay, 5000);
   assert.ok(fixture.cleared.includes(1));
+});
+
+test("selecionar um horário interrompe a alternância até a opção ser marcada novamente", async () => {
+  for (const selector of ["[data-public-slot]", "[data-time]"]) {
+    const fixture = timerFixture();
+    const { context, state, timers, cleared } = fixture;
+    const listeners = {};
+    context.document.addEventListener = (type, handler) => { listeners[type] = handler; };
+    context.activeEstablishment = () => establishment;
+    context.render = () => context.startScheduleTurnTimer(establishment);
+    vm.runInContext(source.slice(source.indexOf('document.addEventListener("click",'), source.indexOf('document.addEventListener("input",')), context);
+    context.startScheduleTurnTimer(establishment);
+    const originalTimer = timers[0];
+    await listeners.click({ target: { matches: () => false, closest: value => value === selector ? { dataset: { professionalName: "Renam", slotTime: "08:20", time: "08:20" } } : null } });
+    assert.equal(state.booking.time, "08:20");
+    assert.equal(state.scheduleAuto, false);
+    assert.ok(cleared.includes(1));
+    assert.equal(timers.length, 1);
+    fixture.advance(5000);
+    originalTimer.callback();
+    assert.equal(state.scheduleTurn.id, "morning");
+    listeners.change({ target: { matches: value => value === "[data-schedule-turn-auto]", checked: true } });
+    assert.equal(state.scheduleAuto, true);
+    assert.equal(timers.at(-1).delay, 5000);
+    fixture.advance(10000);
+    timers.at(-1).callback();
+    assert.equal(state.scheduleTurn.id, "afternoon");
+  }
 });
