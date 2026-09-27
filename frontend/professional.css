@@ -1312,7 +1312,6 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-period-view .matrix-slot.has-confirmed-presence { height: 74px; }
 .matrix-presence-confirmed { max-width: 100%; color: var(--ticket-color); font-size: 8px; line-height: 1.1; font-weight: 700; white-space: normal; overflow-wrap: normal; }
 .ticket-presence-substatus { display: block; margin-top: 3px; font-size: 9px; }
-.ticket-status-legend .presence-legend-dot { display: grid; place-items: center; width: 10px; height: 10px; color: #fff; font-size: 8px; font-style: normal; line-height: 1; }
 .public-direct-content .schedule-command-bar .ticket-status-legend { max-width: 100%; }
 @media (max-width:720px) {
   .public-internal-menu > summary { min-height: 30px; padding: 6px 10px; font-size: 10px; }
