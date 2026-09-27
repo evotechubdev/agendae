@@ -1,5 +1,5 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, ticketSubstatus, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
-import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods } from "./schedule-model.mjs";
+import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessOpeningMinutes } from "./schedule-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -697,7 +697,9 @@ function liveStatusDot(current, notStarted = false) {
 }
 
 function publicCurrentAttendance(establishment, data, clock = currentSaoPauloClock()) {
-  if (state.booking.date > clock.date) return `${liveStatusDot([], true)}<div><small>Atendendo agora</small><div class="public-live-not-started" role="status">Expediente não Iniciado</div></div>`;
+  const opening = businessOpeningMinutes(establishment, clock.date);
+  const beforeOpening = state.booking.date === clock.date && opening !== null && clock.minutes < opening;
+  if (state.booking.date > clock.date || beforeOpening) return `${liveStatusDot([], true)}<div><small>Atendendo agora</small><div class="public-live-not-started" role="status">Expediente não Iniciado</div></div>`;
   const { current } = queueView(establishment, data, clock);
   return `${liveStatusDot(current)}<div><small>Atendendo agora</small>${currentTicketCards(current)}</div>`;
 }

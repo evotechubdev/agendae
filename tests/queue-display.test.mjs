@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { TICKET_STATES, allProfessionalsClosed } from "../frontend/queue-model.mjs";
+import { businessOpeningMinutes } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
-const context = vm.createContext({ TICKET_STATES, allProfessionalsClosed, escapeHTML: (value) => String(value) });
+const context = vm.createContext({ TICKET_STATES, allProfessionalsClosed, businessOpeningMinutes, escapeHTML: (value) => String(value) });
 vm.runInContext(source.slice(source.indexOf("function queueDetail("), source.indexOf("function ticketStatusLegend(")), context);
 
 test("card encerrado mostra Encerrado e nome sem código ou horário nulo", () => {
@@ -48,4 +49,27 @@ test("voltar para hoje ou alcançar a data selecionada restaura o atendimento at
   html = context.publicCurrentAttendance({}, {}, { date: "2026-09-27", minutes: 8 * 60 });
   assert.match(html, /RSI-01/);
   assert.doesNotMatch(html, /Expediente não Iniciado/);
+});
+
+test("hoje antes da abertura fica preto e retoma exatamente ao iniciar o expediente", () => {
+  context.state = { booking: { date: "2026-09-28" } };
+  const establishment = { hours: [{ label: "Seg a sex", value: "08:00 - 18:00" }], professionals: [{ name: "Renam", availableTimes: ["08:00"] }] };
+  context.queueView = () => ({ current: [{ ticket: "RSI-01", professional: "Renam", time: "08:00", kind: "scheduled", ticketState: "in-service" }] });
+  const before = context.publicCurrentAttendance(establishment, {}, { date: "2026-09-28", minutes: 479 });
+  assert.match(before, /live-dot closed/);
+  assert.match(before, /role="status">Expediente não Iniciado/);
+  assert.doesNotMatch(before, /RSI-01/);
+  const atOpening = context.publicCurrentAttendance(establishment, {}, { date: "2026-09-28", minutes: 480 });
+  assert.match(atOpening, /RSI-01/);
+  assert.doesNotMatch(atOpening, /Expediente não Iniciado|live-dot closed/);
+});
+
+test("abertura respeita o dia, o minuto exato e a grade quando não há horário comercial", () => {
+  const establishment = { hours: [{ label: "Dias úteis", value: "08:30 - 18:00" }, { label: "Sábado", value: "09:20 - 17:00" }, { label: "Domingo", value: "Fechado" }], professionals: [{ name: "Renam", availableTimes: ["08:00"] }] };
+  assert.equal(businessOpeningMinutes(establishment, "2026-09-28"), 510);
+  assert.equal(businessOpeningMinutes(establishment, "2026-09-26"), 560);
+  assert.equal(businessOpeningMinutes(establishment, "2026-09-27"), null);
+  establishment.hours.push({ label: "Segunda", value: "10:00 - 18:00" });
+  assert.equal(businessOpeningMinutes(establishment, "2026-09-28"), 600);
+  assert.equal(businessOpeningMinutes({ professionals: [{ name: "A", availableTimes: ["09:20"] }, { name: "B", availableTimes: ["08:40"] }] }, "2026-09-28"), 520);
 });

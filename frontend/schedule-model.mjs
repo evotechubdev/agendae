@@ -27,6 +27,24 @@ export function isLunchTime(interval, time) {
   return Boolean(interval && value >= minutes(interval.start) && value < minutes(interval.end));
 }
 
+export function businessOpeningMinutes(establishment, date) {
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const day = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][weekday];
+  const key = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+  const weekdayGroup = label => label.includes("diasuteis") || label === "uteis" || label.includes("seg") && label.includes("sex");
+  const hours = establishment.hours || [];
+  const entry = hours.find(item => key(item.label).startsWith(day) && !weekdayGroup(key(item.label)))
+    || (weekday >= 1 && weekday <= 5 ? hours.find(item => weekdayGroup(key(item.label))) : null)
+    || hours.find(item => ["todososdias", "diariamente"].includes(key(item.label)));
+  if (entry) {
+    if (/fechado/i.test(entry.value || "")) return null;
+    const match = String(entry.value || "").match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+    if (match) return Number(match[1]) * 60 + Number(match[2]);
+  }
+  const first = scheduleMatrix(establishment).times[0];
+  return first ? minutes(first) : null;
+}
+
 function minutes(time) {
   const [hour, minute] = time.split(":").map(Number);
   return hour * 60 + minute;
