@@ -1282,6 +1282,35 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-direct-content .schedule-date-toolbar .schedule-date-field { flex: 0 0 auto; }
 .public-direct-content .schedule-date-toolbar .schedule-turn-controls { justify-content: flex-start; gap: 12px; margin: 0 0 0 8px; padding: 0; border: 0; background: none; }
 .public-direct-content .schedule-command-bar .ticket-status-legend { flex: 0 0 auto; margin-left: auto; }
+.public-internal-menu { position: relative; flex: 0 0 auto; }
+.public-internal-menu > summary { min-height: 34px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px; border: 1px solid #ffffff35; border-radius: 9px; color: #fff; background: #ffffff12; font-size: 11px; font-weight: 700; list-style: none; cursor: pointer; }
+.public-internal-menu > summary::-webkit-details-marker { display: none; }
+.public-internal-menu > summary svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.public-internal-menu > summary:hover,.public-internal-menu[open] > summary { background: #ffffff24; }
+.public-internal-menu > summary:focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
+.public-internal-dropdown { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: 250px; max-width: calc(100vw - 32px); padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 12px 32px #071b3f25; }
+.public-internal-dropdown > button,.public-internal-dropdown > a { width: 100%; display: grid; gap: 4px; padding: 12px; border: 0; border-radius: 8px; color: var(--navy); background: #fff; text-align: left; text-decoration: none; cursor: pointer; }
+.public-internal-dropdown > button:hover,.public-internal-dropdown > a:hover { background: var(--blue-soft); }
+.public-internal-dropdown strong { font-size: 12px; }
+.public-internal-dropdown small { color: var(--muted); font-size: 10px; }
+.selected-booking-popup { max-width: 420px; }
+.selected-booking-popup .booking-modal-head { min-height: 74px; }
+.selected-booking-content { display: grid; gap: 18px; padding: 22px; }
+.selected-booking-professional { display: flex; align-items: center; gap: 12px; }
+.selected-booking-avatar { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 13px; color: var(--blue); background: var(--blue-soft); font-size: 21px; font-weight: 800; }
+.selected-booking-professional > div { display: grid; gap: 4px; }
+.selected-booking-professional strong { color: var(--navy); font-size: 14px; }
+.selected-booking-professional small { color: var(--muted); font-size: 11px; }
+.selected-booking-date { display: grid; gap: 7px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: #f7f9fd; text-align: center; }
+.selected-booking-date > strong { color: var(--navy); font-size: 32px; line-height: 1.1; }
+.selected-booking-date > span { color: var(--muted); font-size: 12px; }
+.est-page:has(.public-direct-content) .selected-booking-popup [data-booking-next] { width: 100%; min-height: 44px; border-color: var(--blue); color: #fff; background: var(--blue); }
+.est-page:has(.public-direct-content) .selected-booking-popup [data-booking-next]:hover { border-color: var(--blue-2); background: var(--blue-2); }
+.selected-booking-cancel { padding: 0; border: 0; color: var(--muted); background: none; font-size: 12px; cursor: pointer; }
+.selected-booking-cancel:hover { color: var(--blue); }
+@media (max-width:720px) {
+  .public-internal-menu > summary { min-height: 30px; padding: 6px 10px; font-size: 10px; }
+}
 @media (min-width:701px) and (max-width:1100px) {
   .public-direct-content .schedule-date-toolbar .quick-dates button { min-width: 62px; }
   .public-direct-content .schedule-date-toolbar .schedule-date-field input { width: 120px; }

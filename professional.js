@@ -375,12 +375,33 @@ function employeeAccessModal(establishment) {
   return `<div class="booking-modal-backdrop" data-employee-access-backdrop><section class="booking-modal employee-access-modal" role="dialog" aria-modal="true" aria-labelledby="employee-access-title"><div class="booking-modal-head"><div><small>ACESSO DA EQUIPE</small><h2 id="employee-access-title">Área do estabelecimento</h2></div><button class="booking-modal-close" type="button" data-close-employee-access aria-label="Fechar acesso">×</button></div><form id="login-form" class="employee-access-form"><input type="hidden" name="establishment" value="${escapeHTML(establishment.slug)}"><div class="employee-modal-establishment"><span>${escapeHTML(establishment.initials)}</span><div><small>ESTABELECIMENTO</small><strong>${escapeHTML(establishment.name)}</strong></div></div><div class="field"><label for="employee-login">Login</label><input id="employee-login" name="login" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="Digite seu login"></div><div class="field"><div class="password-line"><label for="password">Senha</label><a href="#" data-forgot>Esqueci minha senha</a></div><div class="password-input"><input id="password" name="password" type="password" autocomplete="current-password" required placeholder="Digite sua senha"><button type="button" class="password-toggle" data-toggle-password aria-label="Visualizar senha" title="Visualizar senha"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.7"></circle></svg></button></div></div><label class="remember-option"><input type="checkbox" name="remember" checked><span>Lembrar senha</span></label><button class="btn btn-primary btn-block" type="submit">Entrar no painel</button></form></section></div>`;
 }
 
+function selectedBookingPopup(establishment) {
+  const booking = state.booking;
+  if (booking.step !== 1 || !booking.time || !booking.professional) return "";
+  const professional = (establishment.professionals || []).find(item => (typeof item === "string" ? item : item.name) === booking.professional);
+  return `<div class="booking-modal-backdrop" data-selected-booking-backdrop><section class="booking-modal selected-booking-popup" data-selected-booking-popup role="dialog" aria-modal="true" aria-labelledby="selected-booking-title"><div class="booking-modal-head"><div><small>AGENDAMENTO</small><h2 id="selected-booking-title">Horário selecionado</h2></div><button class="booking-modal-close" type="button" data-close-selected-booking aria-label="Fechar horário selecionado">×</button></div><div class="selected-booking-content"><div class="selected-booking-professional"><span class="selected-booking-avatar" aria-hidden="true">${escapeHTML(professionalInitial(booking.professional))}</span><div><strong>${escapeHTML(booking.professional)}</strong><small>${escapeHTML(professional?.role || "Profissional")}</small></div></div><div class="selected-booking-date"><strong>${escapeHTML(booking.time)}</strong><span>${prettyDate(booking.date, true)}</span></div><button class="btn btn-primary" type="button" data-booking-next>Agendar este horário</button><button class="selected-booking-cancel" type="button" data-close-selected-booking>Escolher outro horário</button></div></section></div>`;
+}
+
+function closeSelectedBooking() {
+  const selectedTime = state.booking.time;
+  const selectedProfessional = state.booking.professional;
+  state.booking.step = 1;
+  state.booking.time = null;
+  render();
+  const slot = [...document.querySelectorAll("[data-public-slot]")].find(item => item.dataset.slotTime === selectedTime && item.dataset.professionalName === selectedProfessional);
+  slot?.focus();
+}
+
+function publicAccessMenu(establishment, authenticated = false) {
+  return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg><span>Menu</span></summary><div class="public-internal-dropdown"><button type="button" data-open-public-queue><strong>Painel de Senhas</strong><small>Exibir o painel de atendimento</small></button>${authenticated ? `<a href="${href(`/${establishment.slug}`)}" data-link><strong>Área do estabelecimento</strong><small>Voltar ao painel da equipe</small></a>` : '<button type="button" data-open-employee-access><strong>Área do estabelecimento</strong><small>Acesso da equipe</small></button>'}</div></details>`;
+}
+
 function bookingContent(establishment) {
   const booking = state.booking;
 
   if (booking.step === 2) return `<div class="booking-modal-backdrop" data-booking-modal-backdrop>
     <section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
-      <div class="booking-modal-head"><div><small>FINALIZAR AGENDAMENTO</small><h2 id="booking-modal-title">Escolha o serviço e confirme</h2></div><button class="booking-modal-close" type="button" data-booking-back aria-label="Fechar janela">×</button></div>
+      <div class="booking-modal-head"><div><small>FINALIZAR AGENDAMENTO</small><h2 id="booking-modal-title">Escolha o serviço e confirme</h2></div><button class="booking-modal-close" type="button" data-close-selected-booking aria-label="Fechar janela">×</button></div>
       <form id="booking-form" class="booking-modal-form">
         <p class="booking-modal-lead">Selecione o serviço desejado. A duração e o valor variam conforme a opção escolhida.</p>
         <fieldset class="booking-service-picker"><legend>Serviço <span>Obrigatório</span></legend><div class="booking-service-options">${establishment.services.map((item) => `<label class="booking-service-option"><input type="radio" name="service" value="${escapeHTML(item.id)}" data-booking-service required ${booking.serviceId === item.id ? "checked" : ""}><span class="service-icon">${item.icon}</span><span class="booking-service-info"><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span><i aria-hidden="true">✓</i></label>`).join("")}</div></fieldset>
@@ -432,8 +453,7 @@ function publicSchedule(establishment) {
     return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row"><div class="matrix-person"><span class="matrix-avatar" aria-hidden="true">${escapeHTML(Array.from(professional.name.trim())[0]?.toLocaleUpperCase("pt-BR") || "?")}</span><span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span></div></th>${cells}</tr>`;
   }).join("");
   const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
-  const bookingAction = state.booking.time && state.booking.professional && state.booking.step < 3 ? `<button class="matrix-book-button" type="button" data-booking-next aria-label="Agendar ${escapeHTML(state.booking.time)} com ${escapeHTML(state.booking.professional)}">${escapeHTML(state.booking.professional)} · ${escapeHTML(state.booking.time)} <span>Agendar →</span></button>` : "";
-  const toolbar = (turnControls = "") => `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label>${turnControls}</div>${ticketStatusLegend()}${bookingAction}</div>`;
+  const toolbar = (turnControls = "") => `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label>${turnControls}</div>${ticketStatusLegend()}</div>`;
   if (!professionals.length || !times.length) return `${toolbar()}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
   const periods = scheduleDayPeriods(timeline);
   const key = `${establishment.slug || establishment.id || establishment.name}:${state.booking.date}`;
@@ -483,6 +503,12 @@ function startScheduleTurnTimer(establishment) {
     scheduleTurnTimer = null;
     if (state.scheduleAuto !== false) moveScheduleTurn(establishment, 1);
   }, Math.max(0, 5000 - elapsed));
+}
+
+function pauseScheduleTurn() {
+  state.scheduleAuto = false;
+  clearTimeout(scheduleTurnTimer);
+  scheduleTurnTimer = null;
 }
 
 function restoreScheduleScroll() {
@@ -793,9 +819,9 @@ function renderEstablishmentPublic(establishment) {
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div></div></header>
-    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${liveStatusDot(scheduleQueue.current)}<div><small>Atendendo agora</small>${currentTicketCards(scheduleQueue.current)}</div></article><div class="public-live-actions"><button class="btn btn-yellow btn-sm public-queue-button" type="button" data-open-public-queue>Painel de Senhas</button><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${authenticated ? `<a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}`)}" data-link>Voltar ao painel</a>` : '<button class="btn btn-primary btn-sm" type="button" data-open-employee-access>Área do estabelecimento</button>'}</div></div></section>
+    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${liveStatusDot(scheduleQueue.current)}<div><small>Atendendo agora</small>${currentTicketCards(scheduleQueue.current)}</div></article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
     <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
-    ${state.booking.step > 1 ? bookingContent(establishment) : ""}
+    ${state.booking.step > 1 ? bookingContent(establishment) : selectedBookingPopup(establishment)}
     ${publicCheckInModal()}${publicQueueModal(establishment, data)}${employeeAccessModal(establishment)}</div>`;
   requestAnimationFrame(() => {
     startServiceCarousel();
@@ -978,6 +1004,12 @@ function activeEstablishment() {
 }
 
 document.addEventListener("click", async (event) => {
+  const openMenu = document.querySelector("[data-internal-menu][open]");
+  if (openMenu && !openMenu.contains(event.target)) openMenu.open = false;
+  if (event.target.closest("[data-close-selected-booking]") || event.target.matches("[data-selected-booking-backdrop]")) {
+    closeSelectedBooking();
+    return;
+  }
   const turnArrow = event.target.closest("[data-schedule-turn-step]");
   if (turnArrow) {
     const establishment = activeEstablishment();
@@ -1022,11 +1054,13 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-service-carousel-next]")) { moveServiceCarousel(1); return; }
   const publicSlot = event.target.closest("[data-public-slot]");
   if (publicSlot) {
+    pauseScheduleTurn();
     state.booking.professional = publicSlot.dataset.professionalName;
     state.booking.time = publicSlot.dataset.slotTime;
     state.booking.step = 1;
     state.booking.confirmation = null;
     render();
+    document.querySelector("[data-selected-booking-popup] [data-booking-next]")?.focus?.();
     return;
   }
   if (event.target.closest("[data-open-employee-access]")) {
@@ -1062,7 +1096,7 @@ document.addEventListener("click", async (event) => {
     return;
   }
   const time = event.target.closest("[data-time]");
-  if (time) { state.booking.time = time.dataset.time; render(); return; }
+  if (time) { pauseScheduleTurn(); state.booking.time = time.dataset.time; render(); document.querySelector("[data-selected-booking-popup] [data-booking-next]")?.focus?.(); return; }
   if (event.target.closest("[data-booking-next]")) {
     event.preventDefault();
     state.booking.step = 2;
@@ -1070,7 +1104,8 @@ document.addEventListener("click", async (event) => {
     requestAnimationFrame(() => document.querySelector("[data-booking-service]")?.focus());
     return;
   }
-  if (event.target.closest("[data-booking-back]") || event.target.matches("[data-booking-modal-backdrop]")) { event.preventDefault(); state.booking.step = 1; render(); return; }
+  if (event.target.matches("[data-booking-modal-backdrop]")) { closeSelectedBooking(); return; }
+  if (event.target.closest("[data-booking-back]")) { event.preventDefault(); state.booking.step = 1; render(); document.querySelector("[data-selected-booking-popup] [data-booking-next]")?.focus?.(); return; }
   if (event.target.closest("[data-new-booking]")) { state.booking = freshBooking(); render(); return; }
   if (event.target.closest("[data-open-public-queue]")) {
     state.queueModalOpen = true;
@@ -1502,6 +1537,12 @@ window.addEventListener("resize", () => {
   }
 });
 document.addEventListener("keydown", (event) => {
+  const openMenu = document.querySelector("[data-internal-menu][open]");
+  if (event.key === "Escape" && openMenu) {
+    openMenu.open = false;
+    openMenu.querySelector("summary")?.focus();
+    return;
+  }
   if (event.key === "Escape" && state.employeeAccessOpen) {
     state.employeeAccessOpen = false;
     render();
@@ -1528,9 +1569,16 @@ document.addEventListener("keydown", (event) => {
     render();
     return;
   }
-  if (event.key === "Escape" && state.booking.step === 2) {
-    state.booking.step = 1;
-    render();
+  if (event.key === "Escape" && (state.booking.step === 2 || state.booking.step === 1 && state.booking.time)) {
+    closeSelectedBooking();
+    return;
+  }
+  const selectionPopup = document.querySelector("[data-selected-booking-popup]");
+  if (event.key === "Tab" && selectionPopup && !state.employeeAccessOpen && !state.queueModalOpen && !state.publicLookup.open) {
+    const buttons = [...selectionPopup.querySelectorAll("button:not([disabled])")];
+    const first = buttons[0], last = buttons.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
   }
 });
 render();
