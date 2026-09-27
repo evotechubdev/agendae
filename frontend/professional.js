@@ -433,8 +433,8 @@ function publicSchedule(establishment) {
   }).join("");
   const otherDateValue = state.booking.dateMode === "other" ? state.booking.date : "";
   const bookingAction = state.booking.time && state.booking.professional && state.booking.step < 3 ? `<button class="matrix-book-button" type="button" data-booking-next aria-label="Agendar ${escapeHTML(state.booking.time)} com ${escapeHTML(state.booking.professional)}">${escapeHTML(state.booking.professional)} · ${escapeHTML(state.booking.time)} <span>Agendar →</span></button>` : "";
-  const toolbar = `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label></div>${ticketStatusLegend()}${bookingAction}</div>`;
-  if (!professionals.length || !times.length) return `${toolbar}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
+  const toolbar = (turnControls = "") => `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div><label class="schedule-date-field"><span>Outra data</span><input type="date" min="${isoDate(1)}" value="${otherDateValue}" data-booking-date aria-label="Escolha outra data"></label>${turnControls}</div>${ticketStatusLegend()}${bookingAction}</div>`;
+  if (!professionals.length || !times.length) return `${toolbar()}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
   const periods = scheduleDayPeriods(timeline);
   const key = `${establishment.slug || establishment.id || establishment.name}:${state.booking.date}`;
   if (state.scheduleTurn?.key !== key || !periods.some(period => period.id === state.scheduleTurn.id)) {
@@ -447,7 +447,7 @@ function publicSchedule(establishment) {
   const unitsPerHeading = majorStep / step;
   const bands = [period];
   const columns = Math.max(...bands.map((band) => band.times.length));
-  return `${toolbar}${controls}<div class="schedule-matrix-bands schedule-timeline schedule-period-view" style="--matrix-bands:${bands.length};--timeline-track-width:${108 / unitsPerHeading}px">${bands.map((band) => {
+  return `${toolbar(controls)}<div class="schedule-matrix-bands schedule-timeline schedule-period-view" style="--matrix-bands:${bands.length};--timeline-track-width:${108 / unitsPerHeading}px">${bands.map((band) => {
     const headers = band.times.flatMap((time, index) => index % unitsPerHeading ? [] : [`<th scope="col" colspan="${Math.min(unitsPerHeading, band.times.length - index)}" class="timeline-hour"><time datetime="${time}" title="${time}">${time}</time>${index + unitsPerHeading >= band.times.length ? `<span class="timeline-end-label">${band.endTime}</span>` : ""}</th>`]).join("");
     const padding = columns - band.times.length;
     const rows = renderRows(band.start, band.end).replaceAll("</tr>", `${padding ? `<td colspan="${padding}" class="matrix-timeline-padding"></td>` : ""}</tr>`);
