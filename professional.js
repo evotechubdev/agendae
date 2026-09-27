@@ -696,7 +696,7 @@ function liveStatusDot(current) {
 }
 
 function ticketStatusLegend() {
-  return `<div class="ticket-status-legend" aria-label="Legenda dos status das senhas">${Object.entries(TICKET_STATES).map(([state, label]) => `<span class="ticket-state-${state}"><i aria-hidden="true"></i>${label}</span>`).join("")}<span class="ticket-state-reserved" title="Substatus de Reservado"><i class="presence-legend-dot" aria-hidden="true">✓</i>Presença Confirmada</span></div>`;
+  return `<div class="ticket-status-legend" aria-label="Legenda dos status das senhas">${Object.entries(TICKET_STATES).map(([state, label]) => `<span class="ticket-state-${state}"><i aria-hidden="true"></i>${label}</span>`).join("")}</div>`;
 }
 
 function queuePanel(establishment, data, showNames = true, showHeader = true) {
