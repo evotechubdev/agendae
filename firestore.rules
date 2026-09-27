@@ -41,6 +41,22 @@ service cloud.firestore {
       }
 
       match /slots/{slotId} {
+        function validPresenceConfirmation() {
+          let appointmentId = request.resource.data.appointmentId;
+          let appointment = getAfter(/databases/$(database)/documents/establishments/$(slug)/appointments/$(appointmentId)).data;
+          return appointmentId is string
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['appointmentId', 'status', 'checkedInAt', 'checkInMethod'])
+            && request.resource.data.status == 'presente'
+            && request.resource.data.checkedInAt == request.time
+            && request.resource.data.checkInMethod == 'qr'
+            && resource.data.date == appointment.date
+            && resource.data.time == appointment.time
+            && resource.data.professional == appointment.professional
+            && resource.data['service'] == appointment['service']
+            && appointment.status == 'presente'
+            && validCheckInToken(slug, appointment.checkInToken)
+            && getAfter(/databases/$(database)/documents/establishments/$(slug)/appointmentPresence/$(appointmentId)).data.status == 'presente';
+        }
         allow read: if true;
         allow create: if manages(slug)
           || (request.resource.data.keys().hasOnly(['date', 'time', 'service', 'professional', 'createdAt'])
@@ -48,7 +64,8 @@ service cloud.firestore {
             && request.resource.data.time is string
             && request.resource.data['service'] is string
             && request.resource.data.professional is string);
-        allow update, delete: if manages(slug);
+        allow update: if manages(slug) || validPresenceConfirmation();
+        allow delete: if manages(slug);
       }
 
       match /appointments/{appointmentId} {

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { lunchBreakFor, isLunchTime, scheduleMatrix, scheduleBands, scheduleTimeline, scheduleDayPeriods } from "../frontend/schedule-model.mjs";
-import { queueView, scheduledTicket, ticketState, TICKET_STATES } from "../frontend/queue-model.mjs";
+import { queueView, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES } from "../frontend/queue-model.mjs";
 
 const establishment = {
   slug: "demo",
@@ -67,7 +67,7 @@ test("agenda exibe Pausado em vermelho para almoço em vez de senha agendável",
     getData: () => ({ slots: [] }), currentSaoPauloClock: () => ({ date, minutes: 12 * 60 }),
     professionalIsPaused: () => false, professionalIsOnShift: () => true, currentProfessionalSlot: () => "12:00", staffStatusFor: () => ({}),
     isoDate: () => date, prettyDate: () => "", ticketStatusLegend: () => "", escapeHTML: (value) => String(value),
-    scheduleTimeline, scheduleBands, scheduleDayPeriods, isLunchTime, scheduledTicket, ticketState, TICKET_STATES,
+    scheduleTimeline, scheduleBands, scheduleDayPeriods, isLunchTime, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES,
   });
   vm.runInContext(source.slice(start, end), context);
   const html = context.publicSchedule(establishment);

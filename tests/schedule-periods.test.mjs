@@ -135,3 +135,31 @@ test("selecionar um horário interrompe a alternância até a opção ser marcad
     assert.equal(state.scheduleTurn.id, "afternoon");
   }
 });
+
+test("fechar o popup retoma a alternância com cinco segundos completos", () => {
+  const fixture = timerFixture();
+  fixture.context.pauseScheduleTurn();
+  fixture.advance(17000);
+  fixture.context.resumeScheduleTurn();
+  fixture.context.startScheduleTurnTimer(establishment);
+  assert.equal(fixture.state.scheduleAuto, true);
+  assert.equal(fixture.timers.at(-1).delay, 5000);
+  fixture.advance(22000);
+  fixture.timers.at(-1).callback();
+  assert.equal(fixture.state.scheduleTurn.id, "afternoon");
+});
+
+test("presença confirmada aparece apenas na reserva e mantém o código, a cor e o bloqueio", () => {
+  const { context } = renderFixture();
+  const booking = { date: "2026-09-26", time: "09:00", professional: "Renam", status: "confirmado" };
+  context.getData = () => ({ slots: [booking] });
+  assert.doesNotMatch(context.publicSchedule(establishment), /matrix-presence-confirmed/);
+  booking.status = "presente";
+  let html = context.publicSchedule(establishment);
+  assert.match(html, /ticket-state-reserved[^>]*has-confirmed-presence[^>]*disabled[^>]*RSI-04, Renam, 09:00, Reservado, Presença Confirmada/);
+  assert.match(html, /matrix-presence-confirmed">Presença Confirmada/);
+  booking.status = "atendendo";
+  html = context.publicSchedule(establishment);
+  assert.doesNotMatch(html, /matrix-presence-confirmed/);
+  assert.match(html, /RSI-04, Renam, 09:00, Em Atendimento/);
+});

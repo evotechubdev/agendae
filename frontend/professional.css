@@ -1308,6 +1308,12 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .est-page:has(.public-direct-content) .selected-booking-popup [data-booking-next]:hover { border-color: var(--blue-2); background: var(--blue-2); }
 .selected-booking-cancel { padding: 0; border: 0; color: var(--muted); background: none; font-size: 12px; cursor: pointer; }
 .selected-booking-cancel:hover { color: var(--blue); }
+.public-internal-menu > summary { width: 36px; padding: 8px; }
+.schedule-period-view .matrix-slot.has-confirmed-presence { height: 74px; }
+.matrix-presence-confirmed { max-width: 100%; color: var(--ticket-color); font-size: 8px; line-height: 1.1; font-weight: 700; white-space: normal; overflow-wrap: normal; }
+.ticket-presence-substatus { display: block; margin-top: 3px; font-size: 9px; }
+.ticket-status-legend .presence-legend-dot { display: grid; place-items: center; width: 10px; height: 10px; color: #fff; font-size: 8px; font-style: normal; line-height: 1; }
+.public-direct-content .schedule-command-bar .ticket-status-legend { max-width: 100%; }
 @media (max-width:720px) {
   .public-internal-menu > summary { min-height: 30px; padding: 6px 10px; font-size: 10px; }
 }

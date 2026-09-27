@@ -14,6 +14,7 @@ function fixture() {
     document: { addEventListener: (name, callback) => { listeners[name] = callback; }, querySelector: () => null, querySelectorAll: () => [slot] },
     render: () => { renders++; }, requestAnimationFrame: callback => callback(),
     pauseScheduleTurn: () => { state.scheduleAuto = false; },
+    resumeScheduleTurn: () => { state.scheduleAuto = true; },
     escapeHTML: value => String(value), professionalInitial: name => name[0], prettyDate: value => value,
   });
   vm.runInContext(source.slice(source.indexOf("function selectedBookingPopup("), source.indexOf("function publicAccessMenu(")), context);
@@ -41,7 +42,7 @@ test("seleção abre o resumo e continua ao formulário sem perder o horário ne
   assert.equal(f.state.scheduleAuto, false);
 });
 
-test("fechar pelo botão, fundo ou Escape libera a seleção e devolve o foco ao horário", async () => {
+test("fechar pelo botão, fundo ou Escape libera a seleção, remarca a alternância e devolve o foco", async () => {
   for (const close of ["button", "backdrop", "escape", "form-backdrop"]) {
     const f = fixture();
     await f.click("[data-public-slot]");
@@ -50,7 +51,7 @@ test("fechar pelo botão, fundo ou Escape libera a seleção e devolve o foco ao
     else await f.click(close === "button" ? "[data-close-selected-booking]" : "[data-selected-booking-backdrop]", close === "backdrop");
     assert.equal(f.state.booking.time, null);
     assert.equal(f.state.booking.step, 1);
-    assert.equal(f.state.scheduleAuto, false);
+    assert.equal(f.state.scheduleAuto, true);
     assert.equal(f.restoredFocus, 1);
     assert.equal(f.context.selectedBookingPopup({}), "");
   }
