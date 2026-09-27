@@ -309,6 +309,19 @@ function toast(message, mark = "✓") {
   setTimeout(() => item.remove(), 3200);
 }
 
+function showLoginError(form, message = "") {
+  let alert = form.querySelector("[data-login-error]");
+  if (!alert) {
+    alert = document.createElement("p");
+    alert.className = "login-error";
+    alert.dataset.loginError = "";
+    alert.setAttribute("role", "alert");
+    form.querySelector("button[type=submit]").before(alert);
+  }
+  alert.textContent = message;
+  alert.hidden = !message;
+}
+
 function footer() {
   return `<footer class="footer"><div class="footer-inner">${logo()}<span>Agendamentos e filas em um só lugar.</span><span>© ${new Date().getFullYear()} Agendae</span></div></footer>`;
 }
@@ -1563,12 +1576,13 @@ document.addEventListener("submit", async (event) => {
   }
   if (event.target.id === "login-form") {
     if (authFlowInProgress) return;
-    if (!firebaseApi) return toast("O serviço de acesso ainda não respondeu. Tente novamente em instantes.", "!");
+    showLoginError(event.target);
+    if (!firebaseApi) return showLoginError(event.target, "O serviço de acesso ainda não respondeu. Tente novamente em instantes.");
     const form = new FormData(event.target);
     const establishmentSlug = String(form.get("establishment") || "");
     const credentials = loginCredentials(form.get("login"), establishmentSlug);
-    if (!establishments[establishmentSlug]) return toast("Selecione um estabelecimento válido.", "!");
-    if (!credentials) return toast("Digite um login ou e-mail válido.", "!");
+    if (!establishments[establishmentSlug]) return showLoginError(event.target, "Selecione um estabelecimento válido.");
+    if (!credentials) return showLoginError(event.target, "Digite um login ou e-mail válido.");
     const button = event.target.querySelector("button[type=submit]");
     button.disabled = true;
     button.textContent = "Entrando…";
@@ -1594,7 +1608,8 @@ document.addEventListener("submit", async (event) => {
     } catch (error) {
       button.disabled = false;
       button.textContent = "Entrar no painel";
-      toast(firebaseApi.firebaseErrorMessage(error), "!");
+      showLoginError(event.target, firebaseApi.firebaseErrorMessage(error));
+      console.error("Agendae: falha no login", { code: error?.code || "unknown" });
     } finally {
       authFlowInProgress = false;
     }
