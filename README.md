@@ -46,9 +46,12 @@ Antes do primeiro acesso:
 
 1. Ative **Authentication → Sign-in method → E-mail/senha**.
 2. Adicione `evotechubdev.github.io` em **Authentication → Settings → Authorized domains**.
-3. Crie o usuário `renam@agendae.com.br` no Authentication.
+3. Crie o usuário `barbeariadorenam-admin@agendae.com.br` no Authentication. No site, selecione a Barbearia do Renam e use o login `admin`.
 4. Crie o banco Cloud Firestore em modo de produção.
 5. Publique as regras com `npx firebase-tools deploy --only firestore --project agendae-prod` usando uma conta com acesso ao projeto.
+6. Copie o UID desse usuário no Authentication e crie o documento `users/{UID}` no Firestore com os campos de texto `name: Administrador`, `email: barbeariadorenam-admin@agendae.com.br`, `role: admin` e `establishmentSlug: barbeariadorenam`. O ID do documento deve ser o UID exato, não o e-mail nem o login.
+
+O erro `agendae/profile-not-found` significa que a autenticação funcionou, mas esse documento está ausente. Com uma sessão administrativa do Firebase CLI e o pacote no cache do npm, `node scripts/link-admin-profile.cjs` verifica o vínculo da conta admin; acrescentar `--apply` cria somente o perfil ausente. O script não substitui um perfil existente.
 
 Os dados ficam organizados em `establishments/{slug}`. Agendamentos privados e filas só podem ser lidos por usuários cujo documento `users/{uid}` esteja vinculado ao mesmo `establishmentSlug`. Horários ocupados e o estado público da fila não expõem dados pessoais.
 
