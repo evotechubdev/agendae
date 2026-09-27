@@ -1,6 +1,7 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, ticketSubstatus, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
 import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
 import { renderBookingCalendar, shiftCalendarMonth } from "./calendar-model.mjs";
+import { loginCredentials } from "./login-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -170,10 +171,6 @@ function scheduleFor(establishment, professionalName) {
 
 function usesEmployeeSchedules(establishment) {
   return establishment.scheduleMode !== "establishment";
-}
-
-function normalizedLogin(value) {
-  return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
 }
 
 function normalizedSearch(value) {
@@ -1565,24 +1562,23 @@ document.addEventListener("submit", async (event) => {
     return;
   }
   if (event.target.id === "login-form") {
+    if (authFlowInProgress) return;
     if (!firebaseApi) return toast("O serviço de acesso ainda não respondeu. Tente novamente em instantes.", "!");
     const form = new FormData(event.target);
     const establishmentSlug = String(form.get("establishment") || "");
-    const employeeLogin = normalizedLogin(form.get("login"));
+    const credentials = loginCredentials(form.get("login"), establishmentSlug);
     if (!establishments[establishmentSlug]) return toast("Selecione um estabelecimento válido.", "!");
-    if (!employeeLogin) return toast("Digite um login válido.", "!");
-    const internalEmail = `${establishmentSlug}-${employeeLogin}@agendae.com.br`;
-    const legacyEmail = `${employeeLogin}@agendae.com.br`;
+    if (!credentials) return toast("Digite um login ou e-mail válido.", "!");
     const button = event.target.querySelector("button[type=submit]");
     button.disabled = true;
     button.textContent = "Entrando…";
     authFlowInProgress = true;
     try {
       firebaseSession = await firebaseApi.login(
-        internalEmail,
+        credentials.email,
         form.get("password"),
         form.get("remember") === "on",
-        legacyEmail,
+        credentials.legacyEmail,
         establishmentSlug,
       );
       if (firebaseSession.slug !== establishmentSlug) {

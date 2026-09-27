@@ -712,6 +712,8 @@ export async function callNextTicket(slug, defaultServicePoint = "Atendimento") 
 export function firebaseErrorMessage(error) {
   const messages = {
     "auth/invalid-credential": "Login ou senha inválidos.",
+    "auth/invalid-email": "Digite um login ou e-mail válido.",
+    "auth/user-disabled": "Este acesso foi desativado. Entre em contato com o administrador do estabelecimento.",
     "auth/user-not-found": "Login não encontrado.",
     "auth/wrong-password": "Login ou senha inválidos.",
     "auth/email-already-in-use": "Este login já está em uso neste estabelecimento.",
