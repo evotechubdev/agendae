@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-import { lunchBreakFor, isLunchTime } from "./schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, scheduleFromPeriods, workPeriodsFor, serviceFitsSlot } from "./schedule-model.mjs";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
@@ -176,8 +176,44 @@ export async function updateProfessionalLunchBreak(slug, professionalName, inter
     if (!establishment || !(establishment.professionals || []).some((item) => (typeof item === "string" ? item : item.name) === professionalName)) throw new Error("Profissional não encontrado.");
     if (interval && !lunchBreakFor({ ...establishment, professionalLunchBreaks: { [professionalName]: interval } }, professionalName)) throw new Error("Informe um intervalo de almoço válido.");
     const professionalLunchBreaks = { ...establishment.professionalLunchBreaks, [professionalName]: interval };
-    transaction.update(reference, { professionalLunchBreaks, updatedAt: serverTimestamp() });
+    const professionals = establishment.professionals.map((professional) => professional.name === professionalName && professional.slotDuration === 20
+      ? { ...professional, ...scheduleFromPeriods(workPeriodsFor(professional), interval) }
+      : professional);
+    const changed = professionals.find(professional => professional.name === professionalName);
+    if (changed?.slotDuration === 20) {
+      const slotsSnapshot = await getDocs(query(collection(db, "establishments", slug, "slots"), where("professional", "==", professionalName)));
+      const updated = { ...establishment, professionalLunchBreaks, professionals };
+      const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+      if (slotsSnapshot.docs.some(item => {
+        const booking = item.data();
+        return booking.date >= today && (!changed.availableTimes.includes(booking.time) || !serviceFitsSlot(updated, professionalName, booking.time, booking.service));
+      })) throw new Error("Este almoço conflita com um agendamento existente. Ajuste o intervalo ou reagende o atendimento antes de salvar.");
+    }
+    const availableTimes = [...new Set(professionals.flatMap(item => item.availableTimes || establishment.availableTimes || []))].sort();
+    transaction.update(reference, { professionalLunchBreaks, professionals, availableTimes, updatedAt: serverTimestamp() });
     return professionalLunchBreaks;
+  });
+}
+
+export async function updateProfessionalWorkPeriods(slug, professionalName, periods) {
+  const reference = doc(db, "establishments", slug);
+  return runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(reference);
+    const establishment = snapshot.data();
+    const professional = (establishment?.professionals || []).find(item => item.name === professionalName);
+    if (!professional) throw new Error("Profissional não encontrado.");
+    const schedule = scheduleFromPeriods(periods, lunchBreakFor(establishment, professionalName));
+    const professionals = establishment.professionals.map(item => item.name === professionalName ? { ...item, ...schedule } : item);
+    const updated = { ...establishment, professionals };
+    const slotsSnapshot = await getDocs(query(collection(db, "establishments", slug, "slots"), where("professional", "==", professionalName)));
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+    if (slotsSnapshot.docs.some(item => {
+      const booking = item.data();
+      return booking.date >= today && (!schedule.availableTimes.includes(booking.time) || !serviceFitsSlot(updated, professionalName, booking.time, booking.service));
+    })) throw new Error("Esta escala conflita com um agendamento existente. Ajuste os períodos ou reagende o atendimento antes de salvar.");
+    const availableTimes = [...new Set(professionals.flatMap(item => item.availableTimes || []))].sort();
+    transaction.update(reference, { professionals, availableTimes, updatedAt: serverTimestamp() });
+    return professionals;
   });
 }
 
@@ -236,12 +272,14 @@ export function observePublicState(slug, callback) {
   let todaySlots = null;
   let professionalLunchBreaks = null;
   let establishmentHours = null;
+  let establishmentSchedule = null;
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
   const todaySlotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", today));
-  const emit = () => callback({ queue, staffStatuses, ...(todaySlots ? { todaySlots } : {}), ...(professionalLunchBreaks ? { professionalLunchBreaks } : {}), ...(establishmentHours ? { establishmentHours } : {}) });
+  const emit = () => callback({ queue, staffStatuses, ...(todaySlots ? { todaySlots } : {}), ...(professionalLunchBreaks ? { professionalLunchBreaks } : {}), ...(establishmentHours ? { establishmentHours } : {}), ...(establishmentSchedule ? { establishmentSchedule } : {}) });
   const unsubscribeEstablishment = onSnapshot(doc(db, "establishments", slug), (snapshot) => {
     const establishment = snapshot.data() || {};
     establishmentHours = establishment.hours || [];
+    establishmentSchedule = { professionals: establishment.professionals || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee" };
     professionalLunchBreaks = { ...Object.fromEntries((establishment.professionals || []).filter((item) => item.lunchBreak).map((item) => [item.name, item.lunchBreak])), ...establishment.professionalLunchBreaks };
     emit();
   }, () => emit());
@@ -323,6 +361,29 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
       const error = new Error("Este profissional está em horário de almoço. Escolha outro horário.");
       error.code = "agendae/slot-unavailable";
       throw error;
+    }
+    const establishment = establishmentSnapshot.data() || {};
+    const professional = (establishment.professionals || []).find(item => item.name === appointment.professional);
+    if (professional?.workPeriods?.length && (!professional.availableTimes.includes(appointment.time) || !serviceFitsSlot(establishment, appointment.professional, appointment.time, appointment.service))) {
+      const error = new Error("Este atendimento não cabe na escala do profissional. Escolha outro horário.");
+      error.code = "agendae/slot-unavailable";
+      throw error;
+    }
+    if (professional?.workPeriods?.length) {
+      const candidates = new Map();
+      const employees = (establishment.professionals || []).filter(item => scheduleMode === "establishment" || item.name === appointment.professional);
+      for (const employee of employees) {
+        for (const time of employee.availableTimes || []) {
+          for (const ref of slotRefsForAppointment(slug, { date: appointment.date, time, professional: employee.name })) candidates.set(ref.path || String(ref), ref);
+        }
+      }
+      const snapshots = await Promise.all([...candidates.values()].map(ref => transaction.get(ref)));
+      const reservations = snapshots.filter(snapshot => snapshot.exists()).map(snapshot => ({ ...snapshot.data(), id: snapshot.id }));
+      if (!serviceFitsSlot(establishment, appointment.professional, appointment.time, appointment.service, reservations)) {
+        const error = new Error("Este serviço se sobrepõe a um atendimento reservado. Escolha outro horário.");
+        error.code = "agendae/slot-unavailable";
+        throw error;
+      }
     }
     if (existingSlots.some((snapshot) => snapshot.exists())) {
       const error = new Error("Este horário acabou de ser reservado. Escolha outro.");

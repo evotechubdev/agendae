@@ -6,7 +6,7 @@ export function scheduleMatrix(establishment) {
     const times = [...new Set(source.filter((time) => /^\d{1,2}:\d{2}$/.test(time) && Number(time.split(":")[0]) < 24 && Number(time.split(":")[1]) < 60).map((time) => time.padStart(5, "0")))].sort((a, b) => minutes(a) - minutes(b));
     return { ...professional, availableTimes: times, lunchBreak: lunchBreakFor(establishment, professional.name) };
   });
-  const times = [...new Set(professionals.flatMap((professional) => [...professional.availableTimes, ...(professional.lunchBreak ? [professional.lunchBreak.start, professional.lunchBreak.end] : [])]))].sort((a, b) => minutes(a) - minutes(b));
+  const times = [...new Set(professionals.flatMap((professional) => [...professional.availableTimes, ...(professional.lunchBreak ? [professional.lunchBreak.start, professional.lunchBreak.end] : []), ...(professional.pauseIntervals || []).flatMap(interval => [interval.start, interval.end])]))].sort((a, b) => minutes(a) - minutes(b));
   return {
     times,
     professionals: professionals.map((professional) => ({ ...professional, periods: times.map((time) => professional.availableTimes.includes(time) || isLunchTime(professional.lunchBreak, time) ? time : null) })),
@@ -32,6 +32,62 @@ function minutes(time) {
   return hour * 60 + minute;
 }
 
+export function continuousSchedule(start, end, lunchBreak = null, duration = 20) {
+  const format = (value) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+  const availableTimes = [];
+  const pauseIntervals = [];
+  const first = minutes(start), last = minutes(end);
+  if (!Number.isInteger(duration) || duration <= 0 || !Number.isFinite(first) || !Number.isFinite(last) || last <= first) return { availableTimes, pauseIntervals };
+  const lunchStart = lunchBreak ? minutes(lunchBreak.start) : last;
+  const lunchEnd = lunchBreak ? minutes(lunchBreak.end) : last;
+  let cursor = first;
+  while (cursor < last) {
+    if (lunchBreak && cursor >= lunchStart && cursor < lunchEnd) {
+      cursor = lunchEnd;
+      continue;
+    }
+    const boundary = cursor < lunchStart ? Math.min(last, lunchStart) : last;
+    if (cursor + duration <= boundary) {
+      availableTimes.push(format(cursor));
+      cursor += duration;
+    } else {
+      pauseIntervals.push({ start: format(cursor), end: format(boundary), reason: "Intervalo" });
+      cursor = boundary;
+    }
+  }
+  return { availableTimes, pauseIntervals };
+}
+
+export function pauseIntervalFor(establishment, professionalName, time) {
+  const professional = (establishment.professionals || []).find((item) => item.name === professionalName);
+  return (professional?.pauseIntervals || []).find((interval) => isLunchTime(interval, time)) || null;
+}
+
+export function workPeriodsFor(professional) {
+  if (professional?.workPeriods?.length) return professional.workPeriods;
+  if (professional?.scheduleStart && professional?.scheduleEnd) return [{ start: professional.scheduleStart, end: professional.scheduleEnd }];
+  const times = [...(professional?.availableTimes || [])].sort((a, b) => minutes(a) - minutes(b));
+  if (!times.length) return [];
+  const end = Math.min(1440, minutes(times.at(-1)) + 20);
+  return [{ start: times[0], end: `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}` }];
+}
+
+export function scheduleFromPeriods(periods, lunchBreak = null) {
+  const valid = (time, allowMidnight = false) => /^\d{2}:\d{2}$/.test(time || "") && Number(time.slice(3)) < 60 && minutes(time) >= 0 && (minutes(time) < 1440 || allowMidnight && time === "24:00");
+  if (!Array.isArray(periods) || !periods.length || periods.some(item => !valid(item.start) || !valid(item.end, true) || minutes(item.end) <= minutes(item.start))) throw new Error("Informe início e fim válidos para cada período de trabalho.");
+  const workPeriods = periods.map(({ start, end }) => ({ start, end })).sort((a, b) => minutes(a.start) - minutes(b.start));
+  if (workPeriods.slice(1).some((item, index) => minutes(item.start) < minutes(workPeriods[index].end))) throw new Error("Os períodos de trabalho não podem se sobrepor.");
+  const schedules = workPeriods.map(period => continuousSchedule(period.start, period.end, lunchBreak));
+  const availableTimes = schedules.flatMap(item => item.availableTimes);
+  if (!availableTimes.length) throw new Error("A escala precisa ter pelo menos um atendimento completo de 20 minutos.");
+  const pauseIntervals = schedules.flatMap(item => item.pauseIntervals);
+  workPeriods.slice(1).forEach((period, index) => {
+    const previous = workPeriods[index];
+    if (previous.end !== period.start) pauseIntervals.push({ start: previous.end, end: period.start, reason: "Intervalo" });
+  });
+  return { workPeriods, availableTimes, pauseIntervals: pauseIntervals.sort((a, b) => minutes(a.start) - minutes(b.start)), scheduleStart: workPeriods[0].start, scheduleEnd: workPeriods.at(-1).end, slotDuration: 20 };
+}
+
 export function scheduleBands(times, columns) {
   const size = Math.max(1, Math.floor(Number(columns) || 1));
   return Array.from({ length: Math.ceil(times.length / size) }, (_, index) => ({ start: index * size, end: Math.min(times.length, (index + 1) * size), times: times.slice(index * size, (index + 1) * size) }));
@@ -55,6 +111,10 @@ export function serviceFitsSlot(establishment, professionalName, time, service, 
   const end = start + serviceDurationFor(establishment, professionalName, service);
   const lunch = lunchBreakFor(establishment, professionalName);
   if (lunch && start < minutes(lunch.end) && end > minutes(lunch.start)) return false;
+  const professional = (establishment.professionals || []).find((item) => item.name === professionalName);
+  if ((professional?.pauseIntervals || []).some((interval) => start < minutes(interval.end) && end > minutes(interval.start))) return false;
+  if (professional?.workPeriods?.length && !professional.workPeriods.some(period => start >= minutes(period.start) && end <= minutes(period.end))) return false;
+  if (professional?.scheduleEnd && end > minutes(professional.scheduleEnd)) return false;
   return !bookings.some((item) => {
     if (["concluido", "cancelado"].includes(item.status)) return false;
     if (establishment.scheduleMode !== "establishment" && item.professional !== professionalName && !item.id?.endsWith("_establishment")) return false;
@@ -90,13 +150,14 @@ export function scheduleTimeline(establishment, bookings = []) {
     const segments = [];
     times.forEach((time, index) => {
       const onLunch = isLunchTime(professional.lunchBreak, time);
+      const pause = pauseIntervalFor(establishment, professional.name, time);
       const active = jobs[professionalIndex].filter((job) => job.valid && job.start <= minutes(time) && job.end > minutes(time) && !isLunchTime(professional.lunchBreak, job.time));
       const job = active.find((item) => item.booked) || active[0];
-      const type = onLunch ? "lunch" : job ? "slot" : "unavailable";
+      const type = onLunch ? "lunch" : pause ? "pause" : job ? "slot" : "unavailable";
       const slot = type === "slot" ? job.time : null;
       const previous = segments.at(-1);
       if (previous && previous.type === type && previous.time === slot) previous.end = index + 1;
-      else segments.push({ type, time: slot, start: index, end: index + 1 });
+      else segments.push({ type, time: slot, start: index, end: index + 1, ...(pause ? { reason: pause.reason } : {}) });
     });
     return { ...professional, segments };
   });

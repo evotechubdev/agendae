@@ -1,4 +1,4 @@
-import { lunchBreakFor, isLunchTime } from "./schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, pauseIntervalFor } from "./schedule-model.mjs";
 
 function timeMinutes(time) {
   const [hours, minutes] = String(time || "").split(":").map(Number);
@@ -67,17 +67,20 @@ export function queueView(establishment, data, clock) {
   const inactivePosition = (professional, time = null, ticketState = "paused") => ({ date: clock.date, time, professional, kind: "scheduled", ticket: null, ticketState });
   for (const professional of professionals) {
     const times = scheduleTimes(establishment, professional);
-    if (times.length && clock.minutes > timeMinutes(times.at(-1))) {
+    const directoryEntry = (establishment.professionals || []).find((item) => item.name === professional);
+    const shiftEnd = directoryEntry?.scheduleEnd ? timeMinutes(directoryEntry.scheduleEnd) : null;
+    if (times.length && (shiftEnd !== null ? clock.minutes >= shiftEnd : clock.minutes > timeMinutes(times.at(-1)))) {
       current.push(inactivePosition(professional, null, "closed"));
       continue;
     }
     const status = activeStaff.find((item) => item.professional === professional);
     const ongoing = scheduled.filter((item) => item.professional === professional && item.status === "atendendo").at(-1);
-    const onShift = times.length && clock.minutes >= timeMinutes(times[0]) && clock.minutes <= timeMinutes(times.at(-1));
+    const onShift = times.length && clock.minutes >= timeMinutes(times[0]) && (shiftEnd !== null ? clock.minutes < shiftEnd : clock.minutes <= timeMinutes(times.at(-1)));
     const time = status?.currentTime || ongoing?.time || (onShift ? times.filter((slot) => timeMinutes(slot) <= clock.minutes).at(-1) : null);
     const onLunch = isLunchTime(lunchBreakFor(establishment, professional), clock.minutes);
-    if (!onShift || paused.has(professional) || onLunch || !time) {
-      current.push({ ...inactivePosition(professional, onShift ? time : null), ...(onLunch ? { pauseReason: "Almoço" } : {}) });
+    const interval = pauseIntervalFor(establishment, professional, clock.minutes);
+    if (!onShift || paused.has(professional) || onLunch || interval || !time) {
+      current.push({ ...inactivePosition(professional, onShift ? time : null), ...(onLunch ? { pauseReason: "Almoço" } : interval ? { pauseReason: interval.reason } : {}) });
       continue;
     }
     const appointment = entries.find((item) => item.date === clock.date && item.time === time && item.professional === professional)

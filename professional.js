@@ -1,5 +1,5 @@
 import { queueView, scheduledTicket, professionalInitial, serviceInitials, ticketState, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
-import { scheduleTimeline, scheduleBands, lunchBreakFor, isLunchTime, serviceFitsSlot } from "./schedule-model.mjs";
+import { scheduleTimeline, scheduleBands, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods } from "./schedule-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -137,12 +137,13 @@ function professionalIsOnShift(professional, date = isoDate()) {
   const clock = currentSaoPauloClock();
   if (clock.date !== date) return false;
   if (isLunchTime(professional.lunchBreak, clock.minutes)) return false;
+  if ((professional.pauseIntervals || []).some(interval => isLunchTime(interval, clock.minutes))) return false;
   const toMinutes = (time) => {
     const [hour, minute] = String(time).split(":").map(Number);
     return (hour * 60) + minute;
   };
   const minutes = times.map(toMinutes).sort((a, b) => a - b);
-  return clock.minutes >= minutes[0] && clock.minutes <= minutes.at(-1);
+  return clock.minutes >= minutes[0] && (professional.scheduleEnd ? clock.minutes < toMinutes(professional.scheduleEnd) : clock.minutes <= minutes.at(-1));
 }
 
 function currentProfessionalSlot(professional, date = isoDate()) {
@@ -407,6 +408,11 @@ function publicSchedule(establishment) {
       const span = Math.min(segment.end, end) - Math.max(segment.start, start);
       const time = segment.time;
       if (segment.type === "unavailable") return `<td colspan="${span}" class="matrix-unavailable"><span aria-label="Sem horário cadastrado">—</span></td>`;
+      if (segment.type === "pause") {
+        const label = `Pausado, ${segment.reason}, ${professional.name}`;
+        const compact = span * step < 20;
+        return `<td colspan="${span}"><button class="matrix-slot ticket-state-paused ${compact ? "matrix-pause-buffer" : ""}" type="button" disabled aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">${compact ? "Ⅱ" : "Pausado"}</strong><small class="matrix-pause-reason" ${compact ? "hidden" : ""}>${escapeHTML(segment.reason)}</small><i class="matrix-status-dot" aria-hidden="true"></i></button></td>`;
+      }
       if (segment.type === "lunch") {
         const label = `Pausado, almoço de ${professional.name}, ${professional.lunchBreak.start} às ${professional.lunchBreak.end}`;
         return `<td colspan="${span}"><button class="matrix-slot ticket-state-paused" type="button" disabled aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">Pausado</strong><small class="matrix-pause-reason">Almoço</small><i class="matrix-status-dot" aria-hidden="true"></i></button></td>`;
@@ -640,6 +646,7 @@ function ensureQueueSubscription(establishment) {
   if (queueSubscription) queueSubscription();
   queueSubscriptionSlug = establishment.slug;
   queueSubscription = firebaseApi.observePublicState(establishment.slug, (live) => {
+    if (live.establishmentSchedule) Object.assign(establishment, live.establishmentSchedule);
     if (live.professionalLunchBreaks) establishment.professionalLunchBreaks = live.professionalLunchBreaks;
     if (live.establishmentHours) establishment.hours = live.establishmentHours;
     const prefix = `public:${establishment.slug}:`;
@@ -727,6 +734,14 @@ function lunchSchedulesMarkup(establishment) {
   }).join("")}</div></section>`;
 }
 
+function workPeriodRow(professionalName, period = {}) {
+  return `<div class="work-period-row"><label>Início<input type="time" name="start" value="${escapeHTML(period.start || "")}" required aria-label="Início do período de ${escapeHTML(professionalName)}"></label><label>Fim<input type="time" name="end" value="${escapeHTML(period.end || "")}" required aria-label="Fim do período de ${escapeHTML(professionalName)}"></label><button type="button" class="work-period-remove" data-remove-work-period aria-label="Remover período">×</button></div>`;
+}
+
+function workSchedulesMarkup(establishment) {
+  return `<section class="panel work-config-panel"><div class="panel-head"><div><h2>Escalas de trabalho</h2><p>Adicione os períodos de cada profissional. As senhas SI seguem uma sequência de 20 minutos; intervalos ficam pausados.</p></div></div><div class="work-config-list">${professionalDirectory(establishment).map(professional => `<form class="work-config-form" data-work-form data-professional-name="${escapeHTML(professional.name)}"><div class="work-config-heading"><span class="matrix-avatar">${escapeHTML(professionalInitial(professional.name))}</span><div><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></div><span class="work-config-duration">SI · 20 min</span></div><div class="work-period-list">${workPeriodsFor(professional).map(period => workPeriodRow(professional.name, period)).join("") || workPeriodRow(professional.name)}</div><div class="work-config-actions"><button type="button" class="btn btn-soft btn-sm" data-add-work-period>+ Adicionar período</button><button type="submit" class="btn btn-primary btn-sm">Salvar escala</button></div><small class="work-config-note">O almoço é definido abaixo e interrompe automaticamente a sequência.</small></form>`).join("")}</div></section>`;
+}
+
 function renderEstablishmentPublic(establishment) {
   document.title = `${establishment.name} — Agendae`;
   if (new URLSearchParams(location.search).has("checkin")) state.publicLookup.open = true;
@@ -811,6 +826,7 @@ function renderAdmin(establishment) {
     <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}?public=1#agendar`)}" data-link>+ Novo agendamento</a></div></header>
       <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
       ${adminCheckInPanel(establishment, today)}
+      ${workSchedulesMarkup(establishment)}
       ${lunchSchedulesMarkup(establishment)}
       <section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Essa configuração vale para todos os novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="employee"><span>♙</span><strong>Agenda por funcionário</strong><small>Cada profissional tem seus próprios horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="establishment"><span>▣</span><strong>Agenda do estabelecimento</strong><small>Uma única grade compartilhada pela equipe.</small></button></div></section>
       <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p><span data-appointment-count>${today.length}</span> horários agendados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-search"><span class="appointment-search-icon" aria-hidden="true">⌕</span><input type="search" value="${escapeHTML(state.appointmentQuery)}" data-appointment-search aria-label="Pesquisar agendamento pelo nome ou senha" placeholder="Pesquisar por nome completo ou senha"><button type="button" data-clear-appointment-search aria-label="Limpar pesquisa" ${state.appointmentQuery ? "" : "hidden"}>×</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(establishment, data)}<section class="panel staff-availability-panel"><div class="panel-head"><div><h2>${usesEmployeeSchedules(establishment) ? "Agenda por profissional" : "Agenda do estabelecimento"}</h2><p>${usesEmployeeSchedules(establishment) ? "Disponibilidade individual de hoje" : "Disponibilidade compartilhada de hoje"}</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></div>
@@ -823,7 +839,8 @@ function renderAdmin(establishment) {
   void loadCheckInConfig(establishment);
   adminRefreshTimer = setInterval(() => {
     if (route() !== establishment.slug || session()?.slug !== establishment.slug || new URLSearchParams(location.search).get("public") === "1") return;
-    if (document.activeElement?.closest("[data-lunch-form]")) return;
+    if (document.activeElement?.closest("[data-lunch-form], [data-work-form]")) return;
+    if (document.querySelector('[data-work-form][data-dirty="true"], [data-lunch-form][data-dirty="true"]')) return;
     cloudCache.delete(`admin:${establishment.slug}`);
     void refreshCloudData(establishment, "admin");
   }, 10000);
@@ -915,6 +932,24 @@ function activeEstablishment() {
 }
 
 document.addEventListener("click", async (event) => {
+  const addPeriod = event.target.closest("[data-add-work-period]");
+  if (addPeriod) {
+    const form = addPeriod.closest("[data-work-form]");
+    form.dataset.dirty = "true";
+    form.querySelector(".work-period-list").insertAdjacentHTML("beforeend", workPeriodRow(form.dataset.professionalName));
+    form.querySelector(".work-period-row:last-child input")?.focus();
+    return;
+  }
+  const removePeriod = event.target.closest("[data-remove-work-period]");
+  if (removePeriod) {
+    const form = removePeriod.closest("[data-work-form]");
+    if (form.querySelectorAll(".work-period-row").length > 1) {
+      form.dataset.dirty = "true";
+      removePeriod.closest(".work-period-row").remove();
+    }
+    else toast("Mantenha pelo menos um período de trabalho.", "!");
+    return;
+  }
   const internal = event.target.closest("[data-link]");
   if (internal) {
     event.preventDefault();
@@ -1209,6 +1244,8 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form]");
+  if (scheduleForm) { scheduleForm.dataset.dirty = "true"; return; }
   if (!event.target.matches("[data-appointment-search]")) return;
   state.appointmentQuery = event.target.value;
   const establishment = activeEstablishment();
@@ -1222,6 +1259,27 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (event.target.matches("[data-work-form]")) {
+    const establishment = activeEstablishment();
+    if (!establishment || session()?.slug !== establishment.slug || !firebaseApi) return;
+    const professionalName = event.target.dataset.professionalName;
+    const periods = [...event.target.querySelectorAll(".work-period-row")].map(row => ({ start: row.querySelector('[name="start"]').value, end: row.querySelector('[name="end"]').value }));
+    const button = event.target.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      establishment.professionals = await firebaseApi.updateProfessionalWorkPeriods(establishment.slug, professionalName, periods);
+      establishment.availableTimes = [...new Set(establishment.professionals.flatMap(professional => professional.availableTimes || []))].sort();
+      state.booking.time = null;
+      cloudCache.delete(`admin:${establishment.slug}`);
+      invalidatePublicCache(establishment.slug);
+      render();
+      toast(`Escala de ${professionalName} atualizada.`);
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message || "Não foi possível salvar a escala.", "!");
+    }
+    return;
+  }
   if (event.target.matches("[data-lunch-form]")) {
     const establishment = activeEstablishment();
     if (!establishment || session()?.slug !== establishment.slug || !firebaseApi) return;
@@ -1238,6 +1296,10 @@ document.addEventListener("submit", async (event) => {
     button.disabled = true;
     try {
       establishment.professionalLunchBreaks = await firebaseApi.updateProfessionalLunchBreak(establishment.slug, professionalName, interval);
+      establishment.professionals = establishment.professionals.map(professional => professional.name === professionalName && professional.slotDuration === 20
+        ? { ...professional, ...scheduleFromPeriods(workPeriodsFor(professional), interval) }
+        : professional);
+      establishment.availableTimes = [...new Set(establishment.professionals.flatMap(professional => professional.availableTimes || establishment.availableTimes || []))].sort();
       state.booking.time = null;
       invalidatePublicCache(establishment.slug);
       render();
