@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-import { lunchBreakFor, isLunchTime, scheduleFromPeriods, workPeriodsFor, serviceFitsSlot } from "./schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, scheduleFromPeriods, workPeriodsFor, serviceFitsSlot, businessDayIsClosed } from "./schedule-model.mjs";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
@@ -363,6 +363,11 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
       throw error;
     }
     const establishment = establishmentSnapshot.data() || {};
+    if (businessDayIsClosed(establishment, appointment.date)) {
+      const error = new Error("Sem expediente neste dia. Escolha outra data para agendar.");
+      error.code = "agendae/slot-unavailable";
+      throw error;
+    }
     const professional = (establishment.professionals || []).find(item => item.name === appointment.professional);
     if (professional?.workPeriods?.length && (!professional.availableTimes.includes(appointment.time) || !serviceFitsSlot(establishment, appointment.professional, appointment.time, appointment.service))) {
       const error = new Error("Este atendimento não cabe na escala do profissional. Escolha outro horário.");

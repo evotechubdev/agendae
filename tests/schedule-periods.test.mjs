@@ -55,7 +55,7 @@ function timerFixture() {
   const timers = [], cleared = [];
   const state = { booking: { date: "2026-09-26" }, scheduleAuto: true, scheduleTurn: { key: "demo:2026-09-26", id: "morning", changedAt: 0 } };
   const body = { innerHTML: "" };
-  const context = vm.createContext({ state, Date: { now: () => now },
+  const context = vm.createContext({ state, businessDayIsClosed: schedule.businessDayIsClosed, Date: { now: () => now },
     document: { querySelector: selector => selector === ".public-schedule-body" ? body : null, activeElement: null },
     getData: () => ({ slots: [] }), scheduleTimeline: () => timeline, scheduleDayPeriods: schedule.scheduleDayPeriods,
     publicSchedule: () => state.scheduleTurn.id, restoreScheduleScroll: () => {},

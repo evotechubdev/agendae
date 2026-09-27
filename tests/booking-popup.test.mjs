@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { businessDayIsClosed } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
 
@@ -10,7 +11,7 @@ function fixture() {
   const listeners = {};
   let renders = 0, restoredFocus = 0;
   const slot = { dataset: { professionalName: "Renam", slotTime: "08:20" }, focus: () => { restoredFocus++; } };
-  const context = vm.createContext({ state,
+  const context = vm.createContext({ state, businessDayIsClosed,
     document: { addEventListener: (name, callback) => { listeners[name] = callback; }, querySelector: () => null, querySelectorAll: () => [slot] },
     render: () => { renders++; }, requestAnimationFrame: callback => callback(),
     pauseScheduleTurn: () => { state.scheduleAuto = false; },

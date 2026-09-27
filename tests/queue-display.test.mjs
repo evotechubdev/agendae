@@ -74,14 +74,15 @@ test("abertura respeita o dia, o minuto exato e a grade quando não há horário
   assert.equal(businessOpeningMinutes({ professionals: [{ name: "A", availableTimes: ["09:20"] }, { name: "B", availableTimes: ["08:40"] }] }, "2026-09-28"), 520);
 });
 
-test("domingo fechado mantém o aviso preto sem inventar atendimento ou pausa", () => {
+test("domingo fechado informa que não há expediente sem inventar atendimento ou pausa", () => {
   context.state = { booking: { date: "2026-09-27" } };
   context.queueView = () => { throw new Error("Dia fechado não deve gerar posições pausadas"); };
   const establishment = { hours: [{ label: "Domingo", value: "Fechado" }], professionals: [{ name: "Renam", availableTimes: ["08:00"] }] };
   for (const minutes of [19, 8 * 60, 12 * 60]) {
     const html = context.publicCurrentAttendance(establishment, {}, { date: "2026-09-27", minutes });
     assert.match(html, /live-dot closed/);
-    assert.match(html, /Expediente não Iniciado/);
+    assert.match(html, /Sem expediente neste dia/);
+    assert.doesNotMatch(html, /Expediente não Iniciado/);
     assert.doesNotMatch(html, /Pausado|RSI-/);
   }
 });
