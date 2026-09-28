@@ -1337,7 +1337,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .selected-booking-cancel { padding: 0; border: 0; color: var(--muted); background: none; font-size: 12px; cursor: pointer; }
 .selected-booking-cancel:hover { color: var(--blue); }
 .public-internal-menu > summary { width: 36px; padding: 8px; }
-.public-live-control { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.public-live-current > .public-live-control { width: 30px; min-width: 30px; display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-start; justify-content: center; gap: 10px; }
 .public-queue-expand { width: 30px; height: 30px; display: grid; place-items: center; padding: 5px; border: 1px solid rgba(255,255,255,.28); border-radius: 8px; color: #fff; background: rgba(255,255,255,.1); cursor: pointer; }
 .public-queue-expand svg { width: 18px; height: 18px; }
 .public-queue-expand:hover { background: rgba(255,255,255,.22); }
