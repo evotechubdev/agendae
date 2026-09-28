@@ -112,11 +112,12 @@ test("monitor mostra senhas atuais e próximas sem expor nomes de clientes", () 
   const monitor = vm.createContext({
     app,
     document: { title: "" },
-    cloudCache: new Map([["today", {}]]),
+    cloudCache: new Map([["today", { todaySlots: [] }]]),
     publicCacheKey: () => "today",
     currentSaoPauloClock: () => ({ date: "2026-09-28", minutes: 9 * 60 }),
     attendanceView: () => ({ notStarted: false, closedDay: false, current: [{ professional: "Renam", ticket: "RCT-03", ticketState: "in-service", time: "09:00", service: "Cabelo Tesoura", client: "Cliente privado" }] }),
     queueView: () => ({ waiting: [{ professional: "Bia", ticket: "BCM-04", time: "09:20", service: "Cabelo Máquina", client: "Outra pessoa" }] }),
+    upcomingFreeSlots: () => [{ kind: "free", professional: "Renam", time: "09:10" }],
     TICKET_STATES,
     escapeHTML: (value) => String(value),
     logo: () => "<span>Logo</span>",
@@ -130,6 +131,8 @@ test("monitor mostra senhas atuais e próximas sem expor nomes de clientes", () 
   monitor.renderQueueDisplay({ name: "Barbearia", slug: "barbearia" });
   assert.match(app.innerHTML, /RCT-03/);
   assert.match(app.innerHTML, /BCM-04/);
+  assert.match(app.innerHTML, /Horário livre/);
+  assert.ok(app.innerHTML.indexOf("Horário livre") < app.innerHTML.indexOf("BCM-04"));
   assert.match(app.innerHTML, /data-close-queue-display/);
   assert.doesNotMatch(app.innerHTML, /Cliente privado|Outra pessoa/);
 });

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { queueView, scheduledTicket, serviceInitials, ticketState, TICKET_STATES, allProfessionalsClosed } from "../frontend/queue-model.mjs";
+import { queueView, upcomingFreeSlots, scheduledTicket, serviceInitials, ticketState, TICKET_STATES, allProfessionalsClosed } from "../frontend/queue-model.mjs";
 
 const establishment = {
   queuePrefix: "B",
@@ -8,6 +8,17 @@ const establishment = {
   professionals: ["João", "Maria", "Ricardo"],
 };
 const clock = { date: "2026-09-25", minutes: 10 * 60 };
+
+test("próximos horários livres respeitam reservas, duração, almoço e expediente", () => {
+  const salon = {
+    services: [{ name: "Cabelo", duration: 40 }],
+    professionals: [{ name: "Bia", availableTimes: ["09:00", "09:20", "09:40", "10:00", "12:00"], lunchBreak: { start: "12:00", end: "13:00" } }],
+  };
+  const now = { date: "2026-09-28", minutes: 9 * 60 + 5 };
+  const slots = [{ date: now.date, time: "09:20", professional: "Bia", service: "Cabelo", status: "confirmado" }];
+  assert.deepEqual(upcomingFreeSlots(salon, { todaySlots: slots }, now), [{ kind: "free", time: "10:00", professional: "Bia" }]);
+  assert.deepEqual(upcomingFreeSlots({ ...salon, hours: [{ label: "Segunda", value: "Fechado" }] }, { todaySlots: slots }, now), []);
+});
 
 test("encerramento individual só encerra a equipe quando todos terminarem o expediente", () => {
   const individual = { professionals: [{ name: "A", availableTimes: ["09:00", "17:00"] }, { name: "B", availableTimes: ["10:00", "18:00"] }] };
