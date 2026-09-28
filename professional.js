@@ -37,7 +37,6 @@ const state = {
   calendarOpen: false,
   calendarMonth: null,
   publicLookup: freshPublicLookup(),
-  queueModalOpen: false,
   employeeAccessOpen: false,
   mobileMenu: false,
 };
@@ -201,7 +200,6 @@ function navigate(path) {
   void stopQrScanner();
   history.pushState(null, "", href(path));
   if (route() !== previousRoute) state.publicLookup = freshPublicLookup();
-  state.queueModalOpen = false;
   state.calendarOpen = false;
   state.employeeAccessOpen = false;
   state.mobileMenu = false;
@@ -410,7 +408,7 @@ function closeSelectedBooking() {
 }
 
 function publicAccessMenu(establishment, authenticated = false) {
-  return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento" title="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></summary><div class="public-internal-dropdown"><button type="button" data-open-public-queue><strong>Painel de Senhas</strong><small>Exibir o painel de atendimento</small></button>${authenticated ? `<a href="${href(`/${establishment.slug}`)}" data-link><strong>Área do estabelecimento</strong><small>Voltar ao painel da equipe</small></a>` : '<button type="button" data-open-employee-access><strong>Área do estabelecimento</strong><small>Acesso da equipe</small></button>'}</div></details>`;
+  return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento" title="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></summary><div class="public-internal-dropdown">${authenticated ? `<a href="${href(`/${establishment.slug}`)}" data-link><strong>Área do estabelecimento</strong><small>Voltar ao painel da equipe</small></a>` : '<button type="button" data-open-employee-access><strong>Área do estabelecimento</strong><small>Acesso da equipe</small></button>'}</div></details>`;
 }
 
 function bookingContent(establishment) {
@@ -732,7 +730,7 @@ function attendanceCards(view, showNames = false, monitor = false) {
 
 function publicCurrentAttendance(establishment, data, clock = currentSaoPauloClock()) {
   const view = attendanceView(establishment, data, state.booking.date, clock);
-  return `${liveStatusDot(view.current, view.notStarted, view.closedDay)}<div><small>Atendendo agora</small>${attendanceCards(view)}</div>`;
+  return `<div class="public-live-control">${liveStatusDot(view.current, view.notStarted, view.closedDay)}<button class="public-queue-expand" type="button" data-open-queue-display aria-label="Expandir painel de senhas no monitor" title="Expandir painel de senhas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div><div><small>Atendendo agora</small>${attendanceCards(view)}</div>`;
 }
 
 function ticketStatusLegend() {
@@ -751,11 +749,6 @@ function ticketLegend(establishment) {
   const professionals = professionalDirectory(establishment).map((item) => `<span><b>${escapeHTML(professionalInitial(item.name))}</b> ${escapeHTML(item.name)}</span>`).join("");
   const services = (establishment.services || []).map((item) => `<span><b>${escapeHTML(serviceInitials(item.name))}</b> ${escapeHTML(item.name)}</span>`).join("");
   return `<section class="ticket-legend" aria-label="Legenda das senhas"><h3>Como ler as senhas</h3>${ticketStatusLegend()}<p class="ticket-legend-example"><strong>RCT-08</strong><span><b>R</b>: inicial do profissional · <b>CT</b>: iniciais do serviço · <b>08</b>: 8º horário na agenda do profissional naquele dia.</span></p><p>Exemplos de serviço: <b>CT</b> = Cabelo Tesoura, <b>CM</b> = Cabelo Máquina, <b>CC</b> = Cabelo Completo, <b>SI</b> = Serviço indefinido (sem serviço registrado para o horário).</p><div class="ticket-legend-group"><h4>Profissionais</h4><div>${professionals}</div></div><div class="ticket-legend-group"><h4>Serviços</h4><div>${services}</div></div><p>A contagem começa em 01 e inclui os horários ocupados e os que já passaram. Na agenda compartilhada, usa a grade do estabelecimento. Somente horários da grade cadastrada geram senhas no painel.</p></section>`;
-}
-
-function publicQueueModal(establishment, data) {
-  if (!state.queueModalOpen) return "";
-  return `<div class="booking-modal-backdrop" data-public-queue-backdrop><section class="booking-modal public-queue-modal" role="dialog" aria-modal="true" aria-labelledby="public-queue-modal-title"><div class="booking-modal-head"><div><small>ATUALIZAÇÃO EM TEMPO REAL</small><h2 id="public-queue-modal-title">Painel de Senhas</h2></div><button class="booking-modal-close" type="button" data-close-public-queue aria-label="Fechar painel de senhas">×</button></div><div class="public-queue-modal-body">${queuePanel(establishment, data, false, false, state.booking.date)}</div></section></div>`;
 }
 
 function ensureQueueSubscription(establishment) {
@@ -870,7 +863,7 @@ function renderEstablishmentPublic(establishment) {
     <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${publicCurrentAttendance(establishment, data)}</article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
     <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
     ${state.booking.step > 1 ? bookingContent(establishment) : selectedBookingPopup(establishment)}
-    ${publicCheckInModal()}${publicQueueModal(establishment, data)}${employeeAccessModal(establishment)}</div>`;
+    ${publicCheckInModal()}${employeeAccessModal(establishment)}</div>`;
   requestAnimationFrame(() => {
     startServiceCarousel();
     restoreScheduleScroll();
@@ -980,7 +973,7 @@ function renderAdmin(establishment) {
 
 function updateMonitorClock() {
   const target = document.querySelector("[data-monitor-clock]");
-  if (target) target.textContent = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
+  if (target) target.textContent = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
 }
 
 function startQueueClock(establishment, monitor = false) {
@@ -996,8 +989,6 @@ function startQueueClock(establishment, monitor = false) {
     const data = getData(establishment);
     const currentPanel = document.querySelector(".public-live-current");
     if (currentPanel) currentPanel.innerHTML = publicCurrentAttendance(establishment, data);
-    const modalPanel = document.querySelector(".public-queue-modal .queue-panel");
-    if (modalPanel) modalPanel.outerHTML = queuePanel(establishment, data, false, false, state.booking.date);
     const schedule = document.querySelector(".public-schedule-body");
     if (schedule && !state.calendarOpen && !document.activeElement?.closest("[data-booking-calendar]")) { schedule.innerHTML = publicSchedule(establishment); restoreScheduleScroll(); }
     const lookup = document.querySelector(".public-lookup-panel");
@@ -1007,15 +998,21 @@ function startQueueClock(establishment, monitor = false) {
 
 function renderQueueDisplay(establishment) {
   document.title = `Painel de senhas · ${establishment.name}`;
-  const data = cloudCache.get(publicCacheKey(establishment, isoDate())) || { queue: [], slots: [], todayAppointments: 0 };
   const clock = currentSaoPauloClock();
+  const data = cloudCache.get(publicCacheKey(establishment, clock.date)) || { queue: [], slots: [], todayAppointments: 0 };
   const view = attendanceView(establishment, data, clock.date, clock);
-  app.innerHTML = `<main class="queue-display"><header class="queue-display-header"><div class="queue-display-brand">${logo()}<span>${escapeHTML(establishment.name)}</span></div><div class="queue-display-status">${liveStatusDot(view.current, view.notStarted, view.closedDay)} AO VIVO <strong data-monitor-clock></strong></div></header>
-    <section class="queue-display-content"><div class="queue-display-current"><small>ATENDENDO AGORA</small>${attendanceCards(view, false, true)}</div>
-    <footer class="queue-display-footer"><span>Acompanhe a ordem e aguarde sua senha ser chamada.</span><div><button class="monitor-action" data-request-fullscreen>⛶ Tela cheia</button><a class="monitor-action" href="${href(`/${establishment.slug}?public=1#painel-senhas`)}" data-link>Fechar painel</a></div></footer></main>`;
+  const waiting = view.closedDay ? [] : queueView(establishment, data, clock).waiting;
+  const displayDate = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long", day: "2-digit", month: "long" }).format(new Date());
+  const currentCards = view.notStarted
+    ? `<div class="monitor-state-message">${view.closedDay ? "Sem expediente neste dia" : "Expediente não iniciado"}</div>`
+    : view.current.map((item) => `<article class="monitor-ticket-card monitor-ticket-${item.ticketState}"><div class="monitor-ticket-top"><span class="monitor-ticket-professional">${escapeHTML(item.professional)}</span><span class="monitor-ticket-status">${escapeHTML(TICKET_STATES[item.ticketState])}</span></div><strong class="monitor-ticket-code">${escapeHTML(["paused", "closed"].includes(item.ticketState) ? TICKET_STATES[item.ticketState] : item.ticket)}</strong><div class="monitor-ticket-meta">${item.pauseReason ? `<span>${escapeHTML(item.pauseReason)}</span>` : item.time ? `<span>Horário ${escapeHTML(item.time)}</span>` : ""}${item.ticketState === "in-service" ? `<span>${escapeHTML(item.service || "Serviço não informado")}</span>` : ""}</div></article>`).join("") || '<div class="monitor-state-message">Nenhum profissional cadastrado</div>';
+  const waitingRows = waiting.slice(0, 6).map((item, index) => `<li class="monitor-upcoming-row"><span class="monitor-upcoming-position">${String(index + 1).padStart(2, "0")}</span><div><strong>${escapeHTML(item.ticket)}</strong><small>${escapeHTML(item.professional)} · ${escapeHTML(item.service || "Serviço não informado")}</small></div><time>${escapeHTML(item.time)}</time></li>`).join("");
+  app.innerHTML = `<main class="queue-display"><header class="queue-display-header"><div class="queue-display-brand">${logo()}<div><span>${escapeHTML(establishment.name)}</span><small>PAINEL DE SENHAS</small></div></div><div class="queue-display-status"><span class="monitor-live-label">${liveStatusDot(view.current, view.notStarted, view.closedDay)} AO VIVO</span><div class="monitor-datetime"><small>${escapeHTML(displayDate)}</small><strong data-monitor-clock></strong></div></div></header>
+    <section class="queue-display-content"><div class="queue-display-current"><div class="monitor-section-heading"><span>01 / ATENDIMENTO</span><h1>Atendendo agora</h1><p>Confira sua senha e dirija-se ao profissional indicado.</p></div><div class="monitor-current-grid">${currentCards}</div></div><aside class="queue-display-next"><div class="monitor-section-heading"><span>02 / PRÓXIMAS CHAMADAS</span><h2>A seguir</h2><p>Senhas reservadas para os próximos horários.</p></div>${waitingRows ? `<ol class="monitor-upcoming-list">${waitingRows}</ol>${waiting.length > 6 ? `<p class="monitor-upcoming-more">+ ${waiting.length - 6} senhas nos horários seguintes</p>` : ""}` : '<div class="monitor-upcoming-empty">Nenhuma senha aguardando chamada.</div>'}</aside></section>
+    <footer class="queue-display-footer"><span>As senhas são atualizadas automaticamente. Aguarde sua chamada.</span><div><button class="monitor-action" type="button" data-request-fullscreen>⛶ Tela cheia</button><button class="monitor-action" type="button" data-close-queue-display>Fechar painel</button></div></footer></main>`;
   updateMonitorClock();
   startQueueClock(establishment, true);
-  void refreshCloudData(establishment, "public", isoDate());
+  void refreshCloudData(establishment, "public", clock.date);
   ensureQueueSubscription(establishment);
 }
 
@@ -1232,16 +1229,6 @@ document.addEventListener("click", async (event) => {
   if (event.target.matches("[data-booking-modal-backdrop]")) { closeSelectedBooking(); return; }
   if (event.target.closest("[data-booking-back]")) { event.preventDefault(); state.booking.step = 1; render(); document.querySelector("[data-selected-booking-popup] [data-booking-next]")?.focus?.(); return; }
   if (event.target.closest("[data-new-booking]")) { state.booking = freshBooking(); resumeScheduleTurn(); render(); return; }
-  if (event.target.closest("[data-open-public-queue]")) {
-    state.queueModalOpen = true;
-    render();
-    return;
-  }
-  if (event.target.closest("[data-close-public-queue]") || event.target.matches("[data-public-queue-backdrop]")) {
-    state.queueModalOpen = false;
-    render();
-    return;
-  }
   if (event.target.closest("[data-open-checkin]")) {
     state.publicLookup.open = true;
     render();
@@ -1316,7 +1303,17 @@ document.addEventListener("click", async (event) => {
   }
   if (event.target.closest("[data-open-queue-display]")) {
     const establishment = activeEstablishment();
-    if (establishment) navigate(`/${establishment.slug}?display=queue`);
+    if (establishment) {
+      const fromPublicStrip = Boolean(event.target.closest(".public-queue-expand"));
+      navigate(`/${establishment.slug}?display=queue`);
+      if (fromPublicStrip && document.documentElement.requestFullscreen) void document.documentElement.requestFullscreen().catch(() => {});
+    }
+    return;
+  }
+  if (event.target.closest("[data-close-queue-display]")) {
+    const establishment = activeEstablishment();
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    if (establishment) navigate(`/${establishment.slug}?public=1`);
     return;
   }
   if (event.target.closest("[data-request-fullscreen]")) {
@@ -1700,11 +1697,6 @@ document.addEventListener("keydown", (event) => {
     render();
     return;
   }
-  if (event.key === "Escape" && state.queueModalOpen) {
-    state.queueModalOpen = false;
-    render();
-    return;
-  }
   if (event.key === "Escape" && state.publicLookup.scanning) {
     void stopQrScanner();
     state.publicLookup.scanning = false;
@@ -1726,7 +1718,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   const selectionPopup = document.querySelector("[data-selected-booking-popup]");
-  if (event.key === "Tab" && selectionPopup && !state.employeeAccessOpen && !state.queueModalOpen && !state.publicLookup.open) {
+  if (event.key === "Tab" && selectionPopup && !state.employeeAccessOpen && !state.publicLookup.open) {
     const buttons = [...selectionPopup.querySelectorAll("button:not([disabled])")];
     const first = buttons[0], last = buttons.at(-1);
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }

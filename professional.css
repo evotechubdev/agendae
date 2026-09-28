@@ -939,10 +939,6 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-command-bar .schedule-legend i { width: 8px; height: 8px; }
 .schedule-command-bar .professional-carousel-controls { margin-left: 0; }
 .schedule-command-bar .professional-carousel-controls>span { min-width: 54px; display: grid; place-items: center; flex: 0 0 auto; font-size: 10px; white-space: nowrap; }
-.public-queue-modal { width: min(100%,820px); }
-.public-queue-modal-body { padding: 18px; }
-.public-queue-modal-body .queue-panel { border: 0; }
-.public-queue-modal-body .queue-board { min-height: 300px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .employee-access-modal { width: min(100%,480px); }
 .employee-access-form { padding: 22px; }
 .employee-modal-establishment { margin-bottom: 20px; padding: 13px; display: flex; align-items: center; gap: 11px; border: 1px solid #d9e3f2; border-radius: 12px; background: #f7faff; }
@@ -996,8 +992,6 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .public-live-current { align-items: center; flex-direction: row; }
   .public-queue-button { width: 100%; height: auto; margin: 0; }
   .public-direct-content { padding-top: 12px; }
-  .public-queue-modal-body { padding: 12px; }
-  .public-queue-modal-body .queue-board { min-height: 0; }
   .employee-access-form { padding: 18px; }
   .public-agenda-side { grid-template-columns: 1fr; }
   .appointment-row { grid-template-columns: 47px minmax(0,1fr) minmax(105px,auto); }
@@ -1343,6 +1337,78 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .selected-booking-cancel { padding: 0; border: 0; color: var(--muted); background: none; font-size: 12px; cursor: pointer; }
 .selected-booking-cancel:hover { color: var(--blue); }
 .public-internal-menu > summary { width: 36px; padding: 8px; }
+.public-live-control { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.public-queue-expand { width: 30px; height: 30px; display: grid; place-items: center; padding: 5px; border: 1px solid rgba(255,255,255,.28); border-radius: 8px; color: #fff; background: rgba(255,255,255,.1); cursor: pointer; }
+.public-queue-expand svg { width: 18px; height: 18px; }
+.public-queue-expand:hover { background: rgba(255,255,255,.22); }
+.public-queue-expand:focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
+
+/* Painel legível à distância em uma tela dedicada. */
+.queue-display { height: 100dvh; min-height: 650px; background: radial-gradient(circle at 14% 6%,#1850a4 0,#0b2d66 35%,#06172f 100%); }
+.queue-display .queue-display-header { min-height: 108px; }
+.queue-display-brand > div { display: grid; gap: 5px; }
+.queue-display-brand > div > span { font: 800 clamp(18px,1.6vw,27px) "Manrope",sans-serif; }
+.queue-display-brand small { color: #a9c4f2; font-size: 10px; font-weight: 800; letter-spacing: 2px; }
+.queue-display-status { gap: clamp(24px,3vw,52px); }
+.monitor-live-label { display: inline-flex; align-items: center; gap: 12px; padding: 11px 15px; border: 1px solid rgba(105,231,170,.32); border-radius: 999px; color: #a5f1c9; background: rgba(33,149,92,.13); white-space: nowrap; }
+.monitor-datetime { display: grid; gap: 4px; text-align: right; }
+.monitor-datetime small { color: #b8ccef; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: capitalize; }
+.queue-display-status .monitor-datetime strong { min-width: 0; font: 800 clamp(25px,2.5vw,38px) "Manrope",sans-serif; font-variant-numeric: tabular-nums; }
+.queue-display .queue-display-content { grid-template-columns: minmax(0,1.7fr) minmax(310px,.8fr); gap: clamp(18px,2vw,32px); padding: clamp(18px,2vw,32px) clamp(22px,3vw,55px); }
+.queue-display .queue-display-current,.queue-display .queue-display-next { min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; overflow: hidden; border: 1px solid rgba(255,255,255,.16); border-radius: 24px; box-shadow: 0 22px 60px rgba(0,0,0,.16); }
+.queue-display .queue-display-current { padding: clamp(20px,2vw,34px); background: rgba(255,255,255,.055); }
+.queue-display .queue-display-next { padding: clamp(20px,2vw,34px); color: #fff; background: rgba(3,17,43,.58); }
+.monitor-section-heading { flex: 0 0 auto; }
+.monitor-section-heading > span { color: #91bbff; font-size: 11px; font-weight: 800; letter-spacing: 2px; }
+.monitor-section-heading h1,.monitor-section-heading h2 { margin: 10px 0 5px; color: #fff; font: 800 clamp(27px,2.6vw,42px) "Manrope",sans-serif; letter-spacing: -.8px; }
+.monitor-section-heading p { margin: 0; color: #b8ccef; font-size: clamp(12px,1vw,15px); line-height: 1.5; }
+.monitor-current-grid { min-height: 0; margin-top: clamp(20px,2.3vw,38px); display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,240px),1fr)); grid-auto-rows: minmax(180px,1fr); align-content: start; gap: clamp(12px,1.2vw,20px); overflow: auto; }
+.monitor-ticket-card { min-width: 0; min-height: 180px; padding: clamp(16px,1.5vw,26px); display: flex; flex-direction: column; justify-content: space-between; gap: 20px; border: 1px solid rgba(255,255,255,.17); border-top: 5px solid #f5c84a; border-radius: 18px; background: linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.045)); }
+.monitor-ticket-paused { border-top-color: #ff7777; }
+.monitor-ticket-closed { border-top-color: #8ca1bf; }
+.monitor-ticket-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.monitor-ticket-professional { min-width: 0; color: #fff; font: 800 clamp(16px,1.3vw,23px) "Manrope",sans-serif; overflow-wrap: anywhere; }
+.monitor-ticket-status { flex: 0 0 auto; padding: 5px 8px; border-radius: 6px; color: #bdebd4; background: rgba(56,197,122,.16); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.monitor-ticket-paused .monitor-ticket-status { color: #ffc6c6; background: rgba(239,84,84,.18); }
+.monitor-ticket-closed .monitor-ticket-status { color: #d0dbeb; background: rgba(176,193,218,.16); }
+.monitor-ticket-code { color: #ffd64e; font: 800 clamp(32px,3.6vw,66px)/1 "Manrope",sans-serif; letter-spacing: -1.5px; overflow-wrap: anywhere; }
+.monitor-ticket-paused .monitor-ticket-code,.monitor-ticket-closed .monitor-ticket-code { color: #fff; font-size: clamp(25px,2.5vw,42px); }
+.monitor-ticket-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; color: #c6d8f5; font-size: clamp(12px,1vw,16px); }
+.monitor-ticket-meta span + span::before { content: "·"; margin-right: 14px; color: #7c9bcc; }
+.monitor-state-message { min-height: 210px; display: grid; place-items: center; padding: 24px; border: 1px dashed rgba(255,255,255,.25); border-radius: 18px; color: #dbe9ff; font: 700 clamp(20px,2vw,32px) "Manrope",sans-serif; text-align: center; }
+.monitor-upcoming-list { min-height: 0; margin: 18px 0 0; padding: 0; list-style: none; overflow: auto; }
+.monitor-upcoming-row { min-height: 88px; display: grid; grid-template-columns: 36px minmax(0,1fr) auto; align-items: center; gap: 14px; border-bottom: 1px solid rgba(255,255,255,.13); }
+.monitor-upcoming-row:last-child { border-bottom: 0; }
+.monitor-upcoming-position { color: #8eaddf; font-size: 14px; font-weight: 800; }
+.monitor-upcoming-row > div { min-width: 0; display: grid; gap: 3px; }
+.monitor-upcoming-row strong { color: #fff; font: 800 clamp(22px,1.8vw,30px) "Manrope",sans-serif; }
+.monitor-upcoming-row small { color: #b8ccef; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.monitor-upcoming-row time { color: #ffd64e; font: 800 17px "Manrope",sans-serif; font-variant-numeric: tabular-nums; }
+.monitor-upcoming-more { margin: 14px 0 0; color: #b8ccef; font-size: 12px; }
+.monitor-upcoming-empty { flex: 1; min-height: 170px; display: grid; place-items: center; color: #b8ccef; font-size: 15px; text-align: center; }
+.queue-display .queue-display-footer { min-height: 72px; }
+.monitor-action { justify-content: center; cursor: pointer; text-decoration: none; }
+.monitor-action:hover { background: rgba(255,255,255,.18); }
+.monitor-action:focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
+@media (max-width:1000px) {
+  .queue-display { height: auto; min-height: 100dvh; }
+  .queue-display .queue-display-content { grid-template-columns: minmax(0,1fr); }
+  .queue-display .queue-display-current { min-height: 350px; }
+  .queue-display .queue-display-next { min-height: 290px; }
+}
+@media (max-width:720px) {
+  .queue-display-brand > div { display: grid; }
+  .queue-display .queue-display-header { align-items: flex-start; gap: 12px; }
+  .queue-display-status { gap: 10px; }
+  .monitor-live-label { padding: 7px; font-size: 0; }
+  .monitor-datetime small { font-size: 10px; }
+  .queue-display-status .monitor-datetime strong { font-size: 20px; }
+  .queue-display .queue-display-content { padding: 14px; }
+  .monitor-current-grid { grid-auto-rows: auto; }
+  .monitor-ticket-card { min-height: 175px; }
+  .monitor-upcoming-row { min-height: 75px; gap: 8px; }
+  .monitor-upcoming-row time { font-size: 14px; }
+}
 .schedule-period-view .matrix-slot.has-confirmed-presence { height: 74px; }
 .matrix-presence-confirmed { max-width: 100%; color: var(--ticket-color); font-size: 8px; line-height: 1.1; font-weight: 700; white-space: normal; overflow-wrap: normal; }
 .ticket-presence-substatus { display: block; margin-top: 3px; font-size: 9px; }
