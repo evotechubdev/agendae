@@ -106,3 +106,30 @@ test("painel da equipe e monitor compartilham o aviso anterior ao expediente", (
   const view = context.attendanceView(establishment, {}, "2026-09-28");
   assert.match(context.attendanceCards(view, false, true), /Expediente não Iniciado/);
 });
+
+test("monitor mostra senhas atuais e próximas sem expor nomes de clientes", () => {
+  const app = { innerHTML: "" };
+  const monitor = vm.createContext({
+    app,
+    document: { title: "" },
+    cloudCache: new Map([["today", {}]]),
+    publicCacheKey: () => "today",
+    currentSaoPauloClock: () => ({ date: "2026-09-28", minutes: 9 * 60 }),
+    attendanceView: () => ({ notStarted: false, closedDay: false, current: [{ professional: "Renam", ticket: "RCT-03", ticketState: "in-service", time: "09:00", service: "Cabelo Tesoura", client: "Cliente privado" }] }),
+    queueView: () => ({ waiting: [{ professional: "Bia", ticket: "BCM-04", time: "09:20", service: "Cabelo Máquina", client: "Outra pessoa" }] }),
+    TICKET_STATES,
+    escapeHTML: (value) => String(value),
+    logo: () => "<span>Logo</span>",
+    liveStatusDot: () => '<span class="live-dot"></span>',
+    updateMonitorClock: () => {},
+    startQueueClock: () => {},
+    refreshCloudData: () => {},
+    ensureQueueSubscription: () => {},
+  });
+  vm.runInContext(source.slice(source.indexOf("function renderQueueDisplay("), source.indexOf("function renderCheckInDisplay(")), monitor);
+  monitor.renderQueueDisplay({ name: "Barbearia", slug: "barbearia" });
+  assert.match(app.innerHTML, /RCT-03/);
+  assert.match(app.innerHTML, /BCM-04/);
+  assert.match(app.innerHTML, /data-close-queue-display/);
+  assert.doesNotMatch(app.innerHTML, /Cliente privado|Outra pessoa/);
+});
