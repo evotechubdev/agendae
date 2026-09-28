@@ -1,4 +1,4 @@
-import { lunchBreakFor, isLunchTime, pauseIntervalFor } from "./schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, pauseIntervalFor, scheduleMatrix, serviceFitsSlot, businessDayIsClosed } from "./schedule-model.mjs";
 
 function timeMinutes(time) {
   const [hours, minutes] = String(time || "").split(":").map(Number);
@@ -109,6 +109,16 @@ export function queueView(establishment, data, clock) {
     current,
     waiting: upcoming.map((item) => ({ ...item, ticketState: "reserved" })),
   };
+}
+
+export function upcomingFreeSlots(establishment, data, clock) {
+  if (businessDayIsClosed(establishment, clock.date)) return [];
+  const entries = Array.isArray(data.todaySlots) ? data.todaySlots : (data.slots || data.appointments || []);
+  const bookings = entries.filter((item) => item.date === clock.date);
+  return scheduleMatrix(establishment).professionals.flatMap((professional) => professional.availableTimes
+    .filter((time) => timeMinutes(time) > clock.minutes && serviceFitsSlot(establishment, professional.name, time, undefined, bookings))
+    .map((time) => ({ kind: "free", time, professional: professional.name })))
+    .sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time) || a.professional.localeCompare(b.professional, "pt-BR"));
 }
 
 export function allProfessionalsClosed(current) {
