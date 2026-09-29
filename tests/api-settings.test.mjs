@@ -15,14 +15,16 @@ function markup(role, secret = null) {
     escapeHTML: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"),
   });
   vm.runInContext(source.slice(start, end), context);
-  return context.apiSettingsMarkup({ slug: "demo" });
+  return context.apiSettingsMarkup({ slug: "demo", name: "Loja Demo" });
 }
 
 test("aba API reserva geração e detalhes da integração ao administrador", () => {
   assert.doesNotMatch(markup("staff"), /data-generate-api-key|\/v1\/establishments/);
   const admin = markup("admin");
   assert.match(admin, /data-generate-api-key/);
-  assert.match(admin, /data-revoke-api-key/);
+  assert.match(admin, /data-refresh-api-key/);
+  assert.match(admin, /api-demo/);
+  assert.doesNotMatch(admin, /data-revoke-api-key/);
   assert.match(admin, /\/v1\/establishments\/demo/);
   assert.doesNotMatch(admin, /ag_live_/);
 });
