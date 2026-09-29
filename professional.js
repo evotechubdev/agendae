@@ -40,7 +40,7 @@ const state = {
   employeeAccessOpen: false,
   settingsOpen: false,
   settingsTab: "professionals",
-  apiKeyStatus: { slug: "", loading: false, loaded: false, active: false, lastFour: null, error: "" },
+  apiKeyStatus: { slug: "", loading: false, loaded: false, active: false, lastFour: null, variable: "", error: "" },
   apiKeySecret: null,
   attendanceOpen: false,
   attendanceSelection: null,
@@ -911,25 +911,26 @@ function apiSettingsMarkup(establishment) {
   const base = firebaseApi?.integrationApiBaseUrl || "https://agendae-backend-t5ax.onrender.com";
   if (session()?.role !== "admin") return '<div class="settings-section"><p class="settings-hint">A chave de API pode criar agendamentos. Peça a um administrador da loja para configurar a integração.</p></div>';
   const status = state.apiKeyStatus.slug === establishment.slug ? state.apiKeyStatus : { loading: true };
+  const variable = status.variable || `api-${establishment.slug}`;
   const statusText = status.loading || !status.loaded ? "Consultando a chave no servidor…"
     : status.error ? escapeHTML(status.error)
-      : status.active ? `Chave ativa · final ${escapeHTML(status.lastFour || "")}` : "Nenhuma chave ativa";
+      : status.active ? `Chave ativa · final ${escapeHTML(status.lastFour || "")}` : "Aguardando variável no Render";
   const secret = state.apiKeySecret
-    ? `<div class="api-key-created" role="status"><strong>Copie a chave agora</strong><p>Ela será mostrada uma única vez. Guarde-a no servidor do site cliente.</p><div class="api-key-value"><code>${escapeHTML(state.apiKeySecret)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-api-key>Copiar</button></div></div>` : "";
-  return `<div class="settings-section api-settings"><div><h3>API de agendamentos</h3><p class="settings-hint">Use esta API para mostrar serviços e horários no site do cliente e criar reservas na mesma agenda da loja.</p></div><div class="api-key-panel"><div><strong>Chave de acesso</strong><small>${statusText}</small></div><div class="api-key-actions"><button class="btn btn-primary btn-sm" type="button" data-generate-api-key ${status.loading ? "disabled" : ""}>${status.active ? "Trocar chave" : "Gerar chave"}</button>${status.active ? `<button class="btn btn-outline btn-sm" type="button" data-revoke-api-key ${status.loading ? "disabled" : ""}>Revogar</button>` : ""}</div></div>${secret}<p class="settings-hint">A chave deve ficar no servidor do site cliente. Não a coloque no JavaScript ou HTML enviado aos visitantes. Trocar ou revogar a chave interrompe imediatamente o acesso da chave anterior.</p><div class="api-endpoints"><strong>URL base</strong><code>${escapeHTML(base)}/v1/establishments/${escapeHTML(establishment.slug)}</code><strong>Rotas disponíveis</strong><code>GET /catalog</code><code>GET /availability?date=AAAA-MM-DD&amp;service=SERVIÇO</code><code>POST /appointments</code><p class="settings-hint">Envie a chave no cabeçalho <code>Authorization: Bearer SUA_CHAVE</code>. A reserva recebe <code>date</code>, <code>time</code>, <code>professional</code>, <code>service</code>, <code>client</code> e <code>phone</code>.</p></div></div>`;
+    ? `<div class="api-key-created" role="status"><strong>Copie a chave agora</strong><p>Ela será mostrada uma única vez. Defina o valor da variável <code>${escapeHTML(variable)}</code> no serviço agendae-backend do Render e salve com deploy. Use a mesma chave no servidor do site cliente.</p><div class="api-key-value"><code>${escapeHTML(state.apiKeySecret)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-api-key>Copiar</button></div></div>` : "";
+  return `<div class="settings-section api-settings"><div><h3>API de agendamentos</h3><p class="settings-hint">Um serviço no Render atende todas as lojas. Cada loja usa sua própria variável e sua própria rota.</p></div><div class="api-key-panel"><div><strong>Chave de ${escapeHTML(establishment.name)}</strong><small>${statusText}</small></div><div class="api-key-actions"><button class="btn btn-primary btn-sm" type="button" data-generate-api-key ${status.loading ? "disabled" : ""}>${status.active ? "Gerar chave substituta" : "Gerar chave"}</button><button class="btn btn-outline btn-sm" type="button" data-refresh-api-key ${status.loading ? "disabled" : ""}>Atualizar status</button></div></div><div class="api-endpoints"><strong>Variável no Render</strong><code>${escapeHTML(variable)}</code><p class="settings-hint">Depois de gerar, adicione ou atualize essa variável em <strong>agendae-backend → Environment Variables</strong> e faça o deploy. Para revogar o acesso, remova a variável e implante a alteração. A chave nunca deve aparecer no JavaScript público.</p></div>${secret}<div class="api-endpoints"><strong>URL da loja</strong><code>${escapeHTML(base)}/v1/establishments/${escapeHTML(establishment.slug)}</code><strong>Rotas disponíveis</strong><code>GET /catalog</code><code>GET /availability?date=AAAA-MM-DD&amp;service=SERVIÇO</code><code>POST /appointments</code><p class="settings-hint">Envie a chave no cabeçalho <code>Authorization: Bearer SUA_CHAVE</code>. A reserva recebe <code>date</code>, <code>time</code>, <code>professional</code>, <code>service</code>, <code>client</code> e <code>phone</code>.</p></div></div>`;
 }
 
 async function loadApiKeyStatus(establishment) {
   if (!firebaseApi || session()?.role !== "admin" || state.apiKeyStatus.loading && state.apiKeyStatus.slug === establishment.slug) return;
-  state.apiKeyStatus = { slug: establishment.slug, loading: true, loaded: false, active: false, lastFour: null, error: "" };
+  state.apiKeyStatus = { slug: establishment.slug, loading: true, loaded: false, active: false, lastFour: null, variable: `api-${establishment.slug}`, error: "" };
   render();
   try {
     const result = await firebaseApi.getIntegrationApiKeyStatus(establishment.slug);
     if (state.apiKeyStatus.slug !== establishment.slug) return;
-    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: Boolean(result.active), lastFour: result.lastFour, error: "" };
+    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: Boolean(result.active), lastFour: result.lastFour, variable: result.variable || `api-${establishment.slug}`, error: "" };
   } catch (error) {
     if (state.apiKeyStatus.slug !== establishment.slug) return;
-    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: false, lastFour: null, error: error.message || "Não foi possível consultar a API." };
+    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: false, lastFour: null, variable: `api-${establishment.slug}`, error: error.message || "Não foi possível consultar a API." };
   }
   if (state.settingsOpen && state.settingsTab === "api" && activeEstablishment()?.slug === establishment.slug) {
     const tabFocused = document.activeElement?.matches('[data-settings-tab="api"]');
@@ -1302,13 +1303,13 @@ document.addEventListener("click", async (event) => {
     return;
   }
   if (event.target.closest("[data-generate-api-key]") && canManage() && session()?.role === "admin" && firebaseApi) {
-    if (state.apiKeyStatus.active && !window.confirm("Trocar a chave agora? A chave anterior deixará de funcionar imediatamente.")) return;
+    if (state.apiKeyStatus.active && !window.confirm("Gerar uma chave substituta? A chave atual continuará ativa até você trocar a variável no Render e fazer o deploy.")) return;
     state.apiKeyStatus.loading = true;
     render();
     try {
       const result = await firebaseApi.generateIntegrationApiKey(establishmentForModal.slug);
       state.apiKeySecret = result.key;
-      state.apiKeyStatus = { slug: establishmentForModal.slug, loading: false, loaded: true, active: true, lastFour: result.lastFour, error: "" };
+      state.apiKeyStatus = { ...state.apiKeyStatus, slug: establishmentForModal.slug, loading: false, loaded: true, variable: result.variable || `api-${establishmentForModal.slug}`, error: "" };
       render();
       document.querySelector("[data-copy-api-key]")?.focus();
     } catch (error) {
@@ -1318,26 +1319,13 @@ document.addEventListener("click", async (event) => {
     }
     return;
   }
+  if (event.target.closest("[data-refresh-api-key]") && canManage() && session()?.role === "admin") {
+    void loadApiKeyStatus(establishmentForModal);
+    return;
+  }
   if (event.target.closest("[data-copy-api-key]") && state.apiKeySecret) {
     try { await navigator.clipboard.writeText(state.apiKeySecret); toast("Chave copiada."); }
     catch { toast("Não foi possível copiar. Selecione a chave e copie manualmente.", "!"); }
-    return;
-  }
-  if (event.target.closest("[data-revoke-api-key]") && canManage() && session()?.role === "admin" && firebaseApi) {
-    if (!window.confirm("Revogar a chave agora? O site integrado deixará de criar agendamentos até receber uma nova chave.")) return;
-    state.apiKeyStatus.loading = true;
-    render();
-    try {
-      await firebaseApi.revokeIntegrationApiKey(establishmentForModal.slug);
-      state.apiKeySecret = null;
-      state.apiKeyStatus = { slug: establishmentForModal.slug, loading: false, loaded: true, active: false, lastFour: null, error: "" };
-      render();
-      toast("Chave revogada.");
-    } catch (error) {
-      state.apiKeyStatus.loading = false;
-      render();
-      toast(error.message || "Não foi possível revogar a chave.", "!");
-    }
     return;
   }
   const selectedAppointmentSlot = event.target.closest("[data-open-attendance-slot]");
