@@ -9,7 +9,7 @@ const end = source.indexOf("async function loadApiKeyStatus(", start);
 
 function markup(role, secret = null) {
   const context = vm.createContext({
-    state: { apiKeyStatus: { slug: "demo", loaded: true, active: true, lastFour: "ABCD" }, apiKeySecret: secret },
+    state: { apiKeyStatus: { slug: "demo", loaded: true, active: true, lastFour: "ABCD", automationReady: true, deployRequested: true }, apiKeySecret: secret },
     firebaseApi: { integrationApiBaseUrl: "https://agendae-backend-t5ax.onrender.com" },
     session: () => ({ role }),
     escapeHTML: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"),
@@ -24,7 +24,7 @@ test("aba API reserva geração e detalhes da integração ao administrador", ()
   assert.match(admin, /data-generate-api-key/);
   assert.match(admin, /data-refresh-api-key/);
   assert.match(admin, /api-demo/);
-  assert.doesNotMatch(admin, /data-revoke-api-key/);
+  assert.match(admin, /data-revoke-api-key/);
   assert.match(admin, /\/v1\/establishments\/demo/);
   assert.doesNotMatch(admin, /ag_live_/);
 });
