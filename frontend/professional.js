@@ -424,8 +424,10 @@ function closeSelectedBooking() {
 }
 
 function publicAccessMenu(establishment, authenticated = false) {
-  if (authenticated) return "";
-  return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento" title="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></summary><div class="public-internal-dropdown"><button type="button" data-open-employee-access><strong>Área do estabelecimento</strong><small>Acesso da equipe</small></button></div></details>`;
+  const options = authenticated
+    ? '<button type="button" data-open-attendance><strong>Atendimentos</strong><small>Acompanhar os agendamentos de hoje</small></button><button type="button" data-open-settings><strong>Configurações da loja</strong><small>Funcionários, horários e serviços</small></button><button type="button" data-logout><strong>Sair</strong><small>Encerrar sessão</small></button>'
+    : '<button type="button" data-open-employee-access><strong>Entrar</strong><small>Acesso da equipe</small></button>';
+  return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento" title="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></summary><div class="public-internal-dropdown">${options}</div></details>`;
 }
 
 function bookingContent(establishment) {
@@ -904,7 +906,7 @@ function renderEstablishmentPublic(establishment) {
   const data = getData(establishment);
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
-    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div>${authenticated ? `<div class="staff-header-actions"><button class="btn btn-soft btn-sm" type="button" data-open-attendance>Atendimentos</button><button class="btn btn-primary btn-sm" type="button" data-open-settings>⚙ Configurações</button><button class="btn btn-outline btn-sm" type="button" data-logout>Sair</button></div>` : ""}</div></header>
+    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div></div></header>
     <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${publicCurrentAttendance(establishment, data)}</article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
     <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
     ${state.booking.step > 1 ? bookingContent(establishment) : selectedBookingPopup(establishment)}
@@ -1207,7 +1209,7 @@ document.addEventListener("click", async (event) => {
     if (settingsHasUnsavedInput() && !window.confirm("Descartar alterações não salvas?")) return;
     state.settingsOpen = false;
     render();
-    document.querySelector("[data-open-settings]")?.focus();
+    document.querySelector("[data-internal-menu] summary")?.focus();
     return;
   }
   const settingsTab = event.target.closest("[data-settings-tab]");
@@ -1231,7 +1233,7 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-close-attendance]") || event.target.matches("[data-attendance-backdrop]")) {
     state.attendanceOpen = false;
     render();
-    document.querySelector("[data-open-attendance]")?.focus();
+    document.querySelector("[data-internal-menu] summary")?.focus();
     return;
   }
   const removeProfessionalButton = event.target.closest("[data-remove-professional]");
@@ -1457,13 +1459,14 @@ document.addEventListener("click", async (event) => {
   }
   if (event.target.closest("[data-print-checkin]")) { window.print(); return; }
   if (event.target.closest("[data-logout]")) {
+    const establishmentSlug = activeEstablishment()?.slug;
     try { if (firebaseApi) await firebaseApi.logout(); } catch { /* a interface encerra mesmo sem rede */ }
     firebaseSession = null;
     cloudCache.clear();
     state.booking = freshBooking();
     state.settingsOpen = false;
     state.attendanceOpen = false;
-    navigate("/login");
+    navigate(establishmentSlug ? `/${establishmentSlug}` : "/");
     toast("Sessão encerrada.");
     return;
   }
@@ -1847,11 +1850,10 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && (state.settingsOpen || state.attendanceOpen)) {
     event.preventDefault();
     if (state.settingsOpen && settingsHasUnsavedInput() && !window.confirm("Descartar alterações não salvas?")) return;
-    const focusTarget = state.settingsOpen ? "[data-open-settings]" : "[data-open-attendance]";
     state.settingsOpen = false;
     state.attendanceOpen = false;
     render();
-    document.querySelector(focusTarget)?.focus();
+    document.querySelector("[data-internal-menu] summary")?.focus();
     return;
   }
   if (event.key === "Tab" && (state.settingsOpen || state.attendanceOpen)) {
