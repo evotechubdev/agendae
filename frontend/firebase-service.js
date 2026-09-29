@@ -217,6 +217,103 @@ export async function updateProfessionalWorkPeriods(slug, professionalName, peri
   });
 }
 
+export async function saveProfessional(slug, originalName, details) {
+  const name = String(details.name || "").trim().replace(/\s+/g, " ");
+  const role = String(details.role || "").trim();
+  if (!name || name.length > 80 || role.length > 80) throw new Error("Informe um nome e uma função válidos.");
+  const reference = doc(db, "establishments", slug);
+  return runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(reference);
+    if (!snapshot.exists()) throw new Error("Estabelecimento não encontrado.");
+    const establishment = snapshot.data();
+    const existing = (establishment.professionals || []).map(item => typeof item === "string" ? { name: item, role: "", availableTimes: establishment.availableTimes || [] } : item);
+    if (existing.some(item => item.name.toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR") && item.name !== originalName)) throw new Error("Já existe um funcionário com este nome.");
+    const current = existing.find(item => item.name === originalName);
+    if (originalName && !current) throw new Error("Funcionário não encontrado.");
+    if (current && originalName !== name) {
+      const slots = await getDocs(query(collection(db, "establishments", slug, "slots"), where("professional", "==", originalName)));
+      const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+      if (slots.docs.some(item => item.data().date >= today)) throw new Error("Este funcionário possui reservas futuras. Mantenha o nome até os atendimentos terminarem.");
+    }
+    const professionals = current
+      ? existing.map(item => item.name === originalName ? { ...item, name, role } : item)
+      : [...existing, { name, role, slotDuration: 20, workPeriods: [], availableTimes: [], pauseIntervals: [] }];
+    const professionalLunchBreaks = { ...establishment.professionalLunchBreaks };
+    if (current && originalName !== name && Object.hasOwn(professionalLunchBreaks, originalName)) {
+      professionalLunchBreaks[name] = professionalLunchBreaks[originalName];
+      delete professionalLunchBreaks[originalName];
+    }
+    transaction.update(reference, { professionals, professionalLunchBreaks, updatedAt: serverTimestamp() });
+    return { professionals, professionalLunchBreaks };
+  });
+}
+
+export async function removeProfessional(slug, name) {
+  const reference = doc(db, "establishments", slug);
+  return runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(reference);
+    const establishment = snapshot.data();
+    const professionals = (establishment?.professionals || []).filter(item => (typeof item === "string" ? item : item.name) !== name);
+    if (!establishment || professionals.length === (establishment.professionals || []).length) throw new Error("Funcionário não encontrado.");
+    const slots = await getDocs(query(collection(db, "establishments", slug, "slots"), where("professional", "==", name)));
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+    if (slots.docs.some(item => item.data().date >= today)) throw new Error("Este funcionário possui reservas futuras. Remova após os atendimentos terminarem.");
+    const professionalLunchBreaks = { ...establishment.professionalLunchBreaks };
+    delete professionalLunchBreaks[name];
+    const availableTimes = professionals.length && (establishment.scheduleMode === "establishment" || professionals.some(item => typeof item === "string"))
+      ? establishment.availableTimes || []
+      : [...new Set(professionals.flatMap(item => item.availableTimes || []))].sort();
+    transaction.update(reference, { professionals, professionalLunchBreaks, availableTimes, updatedAt: serverTimestamp() });
+    return { professionals, professionalLunchBreaks, availableTimes };
+  });
+}
+
+export async function saveService(slug, serviceId, details) {
+  const name = String(details.name || "").trim().replace(/\s+/g, " ");
+  const duration = Number(details.duration);
+  const price = Number(details.price);
+  const icon = String(details.icon || "✦").trim().slice(0, 8) || "✦";
+  if (!name || name.length > 80 || !Number.isInteger(duration) || duration < 1 || duration > 1440 || !Number.isFinite(price) || price < 0) throw new Error("Informe nome, duração e preço válidos.");
+  const reference = doc(db, "establishments", slug);
+  return runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(reference);
+    if (!snapshot.exists()) throw new Error("Estabelecimento não encontrado.");
+    const establishment = snapshot.data();
+    const services = establishment.services || [];
+    const current = services.find(item => item.id === serviceId);
+    if (serviceId && !current) throw new Error("Serviço não encontrado.");
+    if (services.some(item => item.name.toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR") && item.id !== serviceId)) throw new Error("Já existe um serviço com este nome.");
+    if (current && (current.name !== name || Number(current.duration) !== duration)) {
+      const slots = await getDocs(query(collection(db, "establishments", slug, "slots"), where("service", "==", current.name)));
+      const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+      if (slots.docs.some(item => item.data().date >= today)) throw new Error("Este serviço possui reservas futuras. Mantenha o nome e a duração até os atendimentos terminarem.");
+    }
+    const item = { ...(current || {}), id: serviceId || documentKey(name) || crypto.randomUUID(), name, duration, price, icon };
+    if (!current && services.some(service => service.id === item.id)) throw new Error("Já existe um serviço com este identificador.");
+    const next = current ? services.map(service => service.id === serviceId ? item : service) : [...services, item];
+    const serviceDurations = Object.fromEntries(next.map(service => [service.name, Number(service.duration) || 20]));
+    transaction.update(reference, { services: next, serviceDurations, updatedAt: serverTimestamp() });
+    return next;
+  });
+}
+
+export async function removeService(slug, serviceId) {
+  const reference = doc(db, "establishments", slug);
+  return runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(reference);
+    const establishment = snapshot.data();
+    const current = (establishment?.services || []).find(item => item.id === serviceId);
+    if (!current) throw new Error("Serviço não encontrado.");
+    const slots = await getDocs(query(collection(db, "establishments", slug, "slots"), where("service", "==", current.name)));
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+    if (slots.docs.some(item => item.data().date >= today)) throw new Error("Este serviço possui reservas futuras. Remova após os atendimentos terminarem.");
+    const services = establishment.services.filter(item => item.id !== serviceId);
+    const serviceDurations = Object.fromEntries(services.map(service => [service.name, Number(service.duration) || 20]));
+    transaction.update(reference, { services, serviceDurations, updatedAt: serverTimestamp() });
+    return services;
+  });
+}
+
 export async function loadPublicData(slug, date) {
   const stateRef = doc(db, "establishments", slug, "public", "state");
   const slotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", date));
@@ -279,7 +376,7 @@ export function observePublicState(slug, callback) {
   const unsubscribeEstablishment = onSnapshot(doc(db, "establishments", slug), (snapshot) => {
     const establishment = snapshot.data() || {};
     establishmentHours = establishment.hours || [];
-    establishmentSchedule = { professionals: establishment.professionals || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee", extraWorkingDates: establishment.extraWorkingDates || {} };
+    establishmentSchedule = { professionals: establishment.professionals || [], services: establishment.services || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee", extraWorkingDates: establishment.extraWorkingDates || {} };
     professionalLunchBreaks = { ...Object.fromEntries((establishment.professionals || []).filter((item) => item.lunchBreak).map((item) => [item.name, item.lunchBreak])), ...establishment.professionalLunchBreaks };
     emit();
   }, () => emit());

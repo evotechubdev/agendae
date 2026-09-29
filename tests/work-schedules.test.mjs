@@ -15,7 +15,7 @@ function fixture(bookings = []) {
     runTransaction: async (_db, callback) => callback({ get: async () => ({ data: () => original }), update: (ref, value) => writes.push({ ref, value }) }),
   });
   const start = source.indexOf("export async function updateProfessionalWorkPeriods(");
-  const end = source.indexOf("export async function loadPublicData(", start);
+  const end = source.indexOf("export async function saveProfessional(", start);
   vm.runInContext(source.slice(start, end).replace("export ", ""), context);
   return { context, writes, original };
 }

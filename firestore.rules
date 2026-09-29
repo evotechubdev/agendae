@@ -46,7 +46,13 @@ service cloud.firestore {
 
     match /establishments/{slug} {
       allow read: if true;
-      allow write: if manages(slug);
+      allow create, delete: if false;
+      allow update: if manages(slug)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'scheduleMode', 'professionalLunchBreaks', 'professionals',
+          'availableTimes', 'services', 'serviceDurations',
+          'extraWorkingDates', 'updatedAt'
+        ]);
 
       match /public/{documentId} {
         allow read: if true;
