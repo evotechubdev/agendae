@@ -65,6 +65,10 @@ export function generateIntegrationApiKey(slug) {
   return integrationAdminRequest(slug, "POST");
 }
 
+export function revokeIntegrationApiKey(slug) {
+  return integrationAdminRequest(slug, "DELETE");
+}
+
 function documentKey(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");
 }
