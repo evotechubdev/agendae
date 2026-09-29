@@ -40,6 +40,8 @@ const state = {
   employeeAccessOpen: false,
   settingsOpen: false,
   settingsTab: "professionals",
+  apiKeyStatus: { slug: "", loading: false, loaded: false, active: false, lastFour: null, error: "" },
+  apiKeySecret: null,
   attendanceOpen: false,
   attendanceSelection: null,
   nextCallProfessional: null,
@@ -212,6 +214,7 @@ function navigate(path) {
   state.calendarOpen = false;
   state.employeeAccessOpen = false;
   state.settingsOpen = false;
+  state.apiKeySecret = null;
   state.attendanceOpen = false;
   state.attendanceSelection = null;
   state.nextCallProfessional = null;
@@ -904,10 +907,41 @@ function hoursSettingsMarkup(establishment) {
   return `<div class="settings-section">${workSchedulesMarkup(establishment)}${lunchSchedulesMarkup(establishment)}${extraWorkingDatesMarkup(establishment)}<section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Esta configuração vale para novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" type="button" data-schedule-mode="employee"><span>♙</span><strong>Por funcionário</strong><small>Cada profissional tem seus horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" type="button" data-schedule-mode="establishment"><span>▣</span><strong>Grade compartilhada</strong><small>Uma agenda para a equipe.</small></button></div></section></div>`;
 }
 
+function apiSettingsMarkup(establishment) {
+  const base = firebaseApi?.integrationApiBaseUrl || "https://agendae-backend-t5ax.onrender.com";
+  if (session()?.role !== "admin") return '<div class="settings-section"><p class="settings-hint">A chave de API pode criar agendamentos. Peça a um administrador da loja para configurar a integração.</p></div>';
+  const status = state.apiKeyStatus.slug === establishment.slug ? state.apiKeyStatus : { loading: true };
+  const statusText = status.loading || !status.loaded ? "Consultando a chave no servidor…"
+    : status.error ? escapeHTML(status.error)
+      : status.active ? `Chave ativa · final ${escapeHTML(status.lastFour || "")}` : "Nenhuma chave ativa";
+  const secret = state.apiKeySecret
+    ? `<div class="api-key-created" role="status"><strong>Copie a chave agora</strong><p>Ela será mostrada uma única vez. Guarde-a no servidor do site cliente.</p><div class="api-key-value"><code>${escapeHTML(state.apiKeySecret)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-api-key>Copiar</button></div></div>` : "";
+  return `<div class="settings-section api-settings"><div><h3>API de agendamentos</h3><p class="settings-hint">Use esta API para mostrar serviços e horários no site do cliente e criar reservas na mesma agenda da loja.</p></div><div class="api-key-panel"><div><strong>Chave de acesso</strong><small>${statusText}</small></div><div class="api-key-actions"><button class="btn btn-primary btn-sm" type="button" data-generate-api-key ${status.loading ? "disabled" : ""}>${status.active ? "Trocar chave" : "Gerar chave"}</button>${status.active ? `<button class="btn btn-outline btn-sm" type="button" data-revoke-api-key ${status.loading ? "disabled" : ""}>Revogar</button>` : ""}</div></div>${secret}<p class="settings-hint">A chave deve ficar no servidor do site cliente. Não a coloque no JavaScript ou HTML enviado aos visitantes. Trocar ou revogar a chave interrompe imediatamente o acesso da chave anterior.</p><div class="api-endpoints"><strong>URL base</strong><code>${escapeHTML(base)}/v1/establishments/${escapeHTML(establishment.slug)}</code><strong>Rotas disponíveis</strong><code>GET /catalog</code><code>GET /availability?date=AAAA-MM-DD&amp;service=SERVIÇO</code><code>POST /appointments</code><p class="settings-hint">Envie a chave no cabeçalho <code>Authorization: Bearer SUA_CHAVE</code>. A reserva recebe <code>date</code>, <code>time</code>, <code>professional</code>, <code>service</code>, <code>client</code> e <code>phone</code>.</p></div></div>`;
+}
+
+async function loadApiKeyStatus(establishment) {
+  if (!firebaseApi || session()?.role !== "admin" || state.apiKeyStatus.loading && state.apiKeyStatus.slug === establishment.slug) return;
+  state.apiKeyStatus = { slug: establishment.slug, loading: true, loaded: false, active: false, lastFour: null, error: "" };
+  render();
+  try {
+    const result = await firebaseApi.getIntegrationApiKeyStatus(establishment.slug);
+    if (state.apiKeyStatus.slug !== establishment.slug) return;
+    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: Boolean(result.active), lastFour: result.lastFour, error: "" };
+  } catch (error) {
+    if (state.apiKeyStatus.slug !== establishment.slug) return;
+    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: false, lastFour: null, error: error.message || "Não foi possível consultar a API." };
+  }
+  if (state.settingsOpen && state.settingsTab === "api" && activeEstablishment()?.slug === establishment.slug) {
+    const tabFocused = document.activeElement?.matches('[data-settings-tab="api"]');
+    render();
+    if (tabFocused) document.querySelector('[data-settings-tab="api"]')?.focus();
+  }
+}
+
 function settingsModal(establishment) {
   if (!state.settingsOpen) return "";
-  const tabs = [["professionals", "Funcionários"], ["hours", "Horários"], ["services", "Serviços"]];
-  const content = state.settingsTab === "hours" ? hoursSettingsMarkup(establishment) : state.settingsTab === "services" ? serviceSettingsMarkup(establishment) : professionalSettingsMarkup(establishment);
+  const tabs = [["professionals", "Funcionários"], ["hours", "Horários"], ["services", "Serviços"], ["api", "API"]];
+  const content = state.settingsTab === "hours" ? hoursSettingsMarkup(establishment) : state.settingsTab === "services" ? serviceSettingsMarkup(establishment) : state.settingsTab === "api" ? apiSettingsMarkup(establishment) : professionalSettingsMarkup(establishment);
   return `<div class="booking-modal-backdrop" data-settings-backdrop><section class="booking-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div class="booking-modal-head"><div><small>ÁREA DA EQUIPE</small><h2 id="settings-title">Configurações da loja</h2></div><button class="booking-modal-close" type="button" data-close-settings aria-label="Fechar configurações">×</button></div><nav class="settings-tabs" aria-label="Configurações">${tabs.map(([key, label]) => `<button type="button" data-settings-tab="${key}" class="${state.settingsTab === key ? "active" : ""}" ${state.settingsTab === key ? 'aria-current="page"' : ""}>${label}</button>`).join("")}</nav><div class="settings-body">${content}</div></section></div>`;
 }
 
@@ -1245,12 +1279,14 @@ document.addEventListener("click", async (event) => {
     state.publicLookup.open = false;
     state.booking = freshBooking();
     render();
+    if (state.settingsTab === "api") void loadApiKeyStatus(establishmentForModal);
     requestAnimationFrame(() => document.querySelector("[data-close-settings]")?.focus());
     return;
   }
   if (event.target.closest("[data-close-settings]") || event.target.matches("[data-settings-backdrop]")) {
     if (settingsHasUnsavedInput() && !window.confirm("Descartar alterações não salvas?")) return;
     state.settingsOpen = false;
+    state.apiKeySecret = null;
     render();
     document.querySelector("[data-internal-menu] summary")?.focus();
     return;
@@ -1259,14 +1295,56 @@ document.addEventListener("click", async (event) => {
   if (settingsTab && canManage()) {
     if (settingsHasUnsavedInput() && !window.confirm("Descartar alterações não salvas?")) return;
     state.settingsTab = settingsTab.dataset.settingsTab;
+    if (state.settingsTab !== "api") state.apiKeySecret = null;
     render();
+    if (state.settingsTab === "api") void loadApiKeyStatus(establishmentForModal);
     document.querySelector(`[data-settings-tab="${state.settingsTab}"]`)?.focus();
+    return;
+  }
+  if (event.target.closest("[data-generate-api-key]") && canManage() && session()?.role === "admin" && firebaseApi) {
+    if (state.apiKeyStatus.active && !window.confirm("Trocar a chave agora? A chave anterior deixará de funcionar imediatamente.")) return;
+    state.apiKeyStatus.loading = true;
+    render();
+    try {
+      const result = await firebaseApi.generateIntegrationApiKey(establishmentForModal.slug);
+      state.apiKeySecret = result.key;
+      state.apiKeyStatus = { slug: establishmentForModal.slug, loading: false, loaded: true, active: true, lastFour: result.lastFour, error: "" };
+      render();
+      document.querySelector("[data-copy-api-key]")?.focus();
+    } catch (error) {
+      state.apiKeyStatus.loading = false;
+      render();
+      toast(error.message || "Não foi possível gerar a chave.", "!");
+    }
+    return;
+  }
+  if (event.target.closest("[data-copy-api-key]") && state.apiKeySecret) {
+    try { await navigator.clipboard.writeText(state.apiKeySecret); toast("Chave copiada."); }
+    catch { toast("Não foi possível copiar. Selecione a chave e copie manualmente.", "!"); }
+    return;
+  }
+  if (event.target.closest("[data-revoke-api-key]") && canManage() && session()?.role === "admin" && firebaseApi) {
+    if (!window.confirm("Revogar a chave agora? O site integrado deixará de criar agendamentos até receber uma nova chave.")) return;
+    state.apiKeyStatus.loading = true;
+    render();
+    try {
+      await firebaseApi.revokeIntegrationApiKey(establishmentForModal.slug);
+      state.apiKeySecret = null;
+      state.apiKeyStatus = { slug: establishmentForModal.slug, loading: false, loaded: true, active: false, lastFour: null, error: "" };
+      render();
+      toast("Chave revogada.");
+    } catch (error) {
+      state.apiKeyStatus.loading = false;
+      render();
+      toast(error.message || "Não foi possível revogar a chave.", "!");
+    }
     return;
   }
   const selectedAppointmentSlot = event.target.closest("[data-open-attendance-slot]");
   const selectedProfessional = event.target.closest("[data-open-professional-attendance]");
   if ((selectedAppointmentSlot || selectedProfessional) && canManage()) {
     state.settingsOpen = false;
+    state.apiKeySecret = null;
     state.nextCallProfessional = null;
     state.attendanceOpen = true;
     state.attendanceSelection = selectedAppointmentSlot
@@ -1291,6 +1369,7 @@ document.addEventListener("click", async (event) => {
     state.attendanceOpen = false;
     state.attendanceSelection = null;
     state.settingsOpen = false;
+    state.apiKeySecret = null;
     state.nextCallProfessional = nextCallButton.dataset.openNextCall;
     state.publicLookup.open = false;
     state.booking = freshBooking();
@@ -1564,6 +1643,7 @@ document.addEventListener("click", async (event) => {
     cloudCache.clear();
     state.booking = freshBooking();
     state.settingsOpen = false;
+    state.apiKeySecret = null;
     state.attendanceOpen = false;
     state.attendanceSelection = null;
     state.nextCallProfessional = null;
@@ -1960,6 +2040,7 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     if (state.settingsOpen && settingsHasUnsavedInput() && !window.confirm("Descartar alterações não salvas?")) return;
     state.settingsOpen = false;
+    state.apiKeySecret = null;
     state.attendanceOpen = false;
     state.attendanceSelection = null;
     render();
@@ -2031,7 +2112,7 @@ async function initializeFirebase() {
     catalogLoaded = true;
     firebaseApi.observeSession((profile, error) => {
       firebaseSession = profile;
-      if (!profile) { state.settingsOpen = false; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; }
+      if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; }
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
       if (profile && route() === "login" && !authFlowInProgress) {
         const requestedSlug = new URLSearchParams(location.search).get("establishment");
