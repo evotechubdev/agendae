@@ -31,6 +31,17 @@ test("encerramento individual só encerra a equipe quando todos terminarem o exp
   assert.equal(allProfessionalsClosed(queueView(individual, {}, { ...clock, minutes: 8 * 60 }).current), false);
 });
 
+test("expediente encerrado antecipadamente fecha só a senha e horários livres do funcionário", () => {
+  const data = { staffStatuses: [{ professional: "João", closedDate: clock.date }], todaySlots: [{ date: clock.date, time: "11:00", professional: "João", service: "Corte", status: "confirmado" }] };
+  const view = queueView(establishment, data, clock);
+  assert.equal(view.current.find(item => item.professional === "João").ticketState, "closed");
+  assert.equal(view.current.find(item => item.professional === "Maria").ticketState, "in-service");
+  assert.equal(view.waiting.some(item => item.professional === "João"), false);
+  const free = upcomingFreeSlots(establishment, data, clock);
+  assert.equal(free.some(item => item.professional === "João"), false);
+  assert.equal(free.some(item => item.professional === "Maria"), true);
+});
+
 test("senha usa inicial do profissional, serviço e posição na grade completa", () => {
   assert.equal(scheduledTicket(establishment, "12:00", "Ricardo", "Cabelo Tesoura"), "RCT-08");
   assert.equal(scheduledTicket(establishment, "12:00", "Ricardo", "Cabelo Máquina"), "RCM-08");

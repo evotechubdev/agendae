@@ -61,6 +61,7 @@ export function queueView(establishment, data, clock) {
   const professionals = [...new Set((establishment?.professionals || []).map((item) => typeof item === "string" ? item : item.name).filter(Boolean))];
   const validSlot = (item) => professionals.includes(item.professional) && scheduleTimes(establishment, item.professional).includes(item.time);
   const paused = new Set((data.staffStatuses || []).filter((item) => item.paused && (!item.pausedDate || item.pausedDate === clock.date)).map((item) => item.professional));
+  const closed = new Set((data.staffStatuses || []).filter((item) => item.closedDate === clock.date).map((item) => item.professional));
   const activeStaff = (data.staffStatuses || []).filter((item) => item.currentDate === clock.date && validSlot({ professional: item.professional, time: item.currentTime }));
   const scheduled = entries
     .filter((item) => item.date === clock.date && validSlot(item) && !["concluido", "cancelado"].includes(item.status))
@@ -73,6 +74,10 @@ export function queueView(establishment, data, clock) {
     const times = scheduleTimes(establishment, professional);
     const directoryEntry = (establishment.professionals || []).find((item) => item.name === professional);
     const shiftEnd = directoryEntry?.scheduleEnd ? timeMinutes(directoryEntry.scheduleEnd) : null;
+    if (closed.has(professional)) {
+      current.push(inactivePosition(professional, null, "closed"));
+      continue;
+    }
     if (times.length && (shiftEnd !== null ? clock.minutes >= shiftEnd : clock.minutes > timeMinutes(times.at(-1)))) {
       current.push(inactivePosition(professional, null, "closed"));
       continue;
@@ -102,7 +107,7 @@ export function queueView(establishment, data, clock) {
     current.push({ ...appointment, date: clock.date, time, professional, service, kind: "scheduled", unbooked: !appointment, ticket, ticketState: "in-service" });
   }
   const currentSlots = new Set(current.map((item) => `${item.time}|${item.professional}`));
-  const upcoming = scheduled.filter((item) => !currentSlots.has(`${item.time}|${item.professional}`) && (publicSlots
+  const upcoming = scheduled.filter((item) => !closed.has(item.professional) && !currentSlots.has(`${item.time}|${item.professional}`) && (publicSlots
     ? timeMinutes(item.time) >= clock.minutes
     : ["confirmado", "presente"].includes(item.status)));
   return {
@@ -115,7 +120,8 @@ export function upcomingFreeSlots(establishment, data, clock) {
   if (businessDayIsClosed(establishment, clock.date)) return [];
   const entries = Array.isArray(data.todaySlots) ? data.todaySlots : (data.slots || data.appointments || []);
   const bookings = entries.filter((item) => item.date === clock.date);
-  return scheduleMatrix(establishment).professionals.flatMap((professional) => professional.availableTimes
+  const closed = new Set((data.staffStatuses || []).filter(item => item.closedDate === clock.date).map(item => item.professional));
+  return scheduleMatrix(establishment).professionals.filter(professional => !closed.has(professional.name)).flatMap((professional) => professional.availableTimes
     .filter((time) => timeMinutes(time) > clock.minutes && serviceFitsSlot(establishment, professional.name, time, undefined, bookings))
     .map((time) => ({ kind: "free", time, professional: professional.name })))
     .sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time) || a.professional.localeCompare(b.professional, "pt-BR"));

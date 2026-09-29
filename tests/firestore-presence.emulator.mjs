@@ -101,3 +101,18 @@ test("expediente extra só pode ser liberado pela equipe vinculada ao estabeleci
   const allowed = await request("/establishments/demo?updateMask.fieldPaths=extraWorkingDates", { fields: fields({ extraWorkingDates: { "2099-10-04": true } }) }, token);
   assert.equal(allowed.status, 200, JSON.stringify(allowed.body));
 });
+
+test("reserva pública é bloqueada para funcionário que encerrou o expediente", async () => {
+  const closed = appointmentAt(60);
+  await seed("establishments/demo", { staffClosedDates: { Renam: closed.date } });
+  for (const [professional, expectedStatus] of [["Renam", 403], ["Ana", 200]]) {
+    const id = `closed-day-${++nextId}`;
+    const appointment = { ...closed, id, professional, client: "Cliente", phone: "11999999999", checkInCode: "ABC123" };
+    const slot = { date: closed.date, time: closed.time, professional, service: "Corte" };
+    const result = await request(":commit", { writes: [
+      write(`establishments/demo/appointments/${id}`, appointment),
+      write(`establishments/demo/slots/${id}`, slot),
+    ] }, null);
+    assert.equal(result.status, expectedStatus, JSON.stringify(result.body));
+  }
+});

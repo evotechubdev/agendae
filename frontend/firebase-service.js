@@ -443,17 +443,24 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
   const slotId = `${slotBase}_${scheduleKey}`;
   const slotRef = doc(db, "establishments", slug, "slots", slotId);
   const sharedSlotRef = doc(db, "establishments", slug, "slots", `${slotBase}_establishment`);
+  const staffStatusRef = doc(db, "establishments", slug, "staffStatus", professionalKey);
   const refsToCheck = scheduleMode === "establishment"
     ? [sharedSlotRef, ...professionalNames.map((name) => doc(db, "establishments", slug, "slots", `${slotBase}_${documentKey(name)}`))]
     : [slotRef, sharedSlotRef];
 
   await runTransaction(db, async (transaction) => {
-    const [existingSlots, lookupSnapshot, codeLookupSnapshot, establishmentSnapshot] = await Promise.all([
+    const [existingSlots, lookupSnapshot, codeLookupSnapshot, establishmentSnapshot, staffStatusSnapshot] = await Promise.all([
       Promise.all(refsToCheck.map((reference) => transaction.get(reference))),
       transaction.get(lookupRef),
       transaction.get(codeLookupRef),
       transaction.get(doc(db, "establishments", slug)),
+      transaction.get(staffStatusRef),
     ]);
+    if (staffStatusSnapshot.exists() && staffStatusSnapshot.data().closedDate === appointment.date) {
+      const error = new Error("O expediente deste profissional foi encerrado hoje. Escolha outro horário.");
+      error.code = "agendae/slot-unavailable";
+      throw error;
+    }
     if (isLunchTime(lunchBreakFor(establishmentSnapshot.data() || {}, appointment.professional), appointment.time)) {
       const error = new Error("Este profissional está em horário de almoço. Escolha outro horário.");
       error.code = "agendae/slot-unavailable";
@@ -636,6 +643,7 @@ export async function startProfessionalAppointment(slug, appointmentId, professi
     if (!appointmentSnapshot.exists()) throw new Error("Atendimento não encontrado.");
     const appointment = appointmentSnapshot.data();
     const staffStatus = statusSnapshot.exists() ? statusSnapshot.data() : {};
+    if (staffStatus.closedDate === date) throw new Error("O expediente deste profissional foi encerrado hoje.");
     const time = new Date().toLocaleTimeString("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
     if (isLunchTime(lunchBreakFor(establishmentSnapshot.data() || {}, professional), time)) {
       const error = new Error("Este profissional está em horário de almoço. O atendimento está pausado.");
@@ -677,6 +685,7 @@ export async function startNextProfessionalAppointment(slug, professional, date)
     const statusRef = doc(db, "establishments", slug, "staffStatus", documentKey(professional));
     await runTransaction(db, async (transaction) => {
       const statusSnapshot = await transaction.get(statusRef);
+      if (statusSnapshot.exists() && statusSnapshot.data().closedDate === date) throw new Error("O expediente deste profissional foi encerrado hoje.");
       if (statusSnapshot.exists() && statusSnapshot.data().paused && (!statusSnapshot.data().pausedDate || statusSnapshot.data().pausedDate === date)) return;
       transaction.set(statusRef, {
         professional,
@@ -698,7 +707,8 @@ export async function startNextProfessionalAppointment(slug, professional, date)
 export async function setProfessionalPause(slug, professional, paused, date, startNext = true) {
   const statusRef = doc(db, "establishments", slug, "staffStatus", documentKey(professional));
   await runTransaction(db, async (transaction) => {
-    await transaction.get(statusRef);
+    const statusSnapshot = await transaction.get(statusRef);
+    if (statusSnapshot.exists() && statusSnapshot.data().closedDate === date) throw new Error("O expediente deste profissional foi encerrado hoje.");
     transaction.set(statusRef, {
       professional,
       paused,
@@ -729,6 +739,8 @@ export async function completeAppointmentAndAdvance(slug, appointmentId, profess
       candidateSnapshot?.exists() ? existingAppointmentSlot(transaction, slug, candidateSnapshot.data()) : null,
     ]);
     const staffStatus = statusSnapshot.exists() ? statusSnapshot.data() : {};
+    if (staffStatus.closedDate === date) throw new Error("O expediente deste profissional foi encerrado hoje.");
+    if (appointmentSnapshot.data().status !== "atendendo") throw new Error("Este atendimento já foi finalizado ou mudou de estado.");
     transaction.update(appointmentRef, { status: "concluido", completedAt: serverTimestamp() });
     if (slotRef) transaction.update(slotRef, { status: "concluido" });
     transaction.set(presenceRef, { appointmentId, date, status: "concluido", completedAt: serverTimestamp() }, { merge: true });
@@ -751,6 +763,92 @@ export async function completeAppointmentAndAdvance(slug, appointmentId, profess
       updatedAt: serverTimestamp(),
     }, { merge: true });
     return { next: next ? { id: next.id, client: next.client, time: next.time } : null, paused: pausedToday };
+  });
+}
+
+export async function finishProfessionalTurn(slug, professional, date, action) {
+  if (!["next", "pause", "close"].includes(action)) throw new Error("Ação de atendimento inválida.");
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  if (date !== today) throw new Error("Esta ação está disponível somente para o expediente de hoje.");
+  const appointments = await professionalAppointments(slug, professional, date);
+  const current = appointments.find(item => item.status === "atendendo") || null;
+  const candidate = nextEligibleAppointment(appointments, current?.id || "");
+  if (action === "close" && candidate) throw new Error("Há reservas pendentes para este funcionário. Reagende-as antes de encerrar o expediente.");
+  const establishmentRef = doc(db, "establishments", slug);
+  const statusRef = doc(db, "establishments", slug, "staffStatus", documentKey(professional));
+  const currentRef = current ? doc(db, "establishments", slug, "appointments", current.id) : null;
+  const candidateRef = action === "next" && candidate ? doc(db, "establishments", slug, "appointments", candidate.id) : null;
+  return runTransaction(db, async transaction => {
+    const [establishmentSnapshot, statusSnapshot, currentSnapshot, candidateSnapshot] = await Promise.all([
+      transaction.get(establishmentRef),
+      transaction.get(statusRef),
+      currentRef ? transaction.get(currentRef) : null,
+      candidateRef ? transaction.get(candidateRef) : null,
+    ]);
+    const establishment = establishmentSnapshot.data() || {};
+    const staffStatus = statusSnapshot.exists() ? statusSnapshot.data() : {};
+    const listed = (establishment.professionals || []).some(item => (typeof item === "string" ? item : item.name) === professional);
+    if (!listed) throw new Error("Funcionário não encontrado.");
+    if (staffStatus.closedDate === date) throw new Error("O expediente deste funcionário já foi encerrado hoje.");
+    if (current && (!currentSnapshot?.exists() || currentSnapshot.data().status !== "atendendo")) throw new Error("O atendimento atual mudou. Atualize a agenda e tente novamente.");
+    if (candidateRef && (!candidateSnapshot?.exists() || !["confirmado", "presente"].includes(candidateSnapshot.data().status))) throw new Error("A próxima senha mudou. Atualize a agenda e tente novamente.");
+    if (action === "next") {
+      const time = new Date().toLocaleTimeString("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+      const entry = (establishment.professionals || []).find(item => (typeof item === "string" ? item : item.name) === professional);
+      const times = typeof entry === "string" ? establishment.availableTimes || [] : entry.availableTimes || establishment.availableTimes || [];
+      const start = entry?.scheduleStart || times[0];
+      const end = entry?.scheduleEnd || times.at(-1);
+      if (!start || !end || time < start || (entry?.scheduleEnd ? time >= end : time > end)
+        || isLunchTime(lunchBreakFor(establishment, professional), time)
+        || (entry?.pauseIntervals || []).some(interval => isLunchTime(interval, time))) {
+        throw new Error("Este funcionário está fora do horário de atendimento. Inicie uma pausa ou encerre o expediente.");
+      }
+    }
+    if (action === "close") {
+      const entry = (establishment.professionals || []).find(item => (typeof item === "string" ? item : item.name) === professional);
+      const times = typeof entry === "string" ? establishment.availableTimes || [] : entry.availableTimes || establishment.availableTimes || [];
+      const refs = new Map();
+      for (const time of times) for (const ref of slotRefsForAppointment(slug, { date, time, professional })) refs.set(ref.path || String(ref), ref);
+      const slots = await Promise.all([...refs.values()].map(ref => transaction.get(ref)));
+      if (slots.some(snapshot => snapshot.exists() && snapshot.data().professional === professional
+        && !["concluido", "cancelado"].includes(snapshot.data().status)
+        && !(current && snapshot.data().time === current.time))) {
+        throw new Error("Há reservas pendentes para este funcionário. Reagende-as antes de encerrar o expediente.");
+      }
+    }
+    const [currentSlotRef, candidateSlotRef] = await Promise.all([
+      currentSnapshot?.exists() ? existingAppointmentSlot(transaction, slug, currentSnapshot.data()) : null,
+      candidateSnapshot?.exists() ? existingAppointmentSlot(transaction, slug, candidateSnapshot.data()) : null,
+    ]);
+    if (currentSnapshot?.exists()) {
+      transaction.update(currentRef, { status: "concluido", completedAt: serverTimestamp() });
+      if (currentSlotRef) transaction.update(currentSlotRef, { status: "concluido" });
+      transaction.set(doc(db, "establishments", slug, "appointmentPresence", current.id), { appointmentId: current.id, date, status: "concluido", completedAt: serverTimestamp() }, { merge: true });
+    }
+    const next = candidateSnapshot?.exists() ? { id: candidateSnapshot.id, ...candidateSnapshot.data() } : null;
+    if (next) {
+      transaction.update(candidateRef, { status: "atendendo", startedAt: serverTimestamp() });
+      if (candidateSlotRef) transaction.update(candidateSlotRef, { status: "atendendo" });
+      transaction.set(doc(db, "establishments", slug, "appointmentPresence", next.id), { appointmentId: next.id, date, status: "atendendo", startedAt: serverTimestamp() }, { merge: true });
+    }
+    if (action === "close") {
+      transaction.update(establishmentRef, {
+        staffClosedDates: { ...(establishment.staffClosedDates || {}), [professional]: date },
+      });
+    }
+    transaction.set(statusRef, {
+      professional,
+      paused: action === "pause",
+      pausedDate: action === "pause" ? date : null,
+      closedDate: action === "close" ? date : null,
+      ...(action === "pause" ? { pausedAt: serverTimestamp() } : action === "close" ? { closedAt: serverTimestamp() } : { resumedAt: serverTimestamp() }),
+      currentAppointmentId: next?.id || null,
+      currentDate: next ? date : null,
+      currentTime: next?.time || null,
+      currentService: next?.service || null,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    return { completed: Boolean(current), next: next ? { id: next.id, time: next.time, client: next.client } : null, action };
   });
 }
 

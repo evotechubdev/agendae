@@ -1131,6 +1131,18 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-matrix tbody th { position: sticky; left: 0; z-index: 2; padding: 10px; background: #fff; text-align: left; box-shadow: 5px 0 10px -8px #526a8e; }
 .schedule-matrix tbody tr:hover td { background-color: #fafcff; }
 .matrix-person { display: flex; align-items: center; gap: 8px; }
+.matrix-person-avatar-actions { display: flex; align-items: center; justify-content: center; gap: 3px; }
+.matrix-person-info { min-width: 0; padding: 0; border: 0; color: inherit; background: transparent; text-align: inherit; cursor: pointer; }
+.matrix-person-info:hover strong { color: var(--blue); }
+.matrix-person-info:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+.matrix-next-call { width: 22px; height: 22px; flex: 0 0 auto; display: grid; place-items: center; padding: 3px; border: 1px solid #adc6ec; border-radius: 7px; color: var(--blue); background: #edf4ff; cursor: pointer; }
+.matrix-next-call:hover { border-color: var(--blue); color: #fff; background: var(--blue); }
+.matrix-next-call:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.matrix-next-call:disabled { opacity: .45; cursor: default; }
+.matrix-next-call svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.matrix-person-action { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.matrix-person-action:hover strong { color: var(--blue); }
+.matrix-person-action:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
 .matrix-person > span:last-child { min-width: 0; }
 .matrix-person strong { display: block; color: var(--navy); font: 800 12px "Manrope",sans-serif; overflow-wrap: anywhere; }
 .matrix-person small { display: block; margin-top: 3px; color: #75849a; font-size: 9px; font-weight: 500; }
@@ -1476,6 +1488,20 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .attendance-modal .appointment-search { margin: 16px 0 8px; }
 .attendance-modal .appointment-list { padding: 0; }
 .attendance-modal .staff-availability-panel { margin-top: 18px; }
+.next-call-modal { width: min(100%, 560px); }
+.next-call-body { display: grid; gap: 18px; padding: 22px; }
+.next-call-body > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.next-call-body > p strong { color: var(--navy); }
+.next-call-choices { display: grid; gap: 9px; }
+.next-call-choice { width: 100%; min-height: 67px; display: grid; gap: 5px; padding: 12px 15px; border: 1px solid var(--line); border-radius: 11px; color: var(--navy); background: #fff; text-align: left; cursor: pointer; }
+.next-call-choice strong { font: 800 13px "Manrope",sans-serif; }
+.next-call-choice small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.next-call-choice:not(:disabled):hover, .next-call-choice:focus-visible { border-color: var(--blue); background: #f4f8ff; outline: 0; }
+.next-call-choice:disabled { opacity: .52; cursor: not-allowed; }
+.next-call-next:not(:disabled) { border-color: #a6c2ee; background: #f5f9ff; }
+.next-call-pause:not(:disabled) { border-color: #f0d396; background: #fffaf0; }
+.next-call-close:not(:disabled) { border-color: #e5c0c0; background: #fff8f8; }
+.next-call-body > .btn { justify-self: end; }
 @media (max-width:720px) {
   .settings-modal, .attendance-modal { max-height: calc(100dvh - 24px); }
   .settings-body, .attendance-modal-body { padding: 14px; }

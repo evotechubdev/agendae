@@ -51,7 +51,7 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'scheduleMode', 'professionalLunchBreaks', 'professionals',
           'availableTimes', 'services', 'serviceDurations',
-          'extraWorkingDates', 'updatedAt'
+          'extraWorkingDates', 'staffClosedDates', 'updatedAt'
         ]);
 
       match /public/{documentId} {
@@ -83,7 +83,8 @@ service cloud.firestore {
             && request.resource.data.date is string
             && request.resource.data.time is string
             && request.resource.data['service'] is string
-            && request.resource.data.professional is string);
+            && request.resource.data.professional is string
+            && getAfter(/databases/$(database)/documents/establishments/$(slug)).data.get('staffClosedDates', {}).get(request.resource.data.professional, '') != request.resource.data.date);
         allow update: if (manages(slug)
             && (request.resource.data.get('status', '') != 'presente'
               || resource.data.get('status', '') == 'presente'
@@ -107,8 +108,9 @@ service cloud.firestore {
           && request.resource.data.checkInCode.size() == 6
           && request.resource.data.get('durationMinutes', 20) is int
           && request.resource.data.get('durationMinutes', 20) > 0
-          && request.resource.data.get('durationMinutes', 20) <= 1440
-          && request.resource.data.status == 'confirmado');
+           && request.resource.data.get('durationMinutes', 20) <= 1440
+           && request.resource.data.status == 'confirmado'
+           && getAfter(/databases/$(database)/documents/establishments/$(slug)).data.get('staffClosedDates', {}).get(request.resource.data.professional, '') != request.resource.data.date);
         allow read, delete: if manages(slug);
         allow update: if (manages(slug)
             && (request.resource.data.status != 'presente' || resource.data.status == 'presente' || presenceWithinWindow(slug, resource.data)))

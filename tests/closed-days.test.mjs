@@ -28,7 +28,7 @@ test("domingo às dez não mostra horários nem formulário e permite escolher s
   const context = vm.createContext({ ...schedule, ...queue, ...calendar, state,
     getData: () => ({ slots: [] }), currentSaoPauloClock: () => ({ date: "2026-09-27", minutes: 600 }),
     isoDate: () => "2026-09-27", prettyDate: value => value, ticketStatusLegend: () => "", escapeHTML: value => String(value),
-    staffStatusFor: () => ({}), professionalIsPaused: () => false, professionalIsOnShift: () => false,
+    staffStatusFor: () => ({}), professionalIsPaused: () => false, professionalIsClosed: () => false, professionalIsOnShift: () => false,
   });
   for (const [start, end] of [["selectedBookingPopup", "publicAccessMenu"], ["bookingContent", "publicSchedule"], ["publicSchedule", "moveScheduleTurn"]]) {
     vm.runInContext(source.slice(source.indexOf(`function ${start}(`), source.indexOf(`function ${end}(`)), context);

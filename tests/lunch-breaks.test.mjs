@@ -66,7 +66,7 @@ test("agenda exibe Pausado em vermelho para almoço em vez de senha agendável",
   const context = vm.createContext({
     window: { innerWidth: 1366 }, state: { booking: { date, dateMode: "today", step: 1 } },
     getData: () => ({ slots: [] }), currentSaoPauloClock: () => ({ date, minutes: 12 * 60 }),
-    professionalIsPaused: () => false, professionalIsOnShift: () => true, currentProfessionalSlot: () => "12:00", staffStatusFor: () => ({}),
+    professionalIsPaused: () => false, professionalIsClosed: () => false, professionalIsOnShift: () => true, currentProfessionalSlot: () => "12:00", staffStatusFor: () => ({}),
     isoDate: () => date, prettyDate: () => "", ticketStatusLegend: () => "", escapeHTML: (value) => String(value),
     scheduleTimeline, scheduleBands, scheduleDayPeriods, businessDayIsClosed, renderBookingCalendar, isLunchTime, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES,
   });

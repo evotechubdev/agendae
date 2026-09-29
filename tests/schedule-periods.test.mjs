@@ -26,7 +26,7 @@ function renderFixture(minutes = 8 * 60) {
   const state = { booking: { date: "2026-09-26", dateMode: "today", step: 1 }, scheduleAuto: true };
   const context = vm.createContext({ ...schedule, ...queue, ...calendar, state,
     getData: () => ({ slots: [] }), currentSaoPauloClock: () => ({ date: "2026-09-26", minutes }),
-    professionalIsPaused: () => false, professionalIsOnShift: () => true, currentProfessionalSlot: () => null, staffStatusFor: () => ({}),
+    professionalIsPaused: () => false, professionalIsClosed: () => false, professionalIsOnShift: () => true, currentProfessionalSlot: () => null, staffStatusFor: () => ({}),
     isoDate: () => "2026-09-26", prettyDate: () => "", ticketStatusLegend: () => "", escapeHTML: value => String(value),
   });
   vm.runInContext(source.slice(source.indexOf("function publicSchedule("), source.indexOf("function restoreScheduleScroll(")), context);
@@ -49,6 +49,18 @@ test("cada visualização mostra apenas seu turno e conserva a numeração do di
   assert.doesNotMatch(context.publicSchedule(establishment), /data-schedule-turn-auto checked/);
   assert.match(renderFixture(12 * 60 + 59).context.publicSchedule(establishment), /Manhã, de 08:00 a 13:00/);
   assert.match(renderFixture(13 * 60).context.publicSchedule(establishment), /Tarde, de 13:00 a 18:00/);
+});
+
+test("botão de próxima senha aparece junto ao avatar somente para equipe logada", () => {
+  const { context, state } = renderFixture();
+  assert.doesNotMatch(context.publicSchedule(establishment), /data-open-next-call/);
+  context.session = () => ({ slug: "demo", name: "Outra pessoa" });
+  const team = { ...establishment, professionals: [...establishment.professionals, { name: "Bia", ...schedule.scheduleFromPeriods([{ start: "08:00", end: "18:00" }]) }] };
+  const teamMarkup = context.publicSchedule(team);
+  assert.match(teamMarkup, /data-open-next-call="Renam"/);
+  assert.match(teamMarkup, /data-open-next-call="Bia"/);
+  state.booking.date = "2026-09-27";
+  assert.match(context.publicSchedule(establishment), /data-open-next-call="Renam"[^>]*disabled/);
 });
 
 function timerFixture() {
