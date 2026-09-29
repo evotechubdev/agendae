@@ -37,6 +37,37 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+export const integrationApiBaseUrl = "https://agendae-backend-t5ax.onrender.com";
+
+async function integrationAdminRequest(slug, method = "GET") {
+  if (!auth.currentUser) throw new Error("Entre como administrador para configurar a API.");
+  const token = await auth.currentUser.getIdToken();
+  let response;
+  try {
+    response = await fetch(`${integrationApiBaseUrl}/v1/admin/establishments/${encodeURIComponent(slug)}/api-key`, {
+      method,
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error("Não foi possível conectar à API no Render. Verifique se o serviço está publicado.");
+  }
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.message || "Não foi possível configurar a chave de API.");
+  return result;
+}
+
+export function getIntegrationApiKeyStatus(slug) {
+  return integrationAdminRequest(slug);
+}
+
+export function generateIntegrationApiKey(slug) {
+  return integrationAdminRequest(slug, "POST");
+}
+
+export function revokeIntegrationApiKey(slug) {
+  return integrationAdminRequest(slug, "DELETE");
+}
 
 function documentKey(value) {
   return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-");

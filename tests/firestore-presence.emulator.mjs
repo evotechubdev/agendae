@@ -116,3 +116,13 @@ test("reserva pública é bloqueada para funcionário que encerrou o expediente"
     assert.equal(result.status, expectedStatus, JSON.stringify(result.body));
   }
 });
+
+test("chave de integração não pode ser lida pelo navegador, mesmo com login administrativo", async () => {
+  await seed("establishments/demo/apiAccess/primary", { hash: "somente-no-servidor" });
+  for (const authorization of [null, token]) {
+    const response = await fetch(`${base}/establishments/demo/apiAccess/primary`, {
+      headers: authorization ? { Authorization: `Bearer ${authorization}` } : {},
+    });
+    assert.equal(response.status, 403);
+  }
+});

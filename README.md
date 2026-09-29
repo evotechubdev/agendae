@@ -16,9 +16,9 @@ O frontend está em `frontend/` e não precisa de instalação ou compilação. 
 - navegação lateral entre as agendas dos profissionais, com setas e avanço automático a cada cinco segundos;
 - painel com atendimentos, horários livres e senhas chamadas;
 - dois estabelecimentos de demonstração com dados separados;
-- apresentação da futura API de integração.
+- aba de API para administrar a integração com sites próprios.
 
-Nesta fase, os dados ficam no `localStorage` do navegador. As chaves seguem o formato `agendae:v2:establishment:{slug}`, evitando mistura acidental entre os ambientes da demonstração. O isolamento seguro entre empresas, autenticação, permissões e sincronização entre dispositivos exigem o backend.
+Os agendamentos e as configurações ficam no Firebase. O backend de integração fica no repositório separado `evotechubdev/agendae-backend` e usa o mesmo Firestore.
 
 ## Executar localmente
 
@@ -75,6 +75,6 @@ Para testar as regras localmente com Java e Firebase CLI instalados:
 firebase emulators:exec --only firestore --project demo-agendae --config firebase.emulator.json "node --test tests/firestore-presence.emulator.mjs"
 ```
 
-## Próxima etapa recomendada
+## API de integração
 
-Criar a API multi-tenant com autenticação, autorização por estabelecimento, banco de dados, prevenção de conflito de horários, notificações e documentação OpenAPI. O frontend já separa os dados por identificador de estabelecimento para facilitar essa integração.
+O administrador pode abrir **Configurações da loja → API** para gerar, trocar ou revogar a chave do estabelecimento. A API no Render, em `https://agendae-backend-t5ax.onrender.com`, oferece catálogo, disponibilidade e criação de reservas. A chave deve ficar no servidor do site cliente; a interface pública desse site consulta o seu próprio servidor. A documentação das rotas e da publicação está no README do repositório `agendae-backend`.

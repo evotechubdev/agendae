@@ -1471,6 +1471,19 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .settings-body, .attendance-modal-body { min-height: 0; padding: 20px; overflow-y: auto; }
 .settings-section { display: grid; gap: 15px; }
 .settings-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.api-settings h3 { margin: 0 0 7px; color: var(--navy); font: 800 17px "Manrope",sans-serif; }
+.api-key-panel { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #f8fbff; }
+.api-key-panel strong, .api-endpoints > strong { display: block; color: var(--navy); font-size: 13px; }
+.api-key-panel small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.api-key-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.api-key-created { padding: 16px; border: 1px solid #a8d4b2; border-radius: 12px; background: #f4fff6; }
+.api-key-created > strong { color: var(--navy); font-size: 13px; }
+.api-key-created p { margin: 5px 0 10px; color: var(--muted); font-size: 12px; }
+.api-key-value { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.api-key-value code { flex: 1 1 250px; overflow-wrap: anywhere; padding: 10px; border-radius: 8px; background: #fff; font-size: 12px; }
+.api-endpoints { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.api-endpoints > strong:not(:first-child) { margin-top: 8px; }
+.api-endpoints > code { overflow-wrap: anywhere; padding: 8px 10px; border-radius: 7px; background: #f4f7fb; color: var(--navy); font-size: 12px; }
 .settings-item-form { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .settings-item-form h3 { margin: 0; color: var(--navy); font: 800 14px "Manrope", sans-serif; }
 .settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
