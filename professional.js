@@ -38,6 +38,9 @@ const state = {
   calendarMonth: null,
   publicLookup: freshPublicLookup(),
   employeeAccessOpen: false,
+  settingsOpen: false,
+  settingsTab: "professionals",
+  attendanceOpen: false,
   mobileMenu: false,
 };
 
@@ -202,6 +205,8 @@ function navigate(path) {
   if (route() !== previousRoute) state.publicLookup = freshPublicLookup();
   state.calendarOpen = false;
   state.employeeAccessOpen = false;
+  state.settingsOpen = false;
+  state.attendanceOpen = false;
   state.mobileMenu = false;
   render();
   window.scrollTo({ top: 0, behavior: "instant" });
@@ -230,9 +235,20 @@ function invalidatePublicCache(slug) {
 }
 
 function getData(establishment) {
-  const adminMode = session()?.slug === establishment.slug && new URLSearchParams(location.search).get("public") !== "1";
-  const cloud = cloudCache.get(adminMode ? `admin:${establishment.slug}` : publicCacheKey(establishment));
+  const cloud = cloudCache.get(publicCacheKey(establishment));
   return cloud || { appointments: [], queue: [], slots: [], staffStatuses: [], todayAppointments: 0 };
+}
+
+function getAdminData(establishment) {
+  return cloudCache.get(`admin:${establishment.slug}`) || { appointments: [], queue: [], slots: [], staffStatuses: [] };
+}
+
+function settingsHasUnsavedInput() {
+  return Boolean(document.querySelector('.settings-modal form[data-dirty="true"]'));
+}
+
+function settingsIsEditing() {
+  return settingsHasUnsavedInput() || Boolean(document.activeElement?.closest(".settings-modal form"));
 }
 
 async function reconcileProfessionalCoverage(establishment, data) {
@@ -286,7 +302,7 @@ async function refreshCloudData(establishment, mode, date = isoDate()) {
       const remote = await firebaseApi.loadPublicData(establishment.slug, date);
       if (remote) cloudCache.set(key, { appointments: [], ...remote });
     }
-    if (route() === establishment.slug) render();
+    if (route() === establishment.slug && (typeof document === "undefined" || !settingsIsEditing())) render();
   } catch (error) {
     console.error("Agendae: não foi possível carregar os dados do Firebase.", error);
     toast("Não foi possível carregar os dados do estabelecimento.", "!");
@@ -408,7 +424,8 @@ function closeSelectedBooking() {
 }
 
 function publicAccessMenu(establishment, authenticated = false) {
-  return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento" title="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></summary><div class="public-internal-dropdown">${authenticated ? `<a href="${href(`/${establishment.slug}`)}" data-link><strong>Área do estabelecimento</strong><small>Voltar ao painel da equipe</small></a>` : '<button type="button" data-open-employee-access><strong>Área do estabelecimento</strong><small>Acesso da equipe</small></button>'}</div></details>`;
+  if (authenticated) return "";
+  return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento" title="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></summary><div class="public-internal-dropdown"><button type="button" data-open-employee-access><strong>Área do estabelecimento</strong><small>Acesso da equipe</small></button></div></details>`;
 }
 
 function bookingContent(establishment) {
@@ -420,7 +437,7 @@ function bookingContent(establishment) {
       <div class="booking-modal-head"><div><small>FINALIZAR AGENDAMENTO</small><h2 id="booking-modal-title">Escolha o serviço e confirme</h2></div><button class="booking-modal-close" type="button" data-close-selected-booking aria-label="Fechar janela">×</button></div>
       <form id="booking-form" class="booking-modal-form">
         <p class="booking-modal-lead">Selecione o serviço desejado. A duração e o valor variam conforme a opção escolhida.</p>
-        <fieldset class="booking-service-picker"><legend>Serviço <span>Obrigatório</span></legend><div class="booking-service-options">${establishment.services.map((item) => `<label class="booking-service-option"><input type="radio" name="service" value="${escapeHTML(item.id)}" data-booking-service required ${booking.serviceId === item.id ? "checked" : ""}><span class="service-icon">${item.icon}</span><span class="booking-service-info"><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span><i aria-hidden="true">✓</i></label>`).join("")}</div></fieldset>
+        <fieldset class="booking-service-picker"><legend>Serviço <span>Obrigatório</span></legend><div class="booking-service-options">${establishment.services.map((item) => `<label class="booking-service-option"><input type="radio" name="service" value="${escapeHTML(item.id)}" data-booking-service required ${booking.serviceId === item.id ? "checked" : ""}><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span class="booking-service-info"><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span><i aria-hidden="true">✓</i></label>`).join("")}</div></fieldset>
         <div class="mini-field-grid"><div class="field full"><label for="customer-name">Nome completo</label><input id="customer-name" name="name" type="text" autocomplete="name" required placeholder="Digite seu nome"></div><div class="field full"><label for="customer-phone">Telefone <span class="optional-label">(opcional)</span></label><input id="customer-phone" name="phone" type="tel" autocomplete="tel" placeholder="(00) 00000-0000"></div></div>
         <div class="confirmation-data booking-review"><div class="confirmation-row"><span>Data</span><strong>${prettyDate(booking.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(booking.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(booking.professional)}</strong></div></div>
         <div class="booking-actions"><button class="btn btn-outline" type="button" data-booking-back>Voltar</button><button class="btn btn-yellow" type="submit">Confirmar agendamento</button></div>
@@ -545,7 +562,7 @@ function restoreScheduleScroll() {
 }
 
 function publicServiceCards(establishment) {
-  return `<section class="public-services" id="servicos-agendamento"><div class="service-list">${establishment.services.map((item) => `<article class="service-card-display"><span class="service-icon">${item.icon}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("")}</div></section>`;
+  return `<section class="public-services" id="servicos-agendamento"><div class="service-list">${establishment.services.map((item) => `<article class="service-card-display"><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("")}</div></section>`;
 }
 
 function moveServiceCarousel(direction = 1) {
@@ -767,7 +784,7 @@ function ensureQueueSubscription(establishment) {
       cloudCache.set(key, { ...cached, ...live, ...(live.todaySlots && key === publicCacheKey(establishment, isoDate()) ? { slots: live.todaySlots } : {}) });
     }
     const params = new URLSearchParams(location.search);
-    if (route() === establishment.slug && (params.get("display") === "queue" || params.get("public") === "1" || session()?.slug !== establishment.slug)) render();
+    if (route() === establishment.slug && (typeof document === "undefined" || !settingsIsEditing())) render();
   });
 }
 
@@ -853,23 +870,60 @@ function workSchedulesMarkup(establishment) {
   return `<section class="panel work-config-panel"><div class="panel-head"><div><h2>Escalas de trabalho</h2><p>Adicione os períodos de cada profissional. As senhas SI seguem uma sequência de 20 minutos; intervalos ficam pausados.</p></div></div><div class="work-config-list">${professionalDirectory(establishment).map(professional => `<form class="work-config-form" data-work-form data-professional-name="${escapeHTML(professional.name)}"><div class="work-config-heading"><span class="matrix-avatar">${escapeHTML(professionalInitial(professional.name))}</span><div><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></div><span class="work-config-duration">SI · 20 min</span></div><div class="work-period-list">${workPeriodsFor(professional).map(period => workPeriodRow(professional.name, period)).join("") || workPeriodRow(professional.name)}</div><div class="work-config-actions"><button type="button" class="btn btn-soft btn-sm" data-add-work-period>+ Adicionar período</button><button type="submit" class="btn btn-primary btn-sm">Salvar escala</button></div><small class="work-config-note">O almoço é definido abaixo e interrompe automaticamente a sequência.</small></form>`).join("")}</div></section>`;
 }
 
+function professionalSettingsMarkup(establishment) {
+  const items = professionalDirectory(establishment).map((item) => `<form class="settings-item-form" data-professional-form data-original-name="${escapeHTML(item.name)}"><div class="settings-fields"><label>Nome<input name="name" value="${escapeHTML(item.name)}" maxlength="80" required></label><label>Função<input name="role" value="${escapeHTML(item.role || "")}" maxlength="80" placeholder="Profissional"></label></div><div class="settings-item-actions"><button class="btn btn-primary btn-sm" type="submit">Salvar</button><button class="btn btn-outline btn-sm" type="button" data-remove-professional="${escapeHTML(item.name)}">Remover</button></div></form>`).join("");
+  return `<div class="settings-section"><p class="settings-hint">Cadastre quem atende na agenda. O acesso por login continua vinculado à conta da equipe.</p>${items || '<p class="empty">Nenhum funcionário cadastrado.</p>'}<form class="settings-item-form" data-professional-form><h3>Adicionar funcionário</h3><div class="settings-fields"><label>Nome<input name="name" maxlength="80" required></label><label>Função<input name="role" maxlength="80" placeholder="Profissional"></label></div><button class="btn btn-primary btn-sm" type="submit">Adicionar funcionário</button></form></div>`;
+}
+
+function serviceSettingsMarkup(establishment) {
+  const items = (establishment.services || []).map((item) => `<form class="settings-item-form" data-service-form data-service-id="${escapeHTML(item.id)}"><div class="settings-fields settings-service-fields"><label>Serviço<input name="name" value="${escapeHTML(item.name)}" maxlength="80" required></label><label>Duração (min)<input name="duration" type="number" min="1" max="1440" step="1" value="${Number(item.duration) || 20}" required></label><label>Preço (R$)<input name="price" type="number" min="0" step="0.01" value="${Number(item.price) || 0}" required></label><label>Ícone<input name="icon" value="${escapeHTML(item.icon || "✦")}" maxlength="8" aria-label="Ícone do serviço"></label></div><div class="settings-item-actions"><button class="btn btn-primary btn-sm" type="submit">Salvar</button><button class="btn btn-outline btn-sm" type="button" data-remove-service="${escapeHTML(item.id)}">Remover</button></div></form>`).join("");
+  return `<div class="settings-section"><p class="settings-hint">Os serviços aparecem na escolha do cliente. Alterações de nome ou duração exigem que não haja reservas futuras para o serviço.</p>${items || '<p class="empty">Nenhum serviço cadastrado.</p>'}<form class="settings-item-form" data-service-form><h3>Adicionar serviço</h3><div class="settings-fields settings-service-fields"><label>Serviço<input name="name" maxlength="80" required></label><label>Duração (min)<input name="duration" type="number" min="1" max="1440" step="1" value="20" required></label><label>Preço (R$)<input name="price" type="number" min="0" step="0.01" value="0" required></label><label>Ícone<input name="icon" maxlength="8" value="✦" aria-label="Ícone do serviço"></label></div><button class="btn btn-primary btn-sm" type="submit">Adicionar serviço</button></form></div>`;
+}
+
+function hoursSettingsMarkup(establishment) {
+  return `<div class="settings-section">${workSchedulesMarkup(establishment)}${lunchSchedulesMarkup(establishment)}${extraWorkingDatesMarkup(establishment)}<section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Esta configuração vale para novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" type="button" data-schedule-mode="employee"><span>♙</span><strong>Por funcionário</strong><small>Cada profissional tem seus horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" type="button" data-schedule-mode="establishment"><span>▣</span><strong>Grade compartilhada</strong><small>Uma agenda para a equipe.</small></button></div></section></div>`;
+}
+
+function settingsModal(establishment) {
+  if (!state.settingsOpen) return "";
+  const tabs = [["professionals", "Funcionários"], ["hours", "Horários"], ["services", "Serviços"]];
+  const content = state.settingsTab === "hours" ? hoursSettingsMarkup(establishment) : state.settingsTab === "services" ? serviceSettingsMarkup(establishment) : professionalSettingsMarkup(establishment);
+  return `<div class="booking-modal-backdrop" data-settings-backdrop><section class="booking-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div class="booking-modal-head"><div><small>ÁREA DA EQUIPE</small><h2 id="settings-title">Configurações da loja</h2></div><button class="booking-modal-close" type="button" data-close-settings aria-label="Fechar configurações">×</button></div><nav class="settings-tabs" aria-label="Configurações">${tabs.map(([key, label]) => `<button type="button" data-settings-tab="${key}" class="${state.settingsTab === key ? "active" : ""}" ${state.settingsTab === key ? 'aria-current="page"' : ""}>${label}</button>`).join("")}</nav><div class="settings-body">${content}</div></section></div>`;
+}
+
+function attendanceModal(establishment) {
+  if (!state.attendanceOpen) return "";
+  const data = getAdminData(establishment);
+  const today = data.appointments.filter((item) => item.date === isoDate());
+  return `<div class="booking-modal-backdrop" data-attendance-backdrop><section class="booking-modal attendance-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-title"><div class="booking-modal-head"><div><small>ÁREA DA EQUIPE</small><h2 id="attendance-title">Atendimentos de hoje</h2></div><button class="booking-modal-close" type="button" data-close-attendance aria-label="Fechar atendimentos">×</button></div><div class="attendance-modal-body"><p>${today.length} agendamento${today.length === 1 ? "" : "s"} hoje</p><div class="attendance-modal-actions"><a class="btn btn-soft btn-sm" href="${href(`/${establishment.slug}?display=checkin`)}" data-link>Exibir QR de presença</a><button class="btn btn-soft btn-sm" type="button" data-open-queue-display>Exibir senhas</button></div><div class="appointment-search"><span class="appointment-search-icon" aria-hidden="true">⌕</span><input type="search" value="${escapeHTML(state.appointmentQuery)}" data-appointment-search aria-label="Pesquisar agendamento pelo nome ou senha" placeholder="Pesquisar por nome ou senha"><button type="button" data-clear-appointment-search aria-label="Limpar pesquisa" ${state.appointmentQuery ? "" : "hidden"}>×</button></div><div class="appointment-list">${appointmentRows(data)}</div><section class="panel staff-availability-panel"><div class="panel-head"><div><h2>Equipe hoje</h2><p>Disponibilidade e pausas</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></section></div>`;
+}
+
 function renderEstablishmentPublic(establishment) {
   document.title = `${establishment.name} — Agendae`;
   if (new URLSearchParams(location.search).has("checkin")) state.publicLookup.open = true;
   const data = getData(establishment);
   const authenticated = session()?.slug === establishment.slug;
   app.innerHTML = `<div class="est-page">
-    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div></div></header>
+    <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href("/")}" data-link>${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div>${authenticated ? `<div class="staff-header-actions"><button class="btn btn-soft btn-sm" type="button" data-open-attendance>Atendimentos</button><button class="btn btn-primary btn-sm" type="button" data-open-settings>⚙ Configurações</button><button class="btn btn-outline btn-sm" type="button" data-logout>Sair</button></div>` : ""}</div></header>
     <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${publicCurrentAttendance(establishment, data)}</article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
     <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
     ${state.booking.step > 1 ? bookingContent(establishment) : selectedBookingPopup(establishment)}
-    ${publicCheckInModal()}${employeeAccessModal(establishment)}</div>`;
+    ${publicCheckInModal()}${employeeAccessModal(establishment)}${authenticated ? `${settingsModal(establishment)}${attendanceModal(establishment)}` : ""}</div>`;
   requestAnimationFrame(() => {
     startServiceCarousel();
     restoreScheduleScroll();
     if (state.publicLookup.scanning) void startQrScanner();
   });
   void refreshCloudData(establishment, "public", state.booking.date);
+  if (authenticated) void refreshCloudData(establishment, "admin");
+  if (authenticated && state.attendanceOpen) void loadCheckInConfig(establishment);
+  if (authenticated && state.attendanceOpen) {
+    adminRefreshTimer = setInterval(() => {
+      if (!state.attendanceOpen || document.activeElement?.closest(".attendance-modal form, .attendance-modal input")) return;
+      cloudCache.delete(`admin:${establishment.slug}`);
+      void refreshCloudData(establishment, "admin");
+    }, 10000);
+  }
   ensureQueueSubscription(establishment);
   startQueueClock(establishment);
   startScheduleTurnTimer(establishment);
@@ -1060,9 +1114,7 @@ function render() {
   if (routeParams.get("display") === "queue") return renderQueueDisplay(establishment);
   const authenticated = session()?.slug === establishment.slug;
   if (routeParams.get("display") === "checkin" && authenticated) return renderCheckInDisplay(establishment);
-  const publicPreview = routeParams.get("public") === "1" || routeParams.has("checkin");
-  if (authenticated && !publicPreview) renderAdmin(establishment);
-  else renderEstablishmentPublic(establishment);
+  renderEstablishmentPublic(establishment);
 }
 
 function activeEstablishment() {
@@ -1140,6 +1192,82 @@ document.addEventListener("click", async (event) => {
   }
   const openMenu = document.querySelector("[data-internal-menu][open]");
   if (openMenu && !openMenu.contains(event.target)) openMenu.open = false;
+  let establishmentForModal;
+  const canManage = () => { establishmentForModal = activeEstablishment(); return establishmentForModal && session()?.slug === establishmentForModal.slug; };
+  if (event.target.closest("[data-open-settings]") && canManage()) {
+    state.attendanceOpen = false;
+    state.settingsOpen = true;
+    state.publicLookup.open = false;
+    state.booking = freshBooking();
+    render();
+    requestAnimationFrame(() => document.querySelector("[data-close-settings]")?.focus());
+    return;
+  }
+  if (event.target.closest("[data-close-settings]") || event.target.matches("[data-settings-backdrop]")) {
+    if (settingsHasUnsavedInput() && !window.confirm("Descartar alterações não salvas?")) return;
+    state.settingsOpen = false;
+    render();
+    document.querySelector("[data-open-settings]")?.focus();
+    return;
+  }
+  const settingsTab = event.target.closest("[data-settings-tab]");
+  if (settingsTab && canManage()) {
+    if (settingsHasUnsavedInput() && !window.confirm("Descartar alterações não salvas?")) return;
+    state.settingsTab = settingsTab.dataset.settingsTab;
+    render();
+    document.querySelector(`[data-settings-tab="${state.settingsTab}"]`)?.focus();
+    return;
+  }
+  if (event.target.closest("[data-open-attendance]") && canManage()) {
+    state.settingsOpen = false;
+    state.attendanceOpen = true;
+    state.publicLookup.open = false;
+    state.booking = freshBooking();
+    cloudCache.delete(`admin:${establishmentForModal.slug}`);
+    render();
+    requestAnimationFrame(() => document.querySelector("[data-close-attendance]")?.focus());
+    return;
+  }
+  if (event.target.closest("[data-close-attendance]") || event.target.matches("[data-attendance-backdrop]")) {
+    state.attendanceOpen = false;
+    render();
+    document.querySelector("[data-open-attendance]")?.focus();
+    return;
+  }
+  const removeProfessionalButton = event.target.closest("[data-remove-professional]");
+  if (removeProfessionalButton && canManage()) {
+    const name = removeProfessionalButton.dataset.removeProfessional;
+    if (!window.confirm(`Remover ${name} da agenda?`)) return;
+    removeProfessionalButton.disabled = true;
+    try {
+      const result = await firebaseApi.removeProfessional(establishmentForModal.slug, name);
+      Object.assign(establishmentForModal, result);
+      invalidatePublicCache(establishmentForModal.slug);
+      render();
+      toast(`${name} removido da agenda.`);
+    } catch (error) {
+      removeProfessionalButton.disabled = false;
+      toast(error.message || firebaseApi.firebaseErrorMessage(error), "!");
+    }
+    return;
+  }
+  const removeServiceButton = event.target.closest("[data-remove-service]");
+  if (removeServiceButton && canManage()) {
+    const serviceId = removeServiceButton.dataset.removeService;
+    const service = establishmentForModal.services.find(item => item.id === serviceId);
+    if (!window.confirm(`Remover o serviço ${service?.name || serviceId}?`)) return;
+    removeServiceButton.disabled = true;
+    try {
+      establishmentForModal.services = await firebaseApi.removeService(establishmentForModal.slug, serviceId);
+      invalidatePublicCache(establishmentForModal.slug);
+      render();
+      toast("Serviço removido.");
+    } catch (error) {
+      removeServiceButton.disabled = false;
+      toast(error.message || firebaseApi.firebaseErrorMessage(error), "!");
+    }
+    return;
+  }
   if (event.target.closest("[data-close-selected-booking]") || event.target.matches("[data-selected-booking-backdrop]")) {
     closeSelectedBooking();
     return;
@@ -1333,6 +1461,8 @@ document.addEventListener("click", async (event) => {
     firebaseSession = null;
     cloudCache.clear();
     state.booking = freshBooking();
+    state.settingsOpen = false;
+    state.attendanceOpen = false;
     navigate("/login");
     toast("Sessão encerrada.");
     return;
@@ -1460,7 +1590,7 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("input", (event) => {
-  const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form], [data-extra-working-form]");
+  const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form], [data-extra-working-form], [data-professional-form], [data-service-form]");
   if (scheduleForm) { scheduleForm.dataset.dirty = "true"; return; }
   if (!event.target.matches("[data-appointment-search]")) return;
   state.appointmentQuery = event.target.value;
@@ -1475,6 +1605,33 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (event.target.matches("[data-professional-form], [data-service-form]")) {
+    const establishment = activeEstablishment();
+    if (!establishment || session()?.slug !== establishment.slug || !firebaseApi) return;
+    const form = new FormData(event.target);
+    const button = event.target.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      if (event.target.matches("[data-professional-form]")) {
+        const result = await firebaseApi.saveProfessional(establishment.slug, event.target.dataset.originalName || "", {
+          name: form.get("name"), role: form.get("role"),
+        });
+        Object.assign(establishment, result);
+        toast("Funcionário salvo.");
+      } else {
+        establishment.services = await firebaseApi.saveService(establishment.slug, event.target.dataset.serviceId || "", {
+          name: form.get("name"), duration: form.get("duration"), price: form.get("price"), icon: form.get("icon"),
+        });
+        toast("Serviço salvo.");
+      }
+      invalidatePublicCache(establishment.slug);
+      render();
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message || firebaseApi.firebaseErrorMessage(error), "!");
+    }
+    return;
+  }
   if (event.target.matches("[data-extra-working-form]")) {
     const establishment = activeEstablishment();
     if (!establishment || session()?.slug !== establishment.slug || !firebaseApi) return;
@@ -1687,6 +1844,26 @@ window.addEventListener("resize", () => {
   }
 });
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && (state.settingsOpen || state.attendanceOpen)) {
+    event.preventDefault();
+    if (state.settingsOpen && settingsHasUnsavedInput() && !window.confirm("Descartar alterações não salvas?")) return;
+    const focusTarget = state.settingsOpen ? "[data-open-settings]" : "[data-open-attendance]";
+    state.settingsOpen = false;
+    state.attendanceOpen = false;
+    render();
+    document.querySelector(focusTarget)?.focus();
+    return;
+  }
+  if (event.key === "Tab" && (state.settingsOpen || state.attendanceOpen)) {
+    const modal = document.querySelector(".settings-modal, .attendance-modal");
+    const focusable = [...(modal?.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled])') || [])];
+    const first = focusable[0], last = focusable.at(-1);
+    if (first && (event.shiftKey && document.activeElement === first || !event.shiftKey && document.activeElement === last)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    }
+    return;
+  }
   if (event.key === "Escape" && state.calendarOpen) {
     event.preventDefault();
     state.calendarOpen = false;
@@ -1742,6 +1919,7 @@ async function initializeFirebase() {
     catalogLoaded = true;
     firebaseApi.observeSession((profile, error) => {
       firebaseSession = profile;
+      if (!profile) { state.settingsOpen = false; state.attendanceOpen = false; }
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
       if (profile && route() === "login" && !authFlowInProgress) {
         const requestedSlug = new URLSearchParams(location.search).get("establishment");
@@ -1750,7 +1928,7 @@ async function initializeFirebase() {
           return;
         }
         navigate(`/${profile.slug}`);
-      } else render();
+      } else if (!settingsIsEditing()) render();
     });
     render();
   } catch (error) {
