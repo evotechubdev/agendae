@@ -1450,8 +1450,6 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .public-direct-content .schedule-turn-auto small { font-size: 7px; }
 }
 
-.staff-header-actions { display: flex; align-items: center; gap: 8px; }
-.staff-header-actions .btn { white-space: nowrap; }
 .settings-modal, .attendance-modal { width: min(100%, 960px); max-height: min(90dvh, 900px); display: flex; flex-direction: column; overflow: hidden; }
 .settings-modal .booking-modal-head, .attendance-modal .booking-modal-head { flex: 0 0 auto; }
 .settings-tabs { display: flex; gap: 6px; padding: 12px 20px; border-bottom: 1px solid var(--line); overflow-x: auto; }
@@ -1479,9 +1477,6 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .attendance-modal .appointment-list { padding: 0; }
 .attendance-modal .staff-availability-panel { margin-top: 18px; }
 @media (max-width:720px) {
-  .est-topbar:has(.staff-header-actions) { height: auto; min-height: 72px; }
-  .est-topbar:has(.staff-header-actions) .est-topbar-inner { flex-wrap: wrap; padding: 12px 0; }
-  .staff-header-actions { width: 100%; justify-content: flex-end; }
   .settings-modal, .attendance-modal { max-height: calc(100dvh - 24px); }
   .settings-body, .attendance-modal-body { padding: 14px; }
   .settings-fields, .settings-service-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -1489,7 +1484,6 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .attendance-modal .appointment-row > .professional, .attendance-modal .appointment-row > .status, .attendance-modal .appointment-row > .appointment-presence-action { grid-column: 2; }
 }
 @media (max-width:430px) {
-  .staff-header-actions .btn { padding-inline: 8px; font-size: 9px; }
   .settings-fields, .settings-service-fields { grid-template-columns: minmax(0,1fr); }
   .settings-tabs { padding-inline: 12px; }
 }
