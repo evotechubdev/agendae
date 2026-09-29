@@ -41,7 +41,7 @@ export const integrationApiBaseUrl = "https://agendae-backend-t5ax.onrender.com"
 
 async function integrationAdminRequest(slug, method = "GET") {
   if (!auth.currentUser) throw new Error("Entre como administrador para configurar a API.");
-  const token = await auth.currentUser.getIdToken();
+  const token = await auth.currentUser.getIdToken(true);
   let response;
   try {
     response = await fetch(`${integrationApiBaseUrl}/v1/admin/establishments/${encodeURIComponent(slug)}/api-key`, {
