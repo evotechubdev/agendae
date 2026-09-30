@@ -28,11 +28,11 @@ function fixture(profile = null) {
   return { app, context };
 }
 
-test("página pública mostra Home e Entrar sem abas antigas ou gestão", () => {
+test("página pública mostra apenas Entrar, sem abas de administração", () => {
   const { app, context } = fixture();
   context.renderHome();
-  assert.match(app.innerHTML, />Home<\/a>/);
   assert.match(app.innerHTML, />Entrar<\/button>/);
+  assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Home<\/a>/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Gerenciar Estabelecimentos/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Para estabelecimentos/);
 });
@@ -40,6 +40,7 @@ test("página pública mostra Home e Entrar sem abas antigas ou gestão", () => 
 test("administrador vê as abas e uma tela com lista e cadastro", () => {
   const { app, context } = fixture({ role: "system_admin", name: "Sistema" });
   context.renderSystemManagement();
+  assert.match(app.innerHTML, />Home<\/a>/);
   assert.match(app.innerHTML, /aria-current="page">Gerenciar Estabelecimentos<\/a>/);
   assert.match(app.innerHTML, /Barbearia/);
   assert.match(app.innerHTML, /Nova Loja/);

@@ -383,8 +383,7 @@ function homeHeader(active = "home") {
   return `<header class="home-header"><div class="home-nav">
     <a href="${href("/")}" data-link>${logo()}</a>
     <nav class="home-nav-links" aria-label="Navegação principal">
-      <a class="home-nav-link ${active === "home" ? "active" : ""}" href="${href("/")}" data-link ${active === "home" ? 'aria-current="page"' : ""}>Home</a>
-      ${admin ? `<a class="home-nav-link ${active === "manage" ? "active" : ""}" href="${href(`/${SYSTEM_MANAGE_ROUTE}`)}" data-link ${active === "manage" ? 'aria-current="page"' : ""}>Gerenciar Estabelecimentos</a><button class="btn btn-outline btn-sm" type="button" data-system-logout>Sair</button>` : '<button class="btn btn-primary" type="button" data-open-system-access>Entrar</button>'}
+      ${admin ? `<a class="home-nav-link ${active === "home" ? "active" : ""}" href="${href("/")}" data-link ${active === "home" ? 'aria-current="page"' : ""}>Home</a><a class="home-nav-link ${active === "manage" ? "active" : ""}" href="${href(`/${SYSTEM_MANAGE_ROUTE}`)}" data-link ${active === "manage" ? 'aria-current="page"' : ""}>Gerenciar Estabelecimentos</a><button class="btn btn-outline btn-sm" type="button" data-system-logout>Sair</button>` : '<button class="btn btn-primary" type="button" data-open-system-access>Entrar</button>'}
     </nav>
   </div></header>`;
 }
