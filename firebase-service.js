@@ -254,6 +254,12 @@ export async function loadEstablishments() {
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
 }
 
+export async function loadSystemEstablishments() {
+  await authenticatedSystemRequest("session");
+  const snapshot = await getDocs(collection(db, "establishments"));
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+}
+
 export async function updateScheduleMode(slug, scheduleMode) {
   if (!['employee', 'establishment'].includes(scheduleMode)) throw new Error("Modelo de agenda inválido.");
   await updateDoc(doc(db, "establishments", slug), {

@@ -5,6 +5,7 @@ import { loginCredentials } from "./login-model.mjs";
 import { establishmentSlug, storeProfile } from "./establishment-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
+const SYSTEM_MANAGE_ROUTE = "gerenciar-estabelecimentos";
 const app = document.querySelector("#app");
 const toastArea = document.querySelector("#toast-region");
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -43,6 +44,11 @@ const state = {
   createdStoreSlug: "",
   createdStoreEmail: "",
   createdStorePassword: "",
+  systemCreateName: "",
+  systemEstablishments: [],
+  systemListLoading: false,
+  systemListLoaded: false,
+  systemListError: "",
   settingsOpen: false,
   settingsTab: "professionals",
   apiKeyStatus: { slug: "", loading: false, loaded: false, active: false, lastFour: null, variable: "", automationReady: false, pending: "", deployRequested: false, error: "" },
@@ -222,6 +228,7 @@ function navigate(path) {
   state.createdStoreSlug = "";
   state.createdStoreEmail = "";
   state.createdStorePassword = "";
+  state.systemCreateName = "";
   state.settingsOpen = false;
   state.apiKeySecret = null;
   state.attendanceOpen = false;
@@ -371,6 +378,17 @@ function storeOpenNow(establishment) {
   return clock.minutes >= opening && clock.minutes < closing;
 }
 
+function homeHeader(active = "home") {
+  const admin = session()?.role === "system_admin";
+  return `<header class="home-header"><div class="home-nav">
+    <a href="${href("/")}" data-link>${logo()}</a>
+    <nav class="home-nav-links" aria-label="Navegação principal">
+      <a class="home-nav-link ${active === "home" ? "active" : ""}" href="${href("/")}" data-link ${active === "home" ? 'aria-current="page"' : ""}>Home</a>
+      ${admin ? `<a class="home-nav-link ${active === "manage" ? "active" : ""}" href="${href(`/${SYSTEM_MANAGE_ROUTE}`)}" data-link ${active === "manage" ? 'aria-current="page"' : ""}>Gerenciar Estabelecimentos</a><button class="btn btn-outline btn-sm" type="button" data-system-logout>Sair</button>` : '<button class="btn btn-primary" type="button" data-open-system-access>Entrar</button>'}
+    </nav>
+  </div></header>`;
+}
+
 function renderHome() {
   document.title = "Agendae — Encontre seu estabelecimento";
   const directory = Object.values(establishments).filter(item => item.setupComplete !== false);
@@ -381,10 +399,7 @@ function renderHome() {
       ? directory.map((item) => `<button class="directory-item" data-open-establishment="${item.slug}"><span class="est-avatar ${item.type === "clinic" ? "green" : ""}">${escapeHTML(item.initials)}</span><span class="directory-meta"><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(item.category)} · ${escapeHTML(item.neighborhood)}</small></span><span class="open-tag">${storeOpenNow(item) ? "ABERTO" : "FECHADO"}</span></button>`).join("")
       : '<div class="empty">Nenhum estabelecimento disponível.</div>';
   app.innerHTML = `
-    <header class="home-header"><div class="home-nav">
-      <a href="${href("/")}" data-link>${logo()}</a>
-       <nav class="home-nav-links"><a class="home-nav-link" href="#encontrar">Encontrar estabelecimento</a><a class="home-nav-link" href="#para-negocios">Para estabelecimentos</a><button class="btn btn-primary" type="button" data-open-system-access>${session()?.role === "system_admin" ? "Administração" : "Entrar"}</button></nav>
-    </div></header>
+    ${homeHeader()}
     <main>
       <section class="home-hero" id="encontrar"><div class="home-hero-inner">
         <div class="home-copy">
@@ -404,21 +419,58 @@ function renderHome() {
         </aside>
       </div></section>
       <section class="trust-strip"><div class="trust-inner"><div class="trust-item"><span class="trust-icon">✓</span>Agendamento confirmado na hora</div><div class="trust-item"><span class="trust-icon">◷</span>Horários livres atualizados</div><div class="trust-item"><span class="trust-icon">#</span>Fila de senhas online</div></div></section>
-       <section class="business-cta" id="para-negocios"><div><h2>Seu estabelecimento também pode ter uma agenda profissional.</h2><p>Controle horários, clientes e fila de atendimento em uma única interface.</p></div><button class="btn btn-yellow" type="button" data-open-system-access>Administração do sistema</button></section>
+       <section class="business-cta" id="para-negocios"><div><h2>Seu estabelecimento também pode ter uma agenda profissional.</h2><p>Controle horários, clientes e fila de atendimento em uma única interface.</p></div><button class="btn btn-yellow" type="button" data-open-system-access>${session()?.role === "system_admin" ? "Gerenciar estabelecimentos" : "Administração do sistema"}</button></section>
      </main>${footer()}${systemAccessModal()}`;
 }
 
 function systemAccessModal() {
-  if (!state.systemAccessOpen) return "";
-  const admin = session()?.role === "system_admin";
-  const content = admin ? `
-    <div class="system-access-body"><p class="booking-modal-lead">Conectado como ${escapeHTML(session().name)}. Informe o nome da loja; o endereço e o login <strong>admin</strong> serão criados automaticamente. O responsável preencherá os demais dados depois.</p>
+  if (!state.systemAccessOpen || session()?.role === "system_admin") return "";
+  return `<div class="booking-modal-backdrop" data-system-access-backdrop><section class="booking-modal system-access-modal" role="dialog" aria-modal="true" aria-labelledby="system-access-title"><div class="booking-modal-head"><div><small>ADMINISTRAÇÃO DO SISTEMA</small><h2 id="system-access-title">Entrar</h2></div><button class="booking-modal-close" type="button" data-close-system-access aria-label="Fechar">×</button></div><form id="system-login-form" class="system-access-body"><p class="booking-modal-lead">Acesso exclusivo para administradores do sistema.</p><div class="field"><label for="system-login">Login</label><input id="system-login" name="login" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="admin" required></div><div class="field"><label for="system-password">Senha</label><input id="system-password" name="password" type="password" autocomplete="current-password" required></div><button class="btn btn-primary btn-block" type="submit">Entrar na administração</button></form></section></div>`;
+}
+
+async function refreshSystemEstablishments() {
+  if (!firebaseApi || session()?.role !== "system_admin" || state.systemListLoading) return;
+  state.systemListLoading = true;
+  state.systemListError = "";
+  if (route() === SYSTEM_MANAGE_ROUTE) render();
+  try {
+    const stores = await firebaseApi.loadSystemEstablishments();
+    if (session()?.role !== "system_admin") return;
+    state.systemEstablishments = stores;
+    state.systemListLoaded = true;
+  } catch (error) {
+    state.systemListError = firebaseApi.firebaseErrorMessage(error);
+  } finally {
+    state.systemListLoading = false;
+    if (route() === SYSTEM_MANAGE_ROUTE) render();
+  }
+}
+
+function renderSystemManagement() {
+  document.title = "Gerenciar Estabelecimentos — Agendae";
+  const stores = [...state.systemEstablishments].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+  const draftSlug = establishmentSlug(state.systemCreateName).replace(/-/g, "");
+  const list = state.systemListError
+    ? `<div class="system-list-message" role="alert">${escapeHTML(state.systemListError)} <button class="btn btn-outline btn-sm" type="button" data-refresh-system-list>Tentar novamente</button></div>`
+    : state.systemListLoading && !state.systemListLoaded
+      ? '<div class="system-list-message">Carregando estabelecimentos…</div>'
+      : stores.length
+        ? stores.map(item => {
+          const slug = item.slug || item.id;
+          const status = item.active === false ? "Inativo" : item.setupComplete === false ? "Em configuração" : "Publicado";
+          const published = item.active !== false && item.setupComplete !== false;
+          return `<article class="system-store-row"><span class="est-avatar ${item.type === "clinic" ? "green" : ""}">${escapeHTML(item.initials || initials(item.name || "L"))}</span><div class="system-store-info"><strong>${escapeHTML(item.name || slug)}</strong><span>/${escapeHTML(slug)}</span></div><span class="system-store-status ${published ? "published" : "pending"}">${status}</span>${published ? `<a class="btn btn-outline btn-sm" href="${href(`/${slug}`)}" data-link>Abrir página</a>` : ""}</article>`;
+        }).join("")
+        : '<div class="system-list-message">Nenhum estabelecimento cadastrado.</div>';
+  app.innerHTML = `${homeHeader("manage")}<main class="system-page"><div class="system-page-inner">
+    <div class="system-page-heading"><div><span class="system-eyebrow">ADMINISTRAÇÃO DO SISTEMA</span><h1>Gerenciar Estabelecimentos</h1><p>Consulte as lojas cadastradas e crie o acesso para um novo responsável.</p></div><button class="btn btn-primary" type="button" data-focus-system-create>+ Novo estabelecimento</button></div>
+    <div class="system-page-grid"><section class="system-panel" aria-labelledby="system-list-title"><div class="system-panel-head"><div><h2 id="system-list-title">Estabelecimentos</h2><p>${state.systemListLoaded ? `${stores.length} cadastrado${stores.length === 1 ? "" : "s"}` : "Lista de lojas do sistema"}</p></div><button class="btn btn-outline btn-sm" type="button" data-refresh-system-list ${state.systemListLoading ? "disabled" : ""}>Atualizar</button></div><div class="system-store-list">${list}</div></section>
+    <section class="system-panel system-create-panel" id="novo-estabelecimento" aria-labelledby="system-create-title"><div class="system-panel-head"><div><h2 id="system-create-title">Criar estabelecimento</h2><p>O responsável configurará a loja no primeiro acesso.</p></div></div>
       ${state.createdStoreSlug ? `<div class="system-created" role="status"><strong>Estabelecimento criado.</strong><p>Copie os dados abaixo e entregue ao administrador da loja. A senha temporária aparece apenas agora e será trocada no primeiro acesso.</p><code>${escapeHTML(new URL(href(`/login?establishment=${state.createdStoreSlug}`), location.origin).toString())}</code><code>Login: admin</code><code>E-mail: ${escapeHTML(state.createdStoreEmail)}</code><code>Senha temporária: ${escapeHTML(state.createdStorePassword)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-store-access>Copiar dados de acesso</button></div>` : ""}
-      <form id="system-create-form"><div class="field"><label for="store-name">Nome do estabelecimento</label><input id="store-name" name="name" required maxlength="100" placeholder="Ex.: Salão Bela" autocomplete="organization"><small data-generated-store-login>O endereço e o e-mail serão gerados a partir do nome.</small></div>
-        <button class="btn btn-primary btn-block" type="submit">Criar estabelecimento</button></form>
-      <button class="system-signout" type="button" data-system-logout>Sair da administração</button>
-    </div>` : `<form id="system-login-form" class="system-access-body"><p class="booking-modal-lead">Acesso exclusivo para administradores do sistema.</p><div class="field"><label for="system-login">Login</label><input id="system-login" name="login" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="admin" required></div><div class="field"><label for="system-password">Senha</label><input id="system-password" name="password" type="password" autocomplete="current-password" required></div><button class="btn btn-primary btn-block" type="submit">Entrar na administração</button></form>`;
-  return `<div class="booking-modal-backdrop" data-system-access-backdrop><section class="booking-modal system-access-modal" role="dialog" aria-modal="true" aria-labelledby="system-access-title"><div class="booking-modal-head"><div><small>ADMINISTRAÇÃO DO SISTEMA</small><h2 id="system-access-title">${admin ? "Novo estabelecimento" : "Entrar"}</h2></div><button class="booking-modal-close" type="button" data-close-system-access aria-label="Fechar">×</button></div>${content}</section></div>`;
+      <form id="system-create-form"><div class="field"><label for="store-name">Nome do estabelecimento</label><input id="store-name" name="name" required maxlength="100" placeholder="Ex.: Salão Bela" autocomplete="organization" value="${escapeHTML(state.systemCreateName)}"><small data-generated-store-login>${draftSlug ? `URL: ${draftSlug} · Login: admin · E-mail: ${draftSlug}-admin@agendae.com.br` : "O endereço e o e-mail serão gerados a partir do nome."}</small></div><button class="btn btn-primary btn-block" type="submit">Criar estabelecimento</button></form>
+    </section></div>
+  </div></main>${footer()}`;
+  if (!state.systemListLoaded && !state.systemListLoading && !state.systemListError) void refreshSystemEstablishments();
 }
 
 function renderLogin() {
@@ -1242,6 +1294,7 @@ function render() {
   if (session()?.mustChangePassword) return renderPasswordChange();
   const current = route();
   if (current === "home") return renderHome();
+  if (current === SYSTEM_MANAGE_ROUTE) return session()?.role === "system_admin" ? renderSystemManagement() : renderHome();
   if (current === "login") return renderLogin();
   if (!catalogLoaded) return renderLoading();
   const establishment = establishments[current];
@@ -1305,9 +1358,19 @@ document.addEventListener("click", async (event) => {
     return;
   }
   if (event.target.closest("[data-open-system-access]")) {
+    if (session()?.role === "system_admin") return navigate(`/${SYSTEM_MANAGE_ROUTE}`);
     state.systemAccessOpen = true;
     render();
-    requestAnimationFrame(() => document.querySelector("#system-login, #store-name")?.focus());
+    requestAnimationFrame(() => document.querySelector("#system-login")?.focus());
+    return;
+  }
+  if (event.target.closest("[data-focus-system-create]")) {
+    document.querySelector("#novo-estabelecimento")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.querySelector("#store-name")?.focus();
+    return;
+  }
+  if (event.target.closest("[data-refresh-system-list]")) {
+    void refreshSystemEstablishments();
     return;
   }
   if (event.target.closest("[data-close-system-access]") || event.target.matches("[data-system-access-backdrop]")) {
@@ -1322,11 +1385,14 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-system-logout]")) {
     await firebaseApi?.logout();
     firebaseSession = null;
+    state.systemEstablishments = [];
+    state.systemListLoaded = false;
+    state.systemListError = "";
     state.createdStoreSlug = "";
     state.createdStoreEmail = "";
     state.createdStorePassword = "";
     state.systemAccessOpen = false;
-    render();
+    navigate("/");
     return;
   }
   if (event.target.closest("[data-copy-store-access]")) {
@@ -1886,6 +1952,7 @@ document.addEventListener("change", (event) => {
 
 document.addEventListener("input", (event) => {
   if (event.target.matches("#store-name")) {
+    state.systemCreateName = event.target.value;
     const slug = establishmentSlug(event.target.value).replace(/-/g, "");
     const preview = document.querySelector("[data-generated-store-login]");
     if (preview) preview.textContent = slug ? `URL: ${slug} · Login: admin · E-mail: ${slug}-admin@agendae.com.br` : "O endereço e o e-mail serão gerados a partir do nome.";
@@ -1941,7 +2008,9 @@ document.addEventListener("submit", async (event) => {
       state.createdStoreSlug = "";
       state.createdStoreEmail = "";
       state.createdStorePassword = "";
-      render();
+      state.systemListLoaded = false;
+      state.systemListError = "";
+      navigate(`/${SYSTEM_MANAGE_ROUTE}`);
     } catch (error) {
       button.disabled = false;
       showLoginError(event.target, firebaseApi.firebaseErrorMessage(error));
@@ -1955,9 +2024,11 @@ document.addEventListener("submit", async (event) => {
     try {
       const details = await firebaseApi.createEstablishmentWithOwner({ name: new FormData(event.target).get("name") });
       establishments[details.slug] = details.establishment;
+      state.systemEstablishments = [...state.systemEstablishments.filter(item => (item.slug || item.id) !== details.slug), details.establishment];
       state.createdStoreSlug = details.slug;
       state.createdStoreEmail = details.email;
       state.createdStorePassword = details.password;
+      state.systemCreateName = "";
       render();
       toast("Estabelecimento e administrador da loja criados.");
     } catch (error) {
@@ -2320,13 +2391,15 @@ async function initializeFirebase() {
     catalogLoaded = true;
     firebaseApi.observeSession((profile, error) => {
       firebaseSession = profile;
-      if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; }
+      if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; state.systemEstablishments = []; state.systemListLoaded = false; }
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
+      if (!profile && route() === SYSTEM_MANAGE_ROUTE) { navigate("/"); return; }
       if (profile?.role === "admin" && !profile.mustChangePassword && establishments[route()]?.setupComplete === false && !state.settingsOpen) {
         state.settingsTab = "store";
         state.settingsOpen = true;
       }
       if (profile && route() === "login" && !authFlowInProgress) {
+        if (profile.role === "system_admin") { navigate(`/${SYSTEM_MANAGE_ROUTE}`); return; }
         const requestedSlug = new URLSearchParams(location.search).get("establishment");
         if (requestedSlug && requestedSlug !== profile.slug) {
           void firebaseApi.logout();
