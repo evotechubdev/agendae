@@ -31,8 +31,9 @@ img { display: block; max-width: 100%; }
 .home-header { height: 76px; border-bottom: 1px solid rgba(225,231,240,.8); background: rgba(255,255,255,.95); }
 .home-nav { width: min(1160px,calc(100% - 40px)); height: 100%; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .home-nav-links { display: flex; align-items: center; gap: 8px; }
-.home-nav-link { padding: 10px 13px; color: #556278; font-size: 14px; font-weight: 600; }
+.home-nav-link { padding: 10px 13px; border-radius: 10px; color: #556278; font-size: 14px; font-weight: 600; white-space: nowrap; }
 .home-nav-link:hover { color: var(--blue); }
+.home-nav-link.active { color: var(--blue); background: var(--blue-soft); }
 .home-hero { min-height: 650px; position: relative; overflow: hidden; background: radial-gradient(circle at 86% 4%,rgba(255,195,40,.32),transparent 27%),linear-gradient(135deg,#f8fbff,#eef4ff 58%,#fffaeb); }
 .home-hero::after { content: ""; position: absolute; right: -190px; bottom: -360px; width: 700px; height: 700px; border: 110px solid rgba(18,73,163,.045); border-radius: 50%; }
 .home-hero-inner { position: relative; z-index: 1; width: min(1160px,calc(100% - 40px)); margin: auto; padding: 88px 0 76px; display: grid; grid-template-columns: 1.05fr .95fr; align-items: center; gap: 76px; }
@@ -197,6 +198,30 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .system-created code + code { margin-top: 6px; }
 .system-created .btn { margin-top: 12px; }
 .system-signout { display: block; margin: 16px auto 0; border: 0; background: none; color: var(--muted); text-decoration: underline; cursor: pointer; }
+.system-page { min-height: calc(100vh - 76px); padding: 54px 20px 90px; background: linear-gradient(180deg,#f4f8ff,#fff 430px); }
+.system-page-inner { width: min(1160px,100%); margin: auto; }
+.system-page-heading { margin-bottom: 30px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.system-eyebrow { color: var(--blue); font-size: 11px; font-weight: 800; letter-spacing: 1.3px; }
+.system-page-heading h1 { margin: 9px 0 8px; color: var(--navy); font: 800 clamp(30px,3.4vw,44px)/1.15 "Manrope",sans-serif; letter-spacing: -1.5px; }
+.system-page-heading p,.system-panel-head p { margin: 0; color: var(--muted); line-height: 1.5; }
+.system-page-grid { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(310px,.85fr); align-items: start; gap: 22px; }
+.system-panel { min-width: 0; padding: 26px; border: 1px solid var(--line); border-radius: 20px; background: #fff; box-shadow: var(--shadow-sm); }
+.system-panel-head { margin-bottom: 20px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.system-panel-head h2 { margin: 0 0 5px; color: var(--navy); font: 800 20px "Manrope",sans-serif; }
+.system-panel-head p { font-size: 13px; }
+.system-store-list { display: grid; gap: 10px; }
+.system-store-row { min-width: 0; padding: 15px; display: flex; align-items: center; gap: 13px; border: 1px solid var(--line); border-radius: 15px; }
+.system-store-info { min-width: 0; flex: 1; }
+.system-store-info strong,.system-store-info span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.system-store-info strong { color: var(--navy); font-size: 14px; }
+.system-store-info span { margin-top: 4px; color: var(--muted); font-size: 12px; }
+.system-store-status { padding: 6px 9px; border-radius: 999px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.system-store-status.published { color: var(--green); background: var(--green-soft); }
+.system-store-status.pending { color: #9a6500; background: #fff3d4; }
+.system-list-message { padding: 30px 12px; color: var(--muted); text-align: center; }
+.system-list-message .btn { margin-left: 10px; }
+.system-create-panel .field { margin-bottom: 18px; }
+.system-create-panel .field small { display: block; margin-top: 7px; color: var(--muted); line-height: 1.45; }
 .password-change-page { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--canvas); }
 .password-change-modal { width: min(100%, 480px); }
 .store-weekend-options { display: flex; gap: 20px; flex-wrap: wrap; margin: 4px 0 18px; }
@@ -466,10 +491,20 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .schedule-config { grid-template-columns: 1fr; }
 }
 @media (max-width:720px) {
-  .home-header { height: 68px; }
-  .home-nav { width: calc(100% - 28px); }
-  .home-nav-link { display: none; }
+  .home-header { height: auto; }
+  .home-nav { width: calc(100% - 28px); min-height: 68px; flex-wrap: wrap; gap: 0; }
+  .home-nav-links { width: 100%; padding: 0 0 12px; overflow-x: auto; }
+  .home-nav-link { padding: 8px 10px; font-size: 12px; }
   .brand { width: 117px; }
+  .system-page { padding: 34px 15px 60px; }
+  .system-page-heading { align-items: flex-start; flex-direction: column; }
+  .system-page-grid { grid-template-columns: 1fr; }
+  .system-panel { padding: 20px; }
+  .system-store-row { display: grid; grid-template-columns: 52px minmax(0,1fr) auto; }
+  .system-store-row .est-avatar { grid-row: 1 / span 2; }
+  .system-store-info { grid-column: 2 / -1; }
+  .system-store-status { grid-column: 2; justify-self: start; }
+  .system-store-row .btn { grid-column: 3; }
   .home-hero { min-height: auto; }
   .home-hero-inner { width: calc(100% - 30px); padding: 52px 0 60px; gap: 45px; }
   .home-copy h1 { font-size: 40px; letter-spacing: -2px; }
