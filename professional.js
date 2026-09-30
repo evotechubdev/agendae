@@ -458,7 +458,7 @@ function renderSystemManagement() {
           const slug = item.slug || item.id;
           const status = item.active === false ? "Inativo" : item.setupComplete === false ? "Em configuração" : "Publicado";
           const published = item.active !== false && item.setupComplete !== false;
-          return `<article class="system-store-row"><span class="est-avatar ${item.type === "clinic" ? "green" : ""}">${escapeHTML(item.initials || initials(item.name || "L"))}</span><div class="system-store-info"><strong>${escapeHTML(item.name || slug)}</strong><span>/${escapeHTML(slug)}</span></div><span class="system-store-status ${published ? "published" : "pending"}">${status}</span>${published ? `<a class="btn btn-outline btn-sm" href="${href(`/${slug}`)}" data-link>Abrir página</a>` : ""}</article>`;
+          return `<article class="system-store-row"><span class="est-avatar ${item.type === "clinic" ? "green" : ""}">${escapeHTML(item.initials || initials(item.name || "L"))}</span><div class="system-store-info"><strong>${escapeHTML(item.name || slug)}</strong><span>/${escapeHTML(slug)}</span></div><span class="system-store-status ${published ? "published" : "pending"}">${status}</span>${item.active !== false ? `<a class="btn btn-outline btn-sm" href="${href(`/${slug}`)}" data-link>Abrir página</a>` : ""}</article>`;
         }).join("")
         : '<div class="system-list-message">Nenhum estabelecimento cadastrado.</div>';
   app.innerHTML = `${homeHeader("manage")}<main class="system-page"><div class="system-page-inner">
@@ -1281,6 +1281,11 @@ function renderNotFound() {
   app.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;padding:30px;background:var(--canvas)"><div style="max-width:520px;text-align:center">${logo()}<h1 style="margin:35px 0 10px;color:var(--navy);font:800 34px Manrope">Estabelecimento não encontrado</h1><p style="color:var(--muted);line-height:1.6">Confira o endereço ou volte para pesquisar na Agendae.</p><a class="btn btn-primary" style="margin-top:18px" href="${href("/")}" data-link>Encontrar estabelecimento</a></div></main>`;
 }
 
+function renderPendingStore(establishment) {
+  document.title = `${establishment.name} em configuração — Agendae`;
+  app.innerHTML = `<div class="pending-store-page"><header class="pending-store-header"><a href="${href("/")}" data-link aria-label="Voltar ao início">${logo()}</a></header><main class="pending-store-main"><section class="pending-store-card"><span class="est-avatar">${escapeHTML(establishment.initials || initials(establishment.name))}</span><span class="pending-store-status">EM CONFIGURAÇÃO</span><h1>${escapeHTML(establishment.name)}</h1><p>Esta página já foi criada. O administrador do estabelecimento precisa concluir o cadastro de endereço, horários, profissionais e serviços antes de publicar a agenda.</p><div class="pending-store-actions"><a class="btn btn-primary" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Entrar para configurar</a><a class="btn btn-outline" href="${href("/")}" data-link>Voltar ao início</a></div></section></main></div>`;
+}
+
 function render() {
   clearTimeout(scheduleTurnTimer);
   scheduleTurnTimer = null;
@@ -1298,7 +1303,7 @@ function render() {
   if (!catalogLoaded) return renderLoading();
   const establishment = establishments[current];
   if (!establishment) return renderNotFound();
-  if (establishment.setupComplete === false && session()?.slug !== establishment.slug) return renderNotFound();
+  if (establishment.setupComplete === false && session()?.slug !== establishment.slug) return renderPendingStore(establishment);
   const routeParams = new URLSearchParams(location.search);
   if (routeParams.get("display") === "queue") return renderQueueDisplay(establishment);
   const authenticated = session()?.slug === establishment.slug;
