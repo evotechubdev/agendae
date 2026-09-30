@@ -12,6 +12,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   updateEmail,
+  updatePassword,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
   collection,
@@ -135,6 +136,7 @@ async function profileFor(user) {
     name: profile.name || user.displayName || user.email,
     role: profile.role || "staff",
     slug: profile.establishmentSlug,
+    mustChangePassword: profile.mustChangePassword === true,
   };
 }
 
@@ -193,6 +195,14 @@ export async function logout() {
   await signOut(auth);
 }
 
+export async function changeOwnPassword(password) {
+  if (!auth.currentUser) throw new Error("Entre novamente para trocar a senha.");
+  await updatePassword(auth.currentUser, password);
+  await updateDoc(doc(db, "users", auth.currentUser.uid), {
+    mustChangePassword: false, updatedAt: serverTimestamp(),
+  });
+}
+
 export async function loginSystemAdmin(email, password) {
   await setPersistence(auth, browserLocalPersistence);
   const credential = await signInWithEmailAndPassword(auth, email, password);
@@ -226,7 +236,8 @@ export async function createEstablishmentWithOwner(details) {
     batch.set(reference, { ...details.establishment, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
     batch.set(doc(db, "users", ownerUser.uid), {
       name: details.owner.name, email: details.owner.email, role: "admin",
-      establishmentSlug: details.slug, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      establishmentSlug: details.slug, mustChangePassword: true,
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
     });
     try {
       await batch.commit();

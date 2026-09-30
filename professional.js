@@ -2,7 +2,7 @@
 import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessHoursForDate, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
 import { renderBookingCalendar, shiftCalendarMonth } from "./calendar-model.mjs";
 import { loginCredentials } from "./login-model.mjs";
-import { newEstablishment, storeProfile } from "./establishment-model.mjs";
+import { establishmentSlug, newEstablishment, storeProfile } from "./establishment-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -41,6 +41,8 @@ const state = {
   employeeAccessOpen: false,
   systemAccessOpen: false,
   createdStoreSlug: "",
+  createdStoreEmail: "",
+  createdStorePassword: "",
   settingsOpen: false,
   settingsTab: "professionals",
   apiKeyStatus: { slug: "", loading: false, loaded: false, active: false, lastFour: null, variable: "", automationReady: false, pending: "", deployRequested: false, error: "" },
@@ -135,6 +137,12 @@ function professionalIsPaused(data, professionalName, date = isoDate()) {
   return Boolean(status.paused && (!status.pausedDate || status.pausedDate === date));
 }
 
+function temporaryStorePassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join("");
+}
+
 function professionalIsClosed(data, professionalName, date = isoDate()) {
   return staffStatusFor(data, professionalName).closedDate === date;
 }
@@ -217,6 +225,9 @@ function navigate(path) {
   state.calendarOpen = false;
   state.employeeAccessOpen = false;
   state.systemAccessOpen = false;
+  state.createdStoreSlug = "";
+  state.createdStoreEmail = "";
+  state.createdStorePassword = "";
   state.settingsOpen = false;
   state.apiKeySecret = null;
   state.attendanceOpen = false;
@@ -407,12 +418,9 @@ function systemAccessModal() {
   if (!state.systemAccessOpen) return "";
   const admin = session()?.role === "system_admin";
   const content = admin ? `
-    <div class="system-access-body"><p class="booking-modal-lead">Conectado como ${escapeHTML(session().name)}. Crie o endereço da loja e o acesso inicial do administrador. Ele preencherá os dados do estabelecimento depois.</p>
-      ${state.createdStoreSlug ? `<div class="system-created" role="status"><strong>Estabelecimento criado.</strong><p>Envie ao administrador da loja este endereço de acesso e as credenciais que você definiu:</p><code>${escapeHTML(new URL(href(`/login?establishment=${state.createdStoreSlug}`), location.origin).toString())}</code></div>` : ""}
-      <form id="system-create-form"><div class="field"><label for="store-slug">Identificador da loja na URL</label><input id="store-slug" name="slug" required maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="ex.: salaobela" autocomplete="off"></div>
-        <div class="field"><label for="owner-name">Nome do administrador da loja</label><input id="owner-name" name="ownerName" required maxlength="80" autocomplete="name"></div>
-        <div class="field"><label for="owner-email">E-mail de acesso</label><input id="owner-email" name="ownerEmail" type="email" required autocomplete="off"></div>
-        <div class="field"><label for="owner-password">Senha inicial</label><input id="owner-password" name="ownerPassword" type="password" required minlength="6" autocomplete="new-password"></div>
+    <div class="system-access-body"><p class="booking-modal-lead">Conectado como ${escapeHTML(session().name)}. Informe o nome da loja; o endereço e o login <strong>admin</strong> serão criados automaticamente. O responsável preencherá os demais dados depois.</p>
+      ${state.createdStoreSlug ? `<div class="system-created" role="status"><strong>Estabelecimento criado.</strong><p>Copie os dados abaixo e entregue ao administrador da loja. A senha temporária aparece apenas agora e será trocada no primeiro acesso.</p><code>${escapeHTML(new URL(href(`/login?establishment=${state.createdStoreSlug}`), location.origin).toString())}</code><code>Login: admin</code><code>E-mail: ${escapeHTML(state.createdStoreEmail)}</code><code>Senha temporária: ${escapeHTML(state.createdStorePassword)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-store-access>Copiar dados de acesso</button></div>` : ""}
+      <form id="system-create-form"><div class="field"><label for="store-name">Nome do estabelecimento</label><input id="store-name" name="name" required maxlength="100" placeholder="Ex.: Salão Bela" autocomplete="organization"><small data-generated-store-login>O endereço e o e-mail serão gerados a partir do nome.</small></div>
         <button class="btn btn-primary btn-block" type="submit">Criar estabelecimento</button></form>
       <button class="system-signout" type="button" data-system-logout>Sair da administração</button>
     </div>` : `<form id="system-login-form" class="system-access-body"><p class="booking-modal-lead">Acesso exclusivo para administradores do sistema.</p><div class="field"><label for="system-email">E-mail</label><input id="system-email" name="email" type="email" autocomplete="username" required></div><div class="field"><label for="system-password">Senha</label><input id="system-password" name="password" type="password" autocomplete="current-password" required></div><button class="btn btn-primary btn-block" type="submit">Entrar na administração</button></form>`;
@@ -452,6 +460,11 @@ function selectedBookingPopup(establishment) {
   if (booking.step !== 1 || !booking.time || !booking.professional) return "";
   const professional = (establishment.professionals || []).find(item => (typeof item === "string" ? item : item.name) === booking.professional);
   return `<div class="booking-modal-backdrop" data-selected-booking-backdrop><section class="booking-modal selected-booking-popup" data-selected-booking-popup role="dialog" aria-modal="true" aria-labelledby="selected-booking-title"><div class="booking-modal-head"><div><small>AGENDAMENTO</small><h2 id="selected-booking-title">Horário selecionado</h2></div><button class="booking-modal-close" type="button" data-close-selected-booking aria-label="Fechar horário selecionado">×</button></div><div class="selected-booking-content"><div class="selected-booking-professional"><span class="selected-booking-avatar" aria-hidden="true">${escapeHTML(professionalInitial(booking.professional))}</span><div><strong>${escapeHTML(booking.professional)}</strong><small>${escapeHTML(professional?.role || "Profissional")}</small></div></div><div class="selected-booking-date"><strong>${escapeHTML(booking.time)}</strong><span>${prettyDate(booking.date, true)}</span></div><button class="btn btn-primary" type="button" data-booking-next>Agendar este horário</button><button class="selected-booking-cancel" type="button" data-close-selected-booking>Escolher outro horário</button></div></section></div>`;
+}
+
+function renderPasswordChange() {
+  document.title = "Definir senha definitiva — Agendae";
+  app.innerHTML = `<main class="password-change-page"><section class="booking-modal password-change-modal" aria-labelledby="password-change-title"><div class="booking-modal-head"><div><small>PRIMEIRO ACESSO</small><h2 id="password-change-title">Defina sua senha definitiva</h2></div></div><form id="first-password-form" class="booking-modal-form"><p class="booking-modal-lead">Antes de configurar o estabelecimento, escolha uma senha exclusiva para sua conta.</p><div class="field"><label for="new-password">Nova senha</label><input id="new-password" name="password" type="password" minlength="8" autocomplete="new-password" required></div><div class="field"><label for="confirm-new-password">Confirme a nova senha</label><input id="confirm-new-password" name="confirmation" type="password" minlength="8" autocomplete="new-password" required></div><button class="btn btn-primary btn-block" type="submit">Salvar senha e continuar</button><button class="system-signout" type="button" data-first-access-logout>Sair</button></form></section></main>`;
 }
 
 function closeSelectedBooking() {
@@ -1232,6 +1245,7 @@ function render() {
   monitorClockTimer = null;
   clearInterval(serviceCarouselTimer);
   serviceCarouselTimer = null;
+  if (session()?.mustChangePassword) return renderPasswordChange();
   const current = route();
   if (current === "home") return renderHome();
   if (current === "login") return renderLogin();
@@ -1290,14 +1304,23 @@ document.addEventListener("pointerdown", pauseCalendarInteraction);
 document.addEventListener("focusin", pauseCalendarInteraction);
 
 document.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-first-access-logout]")) {
+    await firebaseApi?.logout();
+    firebaseSession = null;
+    navigate("/");
+    return;
+  }
   if (event.target.closest("[data-open-system-access]")) {
     state.systemAccessOpen = true;
     render();
-    requestAnimationFrame(() => document.querySelector("#system-email, #store-slug")?.focus());
+    requestAnimationFrame(() => document.querySelector("#system-email, #store-name")?.focus());
     return;
   }
   if (event.target.closest("[data-close-system-access]") || event.target.matches("[data-system-access-backdrop]")) {
     state.systemAccessOpen = false;
+    state.createdStoreSlug = "";
+    state.createdStoreEmail = "";
+    state.createdStorePassword = "";
     render();
     document.querySelector("[data-open-system-access]")?.focus();
     return;
@@ -1306,8 +1329,18 @@ document.addEventListener("click", async (event) => {
     await firebaseApi?.logout();
     firebaseSession = null;
     state.createdStoreSlug = "";
+    state.createdStoreEmail = "";
+    state.createdStorePassword = "";
     state.systemAccessOpen = false;
     render();
+    return;
+  }
+  if (event.target.closest("[data-copy-store-access]")) {
+    const url = new URL(href(`/login?establishment=${state.createdStoreSlug}`), location.origin).toString();
+    try {
+      await navigator.clipboard.writeText(`${url}\nLogin: admin\nE-mail: ${state.createdStoreEmail}\nSenha temporária: ${state.createdStorePassword}`);
+      toast("Dados de acesso copiados.");
+    } catch { toast("Não foi possível copiar. Selecione os dados acima manualmente.", "!"); }
     return;
   }
   if (state.calendarOpen && !event.target.closest("[data-booking-calendar]")) {
@@ -1858,6 +1891,12 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  if (event.target.matches("#store-name")) {
+    const slug = establishmentSlug(event.target.value).replace(/-/g, "");
+    const preview = document.querySelector("[data-generated-store-login]");
+    if (preview) preview.textContent = slug ? `URL: ${slug} · Login: admin · E-mail: ${slug}-admin@agendae.com.br` : "O endereço e o e-mail serão gerados a partir do nome.";
+    return;
+  }
   const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form], [data-extra-working-form], [data-professional-form], [data-service-form], [data-store-profile-form]");
   if (scheduleForm) { scheduleForm.dataset.dirty = "true"; return; }
   if (!event.target.matches("[data-appointment-search]")) return;
@@ -1873,6 +1912,30 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (event.target.id === "first-password-form") {
+    if (!firebaseApi || !session()?.mustChangePassword) return;
+    const form = new FormData(event.target);
+    const password = String(form.get("password") || "");
+    const confirmation = String(form.get("confirmation") || "");
+    if (password.length < 8 || password === "123456" || password !== confirmation) return showLoginError(event.target, "Informe duas senhas iguais com pelo menos 8 caracteres.");
+    const button = event.target.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await firebaseApi.changeOwnPassword(password);
+      firebaseSession.mustChangePassword = false;
+      if (route() !== firebaseSession.slug) navigate(`/${firebaseSession.slug}`);
+      if (establishments[firebaseSession.slug]?.setupComplete === false) {
+        state.settingsTab = "store";
+        state.settingsOpen = true;
+      }
+      render();
+      toast("Senha definitiva salva.");
+    } catch (error) {
+      button.disabled = false;
+      showLoginError(event.target, firebaseApi.firebaseErrorMessage(error));
+    }
+    return;
+  }
   if (event.target.id === "system-login-form") {
     if (!firebaseApi || authFlowInProgress) return;
     const button = event.target.querySelector('button[type="submit"]');
@@ -1882,6 +1945,8 @@ document.addEventListener("submit", async (event) => {
     try {
       firebaseSession = await firebaseApi.loginSystemAdmin(String(form.get("email")), String(form.get("password")));
       state.createdStoreSlug = "";
+      state.createdStoreEmail = "";
+      state.createdStorePassword = "";
       render();
     } catch (error) {
       button.disabled = false;
@@ -1894,10 +1959,12 @@ document.addEventListener("submit", async (event) => {
     const button = event.target.querySelector('button[type="submit"]');
     button.disabled = true;
     try {
-      const details = newEstablishment(Object.fromEntries(new FormData(event.target)));
+      const details = newEstablishment({ ...Object.fromEntries(new FormData(event.target)), ownerPassword: temporaryStorePassword() });
       await firebaseApi.createEstablishmentWithOwner(details);
       establishments[details.slug] = details.establishment;
       state.createdStoreSlug = details.slug;
+      state.createdStoreEmail = details.owner.email;
+      state.createdStorePassword = details.owner.password;
       render();
       toast("Estabelecimento e administrador da loja criados.");
     } catch (error) {
@@ -2083,7 +2150,7 @@ document.addEventListener("submit", async (event) => {
       }
       state.booking = freshBooking();
       navigate(`/${establishmentSlug}`);
-      if (establishments[establishmentSlug]?.setupComplete === false && firebaseSession.role === "admin") {
+      if (establishments[establishmentSlug]?.setupComplete === false && firebaseSession.role === "admin" && !firebaseSession.mustChangePassword) {
         state.settingsTab = "store";
         state.settingsOpen = true;
         render();
@@ -2169,6 +2236,9 @@ window.addEventListener("resize", () => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && state.systemAccessOpen) {
     state.systemAccessOpen = false;
+    state.createdStoreSlug = "";
+    state.createdStoreEmail = "";
+    state.createdStorePassword = "";
     render();
     document.querySelector("[data-open-system-access]")?.focus();
     return;
@@ -2259,7 +2329,7 @@ async function initializeFirebase() {
       firebaseSession = profile;
       if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; }
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
-      if (profile?.role === "admin" && establishments[route()]?.setupComplete === false && !state.settingsOpen) {
+      if (profile?.role === "admin" && !profile.mustChangePassword && establishments[route()]?.setupComplete === false && !state.settingsOpen) {
         state.settingsTab = "store";
         state.settingsOpen = true;
       }
@@ -2270,7 +2340,7 @@ async function initializeFirebase() {
           return;
         }
         navigate(`/${profile.slug}`);
-        if (profile.role === "admin" && establishments[profile.slug]?.setupComplete === false) {
+        if (profile.role === "admin" && !profile.mustChangePassword && establishments[profile.slug]?.setupComplete === false) {
           state.settingsTab = "store";
           state.settingsOpen = true;
           render();
