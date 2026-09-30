@@ -465,7 +465,7 @@ function renderSystemManagement() {
     <div class="system-page-heading"><div><span class="system-eyebrow">ADMINISTRAÇÃO DO SISTEMA</span><h1>Gerenciar Estabelecimentos</h1><p>Consulte as lojas cadastradas e crie o acesso para um novo responsável.</p></div><button class="btn btn-primary" type="button" data-focus-system-create>+ Novo estabelecimento</button></div>
     <div class="system-page-grid"><section class="system-panel" aria-labelledby="system-list-title"><div class="system-panel-head"><div><h2 id="system-list-title">Estabelecimentos</h2><p>${state.systemListLoaded ? `${stores.length} cadastrado${stores.length === 1 ? "" : "s"}` : "Lista de lojas do sistema"}</p></div><button class="btn btn-outline btn-sm" type="button" data-refresh-system-list ${state.systemListLoading ? "disabled" : ""}>Atualizar</button></div><div class="system-store-list">${list}</div></section>
     <section class="system-panel system-create-panel" id="novo-estabelecimento" aria-labelledby="system-create-title"><div class="system-panel-head"><div><h2 id="system-create-title">Criar estabelecimento</h2><p>O responsável configurará a loja no primeiro acesso.</p></div></div>
-      ${state.createdStoreSlug ? `<div class="system-created" role="status"><strong>Estabelecimento criado.</strong><p>Copie os dados abaixo e entregue ao administrador da loja. A senha temporária aparece apenas agora e será trocada no primeiro acesso.</p><code>${escapeHTML(new URL(href(`/login?establishment=${state.createdStoreSlug}`), location.origin).toString())}</code><code>Login: admin</code><code>E-mail: ${escapeHTML(state.createdStoreEmail)}</code><code>Senha temporária: ${escapeHTML(state.createdStorePassword)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-store-access>Copiar dados de acesso</button></div>` : ""}
+      ${state.createdStoreSlug ? `<div class="system-created" role="status"><strong>Página de agendamento criada.</strong><p>A página já está disponível no endereço abaixo. Copie também os dados de acesso e entregue ao administrador da loja. A senha temporária aparece apenas agora.</p><code>Página: ${escapeHTML(new URL(href(`/${state.createdStoreSlug}`), location.origin).toString())}</code><code>Primeiro acesso: ${escapeHTML(new URL(href(`/login?establishment=${state.createdStoreSlug}`), location.origin).toString())}</code><code>Login: admin</code><code>E-mail: ${escapeHTML(state.createdStoreEmail)}</code><code>Senha temporária: ${escapeHTML(state.createdStorePassword)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-store-access>Copiar dados de acesso</button></div>` : ""}
       <form id="system-create-form"><div class="field"><label for="store-name">Nome do estabelecimento</label><input id="store-name" name="name" required maxlength="100" placeholder="Ex.: Salão Bela" autocomplete="organization" value="${escapeHTML(state.systemCreateName)}"><small data-generated-store-login>${draftSlug ? `URL: ${draftSlug} · Login: admin · E-mail: ${draftSlug}-admin@agendae.com.br` : "O endereço e o e-mail serão gerados a partir do nome."}</small></div><button class="btn btn-primary btn-block" type="submit">Criar estabelecimento</button></form>
     </section></div>
   </div></main>${footer()}`;
@@ -552,6 +552,7 @@ function bookingContent(establishment) {
 }
 
 function publicSchedule(establishment) {
+  if (establishment.setupComplete === false) return `<div class="schedule-empty" role="status">A agenda de ${escapeHTML(establishment.name)} está em configuração. Os horários para agendamento aparecerão aqui após a publicação pelo responsável.</div>`;
   const data = getData(establishment);
   const canManage = typeof session === "function" && session()?.slug === establishment.slug;
   const timeline = scheduleTimeline(establishment, data.slots || []);
@@ -673,7 +674,7 @@ function restoreScheduleScroll() {
 }
 
 function publicServiceCards(establishment) {
-  return `<section class="public-services" id="servicos-agendamento"><div class="service-list">${establishment.services.map((item) => `<article class="service-card-display"><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("")}</div></section>`;
+  return `<section class="public-services" id="servicos-agendamento"><div class="service-list">${establishment.services.map((item) => `<article class="service-card-display"><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("") || (establishment.setupComplete === false ? '<p class="empty">Os serviços aparecerão após o cadastro.</p>' : "")}</div></section>`;
 }
 
 function moveServiceCarousel(direction = 1) {
@@ -857,6 +858,7 @@ function attendanceCards(view, showNames = false, monitor = false) {
 }
 
 function publicCurrentAttendance(establishment, data, clock = currentSaoPauloClock()) {
+  if (establishment.setupComplete === false) return '<div class="public-live-control"><span class="live-dot closed" aria-label="Agenda em configuração"></span></div><div><small>Atendendo agora</small><div class="public-live-not-started" role="status">Em configuração</div></div>';
   const view = attendanceView(establishment, data, state.booking.date, clock);
   return `<div class="public-live-control">${liveStatusDot(view.current, view.notStarted, view.closedDay)}<button class="public-queue-expand" type="button" data-open-queue-display aria-label="Expandir painel de senhas no monitor" title="Expandir painel de senhas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div><div><small>Atendendo agora</small>${attendanceCards(view)}</div>`;
 }
@@ -1084,21 +1086,22 @@ function nextCallModal(establishment) {
 
 function renderEstablishmentPublic(establishment) {
   document.title = `${establishment.name} — Agendae`;
-  if (new URLSearchParams(location.search).has("checkin")) state.publicLookup.open = true;
+  if (establishment.setupComplete !== false && new URLSearchParams(location.search).has("checkin")) state.publicLookup.open = true;
   const data = getData(establishment);
   const authenticated = session()?.slug === establishment.slug;
+  const pending = establishment.setupComplete === false;
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href(`/${establishment.slug}`)}" data-agenda-logo aria-label="Voltar à agenda de ${escapeHTML(establishment.name)}">${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div></div></header>
-    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${publicCurrentAttendance(establishment, data)}</article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
-    <main class="est-content public-direct-content"><section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
-    ${state.booking.step > 1 ? bookingContent(establishment) : selectedBookingPopup(establishment)}
-    ${publicCheckInModal()}${employeeAccessModal(establishment)}${authenticated ? `${settingsModal(establishment)}${attendanceModal(establishment)}${nextCallModal(establishment)}` : ""}</div>`;
+    <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${publicCurrentAttendance(establishment, data)}</article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin ${pending ? 'disabled title="Disponível após a publicação"' : ""}>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
+    <main class="est-content public-direct-content">${pending ? '<div class="public-setup-notice" role="status"><strong>Agenda em configuração</strong><span>O responsável está cadastrando os dados deste estabelecimento. Os agendamentos serão liberados após a publicação.</span></div>' : ""}<section class="booking-zone" id="agendar"><div class="public-agenda-layout"><section class="panel public-schedule-panel"><div class="public-schedule-body">${publicSchedule(establishment)}</div></section><aside class="public-agenda-side"><section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section></aside></div></section></main>
+    ${pending ? "" : state.booking.step > 1 ? bookingContent(establishment) : selectedBookingPopup(establishment)}
+    ${pending ? "" : publicCheckInModal()}${employeeAccessModal(establishment)}${authenticated ? `${settingsModal(establishment)}${attendanceModal(establishment)}${nextCallModal(establishment)}` : ""}</div>`;
   requestAnimationFrame(() => {
     startServiceCarousel();
     restoreScheduleScroll();
     if (state.publicLookup.scanning) void startQrScanner();
   });
-  void refreshCloudData(establishment, "public", state.booking.date);
+  if (!pending) void refreshCloudData(establishment, "public", state.booking.date);
   if (authenticated) void refreshCloudData(establishment, "admin");
   if (authenticated && state.attendanceOpen) {
     adminRefreshTimer = setInterval(() => {
@@ -1107,9 +1110,11 @@ function renderEstablishmentPublic(establishment) {
       void refreshCloudData(establishment, "admin");
     }, 10000);
   }
-  ensureQueueSubscription(establishment);
-  startQueueClock(establishment);
-  startScheduleTurnTimer(establishment);
+  if (!pending) {
+    ensureQueueSubscription(establishment);
+    startQueueClock(establishment);
+    startScheduleTurnTimer(establishment);
+  }
 }
 
 function appointmentRows(data, query = state.appointmentQuery, selection = null) {
@@ -1281,11 +1286,6 @@ function renderNotFound() {
   app.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;padding:30px;background:var(--canvas)"><div style="max-width:520px;text-align:center">${logo()}<h1 style="margin:35px 0 10px;color:var(--navy);font:800 34px Manrope">Estabelecimento não encontrado</h1><p style="color:var(--muted);line-height:1.6">Confira o endereço ou volte para pesquisar na Agendae.</p><a class="btn btn-primary" style="margin-top:18px" href="${href("/")}" data-link>Encontrar estabelecimento</a></div></main>`;
 }
 
-function renderPendingStore(establishment) {
-  document.title = `${establishment.name} em configuração — Agendae`;
-  app.innerHTML = `<div class="pending-store-page"><header class="pending-store-header"><a href="${href("/")}" data-link aria-label="Voltar ao início">${logo()}</a></header><main class="pending-store-main"><section class="pending-store-card"><span class="est-avatar">${escapeHTML(establishment.initials || initials(establishment.name))}</span><span class="pending-store-status">EM CONFIGURAÇÃO</span><h1>${escapeHTML(establishment.name)}</h1><p>Esta página já foi criada. O administrador do estabelecimento precisa concluir o cadastro de endereço, horários, profissionais e serviços antes de publicar a agenda.</p><div class="pending-store-actions"><a class="btn btn-primary" href="${href(`/login?establishment=${establishment.slug}`)}" data-link>Entrar para configurar</a><a class="btn btn-outline" href="${href("/")}" data-link>Voltar ao início</a></div></section></main></div>`;
-}
-
 function render() {
   clearTimeout(scheduleTurnTimer);
   scheduleTurnTimer = null;
@@ -1303,7 +1303,6 @@ function render() {
   if (!catalogLoaded) return renderLoading();
   const establishment = establishments[current];
   if (!establishment) return renderNotFound();
-  if (establishment.setupComplete === false && session()?.slug !== establishment.slug) return renderPendingStore(establishment);
   const routeParams = new URLSearchParams(location.search);
   if (routeParams.get("display") === "queue") return renderQueueDisplay(establishment);
   const authenticated = session()?.slug === establishment.slug;
@@ -1402,7 +1401,7 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-copy-store-access]")) {
     const url = new URL(href(`/login?establishment=${state.createdStoreSlug}`), location.origin).toString();
     try {
-      await navigator.clipboard.writeText(`${url}\nLogin: admin\nE-mail: ${state.createdStoreEmail}\nSenha temporária: ${state.createdStorePassword}`);
+      await navigator.clipboard.writeText(`Página: ${new URL(href(`/${state.createdStoreSlug}`), location.origin)}\nPrimeiro acesso: ${url}\nLogin: admin\nE-mail: ${state.createdStoreEmail}\nSenha temporária: ${state.createdStorePassword}`);
       toast("Dados de acesso copiados.");
     } catch { toast("Não foi possível copiar. Selecione os dados acima manualmente.", "!"); }
     return;
@@ -2237,6 +2236,7 @@ document.addEventListener("submit", async (event) => {
   if (event.target.id === "booking-form") {
     const establishment = activeEstablishment();
     if (!establishment) return;
+    if (establishment.setupComplete === false) { toast("A agenda ainda está em configuração.", "!"); return; }
     if (businessDayIsClosed(establishment, state.booking.date)) {
       state.booking.step = 1;
       state.booking.time = null;
