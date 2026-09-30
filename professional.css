@@ -979,7 +979,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .est-page:has(.public-direct-content) .schedule-booking-button { width: 160px; }
 }
 .public-services-panel .service-card-display strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.public-services-panel .service-card-display small { font-size: 10px; }
+.public-services-panel .service-card-display small { max-width: 100%; overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .public-services-panel .service-price { font-size: 11px; }
 .schedule-command-bar { margin-bottom: 16px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 12px; }
 .schedule-command-bar .schedule-date-toolbar { display: flex; align-items: center; justify-content: flex-start; flex-direction: row; gap: 7px; }
@@ -1072,6 +1072,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 
 /* Shared colors for tickets, time slots and their legends. */
 .ticket-state-free { --ticket-color: #16803c; --ticket-soft: #edf9f0; }
+.matrix-slot.service-unavailable { --ticket-color: #858e9a; --ticket-soft: #f1f3f6; }
 .ticket-state-reserved { --ticket-color: #64707e; --ticket-soft: #f0f2f5; }
 .ticket-state-in-service { --ticket-color: #185ac7; --ticket-soft: #edf4ff; }
 .ticket-state-paused { --ticket-color: #c92525; --ticket-soft: #fff0f0; }
@@ -1543,8 +1544,19 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
 .settings-service-fields { grid-template-columns: minmax(160px,2fr) repeat(3,minmax(90px,1fr)); }
 .settings-fields label { min-width: 0; display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 700; }
-.settings-fields input { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #fff; font: 500 12px "DM Sans",sans-serif; }
-.settings-fields input:focus { outline: 2px solid var(--blue-soft); border-color: var(--blue); }
+.settings-fields input,.settings-fields select,.service-availability-mode select { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #fff; font: 500 12px "DM Sans",sans-serif; }
+.settings-fields input:focus,.settings-fields select:focus,.service-availability-mode select:focus { outline: 2px solid var(--blue-soft); border-color: var(--blue); }
+.store-weekly-grid,.service-weekly-grid { display: grid; gap: 8px; }
+.store-day-row,.service-day-row { display: grid; grid-template-columns: 140px minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--canvas); font-size: 12px; }
+.store-day-row label,.service-day-row label { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.store-day-row input[type="time"],.service-interval-row input { min-width: 0; width: 100%; min-height: 34px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 7px; background: #fff; }
+.service-availability-mode { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.service-day-row { grid-template-columns: 140px minmax(0,1fr) auto; }
+.service-intervals { display: grid; gap: 6px; }
+.service-interval-row { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) 26px; align-items: center; gap: 6px; }
+.service-interval-row button { width: 26px; height: 26px; border: 0; border-radius: 6px; color: var(--muted); background: #e8edf5; cursor: pointer; }
+.service-day-row:not(:has([data-service-day-enabled]:checked)) .service-intervals,.service-day-row:not(:has([data-service-day-enabled]:checked)) [data-add-service-interval] { display: none; }
+.service-weekly-grid[hidden], [data-service-meeting-url][hidden] { display: none; }
 .settings-item-actions { display: flex; gap: 8px; }
 .settings-item-form > .btn { justify-self: start; }
 .settings-section .panel, .settings-section .schedule-config { margin: 0; }
@@ -1573,10 +1585,16 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .settings-modal, .attendance-modal { max-height: calc(100dvh - 24px); }
   .settings-body, .attendance-modal-body { padding: 14px; }
   .settings-fields, .settings-service-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .store-day-row { grid-template-columns: 1fr 1fr auto 1fr; }
+  .service-day-row { grid-template-columns: 1fr auto; }
+  .service-day-row .service-intervals { grid-column: 1 / -1; grid-row: 2; }
   .attendance-modal .appointment-row { grid-template-columns: 42px minmax(0,1fr); gap: 6px; padding: 10px 0; }
   .attendance-modal .appointment-row > .professional, .attendance-modal .appointment-row > .status, .attendance-modal .appointment-row > .appointment-presence-action { grid-column: 2; }
 }
 @media (max-width:430px) {
   .settings-fields, .settings-service-fields { grid-template-columns: minmax(0,1fr); }
+  .store-day-row { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .store-day-row label { grid-column: 1 / -1; }
+  .store-day-row span { display: none; }
   .settings-tabs { padding-inline: 12px; }
 }

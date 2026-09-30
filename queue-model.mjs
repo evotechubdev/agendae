@@ -1,4 +1,4 @@
-import { lunchBreakFor, isLunchTime, pauseIntervalFor, scheduleMatrix, serviceFitsSlot, businessDayIsClosed } from "./schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, pauseIntervalFor, scheduleMatrix, serviceFitsSlot, businessDayIsClosed, businessHoursRangeForDate, serviceAvailableAt } from "./schedule-model.mjs";
 
 function timeMinutes(time) {
   const [hours, minutes] = String(time || "").split(":").map(Number);
@@ -56,6 +56,7 @@ export function scheduledTicket(establishment, time, professional, service) {
 }
 
 export function queueView(establishment, data, clock) {
+  const dailyHours = businessHoursRangeForDate(establishment, clock.date);
   const publicSlots = Array.isArray(data.todaySlots);
   const entries = publicSlots ? data.todaySlots : (data.appointments || []);
   const professionals = [...new Set((establishment?.professionals || []).map((item) => typeof item === "string" ? item : item.name).filter(Boolean))];
@@ -71,9 +72,11 @@ export function queueView(establishment, data, clock) {
   const current = [];
   const inactivePosition = (professional, time = null, ticketState = "paused") => ({ date: clock.date, time, professional, kind: "scheduled", ticket: null, ticketState });
   for (const professional of professionals) {
-    const times = scheduleTimes(establishment, professional);
+    const times = scheduleTimes(establishment, professional).filter((time) => !dailyHours || timeMinutes(time) >= dailyHours.start && timeMinutes(time) < dailyHours.end);
     const directoryEntry = (establishment.professionals || []).find((item) => item.name === professional);
-    const shiftEnd = directoryEntry?.scheduleEnd ? timeMinutes(directoryEntry.scheduleEnd) : null;
+    const shiftEnd = dailyHours
+      ? Math.min(directoryEntry?.scheduleEnd ? timeMinutes(directoryEntry.scheduleEnd) : dailyHours.end, dailyHours.end)
+      : directoryEntry?.scheduleEnd ? timeMinutes(directoryEntry.scheduleEnd) : null;
     if (closed.has(professional)) {
       current.push(inactivePosition(professional, null, "closed"));
       continue;
@@ -118,11 +121,17 @@ export function queueView(establishment, data, clock) {
 
 export function upcomingFreeSlots(establishment, data, clock) {
   if (businessDayIsClosed(establishment, clock.date)) return [];
+  const dailyHours = businessHoursRangeForDate(establishment, clock.date);
   const entries = Array.isArray(data.todaySlots) ? data.todaySlots : (data.slots || data.appointments || []);
   const bookings = entries.filter((item) => item.date === clock.date);
   const closed = new Set((data.staffStatuses || []).filter(item => item.closedDate === clock.date).map(item => item.professional));
   return scheduleMatrix(establishment).professionals.filter(professional => !closed.has(professional.name)).flatMap((professional) => professional.availableTimes
-    .filter((time) => timeMinutes(time) > clock.minutes && serviceFitsSlot(establishment, professional.name, time, undefined, bookings))
+    .filter((time) => timeMinutes(time) > clock.minutes
+      && (!dailyHours || timeMinutes(time) >= dailyHours.start && timeMinutes(time) < dailyHours.end)
+      && ((establishment.services || []).length
+        ? establishment.services.some((service) => serviceAvailableAt(establishment, service, clock.date, time)
+          && serviceFitsSlot(establishment, professional.name, time, service.name, bookings))
+        : serviceFitsSlot(establishment, professional.name, time, undefined, bookings)))
     .map((time) => ({ kind: "free", time, professional: professional.name })))
     .sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time) || a.professional.localeCompare(b.professional, "pt-BR"));
 }

@@ -44,6 +44,25 @@ export function businessDayIsClosed(establishment, date) {
   return entry ? /fechado/i.test(entry.value || "") : Boolean(establishment.hours?.length);
 }
 
+export function businessHoursRangeForDate(establishment, date) {
+  if (businessDayIsClosed(establishment, date) || establishment.extraWorkingDates?.[date] === true) return null;
+  const value = String(businessHoursForDate(establishment, date)?.value || "");
+  const times = [...value.matchAll(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g)].map(match => minutes(match[0]));
+  return times.length >= 2 && times[1] > times[0] ? { start: times[0], end: times[1] } : null;
+}
+
+export function serviceAvailableAt(establishment, service, date, time) {
+  if (!service || businessDayIsClosed(establishment, date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || ""))) return false;
+  const start = minutes(time);
+  const duration = Number(service.duration) || 20;
+  const end = start + duration;
+  const business = businessHoursRangeForDate(establishment, date);
+  if (business && (start < business.start || end > business.end)) return false;
+  if (service.weeklyAvailability == null) return true;
+  const day = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][new Date(`${date}T12:00:00Z`).getUTCDay()];
+  return (service.weeklyAvailability[day] || []).some(interval => start >= minutes(interval.start) && end <= minutes(interval.end));
+}
+
 export function businessOpeningMinutes(establishment, date) {
   if (businessDayIsClosed(establishment, date)) return null;
   if (establishment.extraWorkingDates?.[date] === true) {
@@ -181,12 +200,15 @@ export function serviceFitsSlot(establishment, professionalName, time, service, 
   });
 }
 
-export function scheduleTimeline(establishment, bookings = []) {
-  const matrix = scheduleMatrix(establishment);
+export function scheduleTimeline(establishment, bookings = [], date = null) {
+  const dailyHours = date ? businessHoursRangeForDate(establishment, date) : null;
+  const fullMatrix = scheduleMatrix(establishment);
+  const withinDay = time => !dailyHours || minutes(time) >= dailyHours.start && minutes(time) < dailyHours.end;
+  const matrix = dailyHours ? { times: fullMatrix.times.filter(withinDay), professionals: fullMatrix.professionals.map(item => ({ ...item, availableTimes: item.availableTimes.filter(withinDay) })) } : fullMatrix;
   if (!matrix.times.length) return { ...matrix, step: 60, majorStep: 60 };
   // Hourly headings share exact internal tracks for each professional's start times.
   const gcd = (a, b) => b ? gcd(b, a % b) : a;
-  const openingHours = (establishment.hours || []).flatMap((item) => {
+  const openingHours = dailyHours ? [dailyHours] : (establishment.hours || []).flatMap((item) => {
     const matches = [...String(item.value || "").matchAll(/\b(\d{1,2}):(\d{2})\b/g)].map((match) => Number(match[1]) * 60 + Number(match[2])).filter((value) => value >= 0 && value <= 1440);
     return matches.length >= 2 && matches[1] > matches[0] ? [{ start: matches[0], end: matches[1] }] : [];
   });
