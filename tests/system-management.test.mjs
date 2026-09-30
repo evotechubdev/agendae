@@ -45,8 +45,29 @@ test("administrador vê as abas e uma tela com lista e cadastro", () => {
   assert.match(app.innerHTML, /Barbearia/);
   assert.match(app.innerHTML, /Nova Loja/);
   assert.match(app.innerHTML, /Em configuração/);
+  assert.match(app.innerHTML, /href="\/novaloja" data-link>Abrir página<\/a>/);
   assert.match(app.innerHTML, /id="system-create-form"/);
   assert.match(app.innerHTML, /data-system-logout/);
+});
+
+test("rota de loja em configuração mostra sua página e link para o responsável", () => {
+  const app = { innerHTML: "" };
+  const store = { slug: "graziellematos", name: "Grazielle Matos", initials: "GM", setupComplete: false };
+  const context = vm.createContext({
+    app, document: { title: "" }, state: {}, location: { search: "" }, URLSearchParams,
+    SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", catalogLoaded: true,
+    establishments: { graziellematos: store },
+    scheduleTurnTimer: null, adminRefreshTimer: null, monitorClockTimer: null, serviceCarouselTimer: null,
+    clearTimeout() {}, clearInterval() {}, session: () => null, route: () => "graziellematos",
+    href: path => path, logo: () => "Agendae", escapeHTML: value => String(value),
+    initials: name => name.slice(0, 2).toUpperCase(),
+    renderNotFound: () => assert.fail("A loja cadastrada não deve aparecer como inexistente"),
+  });
+  vm.runInContext(source.slice(source.indexOf("function renderPendingStore("), source.indexOf("function activeEstablishment()")), context);
+  context.render();
+  assert.match(app.innerHTML, /Grazielle Matos/);
+  assert.match(app.innerHTML, /EM CONFIGURAÇÃO/);
+  assert.match(app.innerHTML, /href="\/login\?establishment=graziellematos"/);
 });
 
 test("rota de gestão abre a Home sem sessão administrativa", () => {
