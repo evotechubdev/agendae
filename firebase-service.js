@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-import { lunchBreakFor, isLunchTime, scheduleFromPeriods, workPeriodsFor, serviceFitsSlot, serviceAvailableAt, businessDayIsClosed, appointmentDurationMinutes, appointmentPresenceWindow } from "./schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, scheduleFromPeriods, scheduleMatrix, workPeriodsFor, serviceFitsSlot, serviceAvailableAt, businessDayIsClosed, appointmentDurationMinutes, appointmentPresenceWindow } from "./schedule-model.mjs";
 import { normalizeWeeklyAvailability } from "./establishment-model.mjs";
 import {
   browserLocalPersistence,
@@ -291,7 +291,7 @@ export async function updateProfessionalLunchBreak(slug, professionalName, inter
     if (interval && !lunchBreakFor({ ...establishment, professionalLunchBreaks: { [professionalName]: interval } }, professionalName)) throw new Error("Informe um intervalo de almoço válido.");
     const professionalLunchBreaks = { ...establishment.professionalLunchBreaks, [professionalName]: interval };
     const professionals = establishment.professionals.map((professional) => professional.name === professionalName && professional.slotDuration === 20
-      ? { ...professional, ...scheduleFromPeriods(workPeriodsFor(professional), interval) }
+      ? { ...professional, ...scheduleFromPeriods(workPeriodsFor(professional)) }
       : professional);
     const changed = professionals.find(professional => professional.name === professionalName);
     if (changed?.slotDuration === 20) {
@@ -300,7 +300,7 @@ export async function updateProfessionalLunchBreak(slug, professionalName, inter
       const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
       if (slotsSnapshot.docs.some(item => {
         const booking = item.data();
-        return booking.date >= today && (!changed.availableTimes.includes(booking.time) || !serviceFitsSlot(updated, professionalName, booking.time, booking.service));
+        return booking.date >= today && (!scheduleMatrix(updated, booking.date).professionals.find(item => item.name === professionalName)?.availableTimes.includes(booking.time) || !serviceFitsSlot(updated, professionalName, booking.time, booking.service, [], booking.date));
       })) throw new Error("Este almoço conflita com um agendamento existente. Ajuste o intervalo ou reagende o atendimento antes de salvar.");
     }
     const availableTimes = [...new Set(professionals.flatMap(item => item.availableTimes || establishment.availableTimes || []))].sort();
@@ -316,14 +316,14 @@ export async function updateProfessionalWorkPeriods(slug, professionalName, peri
     const establishment = snapshot.data();
     const professional = (establishment?.professionals || []).find(item => item.name === professionalName);
     if (!professional) throw new Error("Profissional não encontrado.");
-    const schedule = scheduleFromPeriods(periods, lunchBreakFor(establishment, professionalName));
+    const schedule = scheduleFromPeriods(periods);
     const professionals = establishment.professionals.map(item => item.name === professionalName ? { ...item, ...schedule } : item);
     const updated = { ...establishment, professionals };
     const slotsSnapshot = await getDocs(query(collection(db, "establishments", slug, "slots"), where("professional", "==", professionalName)));
     const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
     if (slotsSnapshot.docs.some(item => {
       const booking = item.data();
-      return booking.date >= today && (!schedule.availableTimes.includes(booking.time) || !serviceFitsSlot(updated, professionalName, booking.time, booking.service));
+      return booking.date >= today && (!scheduleMatrix(updated, booking.date).professionals.find(item => item.name === professionalName)?.availableTimes.includes(booking.time) || !serviceFitsSlot(updated, professionalName, booking.time, booking.service, [], booking.date));
     })) throw new Error("Esta escala conflita com um agendamento existente. Ajuste os períodos ou reagende o atendimento antes de salvar.");
     const availableTimes = [...new Set(professionals.flatMap(item => item.availableTimes || []))].sort();
     transaction.update(reference, { professionals, availableTimes, updatedAt: serverTimestamp() });
@@ -590,7 +590,7 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
       error.code = "agendae/slot-unavailable";
       throw error;
     }
-    if (isLunchTime(lunchBreakFor(establishmentSnapshot.data() || {}, appointment.professional), appointment.time)) {
+    if (isLunchTime(lunchBreakFor(establishmentSnapshot.data() || {}, appointment.professional, appointment.date), appointment.time)) {
       const error = new Error("Este profissional está em horário de almoço. Escolha outro horário.");
       error.code = "agendae/slot-unavailable";
       throw error;
@@ -611,7 +611,7 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
     const locationType = service.locationType || "address1";
     const serviceAddress = locationType === "online" ? "" : locationType === "address2" ? establishment.address2 || "" : establishment.address || "";
     const professional = (establishment.professionals || []).find(item => item.name === appointment.professional);
-    if (professional?.workPeriods?.length && (!professional.availableTimes.includes(appointment.time) || !serviceFitsSlot(establishment, appointment.professional, appointment.time, appointment.service))) {
+    if (professional?.workPeriods?.length && (!scheduleMatrix(establishment, appointment.date).professionals.find(item => item.name === appointment.professional)?.availableTimes.includes(appointment.time) || !serviceFitsSlot(establishment, appointment.professional, appointment.time, appointment.service, [], appointment.date))) {
       const error = new Error("Este atendimento não cabe na escala do profissional. Escolha outro horário.");
       error.code = "agendae/slot-unavailable";
       throw error;
@@ -626,7 +626,7 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
       }
       const snapshots = await Promise.all([...candidates.values()].map(ref => transaction.get(ref)));
       const reservations = snapshots.filter(snapshot => snapshot.exists()).map(snapshot => ({ ...snapshot.data(), id: snapshot.id }));
-      if (!serviceFitsSlot(establishment, appointment.professional, appointment.time, appointment.service, reservations)) {
+      if (!serviceFitsSlot(establishment, appointment.professional, appointment.time, appointment.service, reservations, appointment.date)) {
         const error = new Error("Este serviço se sobrepõe a um atendimento reservado. Escolha outro horário.");
         error.code = "agendae/slot-unavailable";
         throw error;
@@ -787,7 +787,7 @@ export async function startProfessionalAppointment(slug, appointmentId, professi
     const staffStatus = statusSnapshot.exists() ? statusSnapshot.data() : {};
     if (staffStatus.closedDate === date) throw new Error("O expediente deste profissional foi encerrado hoje.");
     const time = new Date().toLocaleTimeString("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-    if (isLunchTime(lunchBreakFor(establishmentSnapshot.data() || {}, professional), time)) {
+    if (isLunchTime(lunchBreakFor(establishmentSnapshot.data() || {}, professional, date), time)) {
       const error = new Error("Este profissional está em horário de almoço. O atendimento está pausado.");
       error.code = "agendae/professional-paused";
       throw error;
@@ -941,8 +941,8 @@ export async function finishProfessionalTurn(slug, professional, date, action) {
       const start = entry?.scheduleStart || times[0];
       const end = entry?.scheduleEnd || times.at(-1);
       if (!start || !end || time < start || (entry?.scheduleEnd ? time >= end : time > end)
-        || isLunchTime(lunchBreakFor(establishment, professional), time)
-        || (entry?.pauseIntervals || []).some(interval => isLunchTime(interval, time))) {
+        || isLunchTime(lunchBreakFor(establishment, professional, date), time)
+        || (scheduleMatrix(establishment, date).professionals.find(item => item.name === professional)?.pauseIntervals || []).some(interval => isLunchTime(interval, time))) {
         throw new Error("Este funcionário está fora do horário de atendimento. Inicie uma pausa ou encerre o expediente.");
       }
     }

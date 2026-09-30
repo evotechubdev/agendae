@@ -454,6 +454,30 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .lunch-config-form label { display: grid; gap: 4px; color: var(--muted); font-size: 10px; }
 .lunch-config-form input { width: 100%; min-width: 0; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
 .lunch-config-form > small { color: var(--muted); font-size: 9px; }
+.lunch-config-form .lunch-day-mode,.lunch-day-options { grid-column: 1/-1; }
+.lunch-config-form select { width: 100%; min-height: 34px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+.lunch-day-options { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.lunch-day-options[hidden] { display: none; }
+.lunch-day-options label { display: inline-flex; align-items: center; gap: 4px; }
+.lunch-day-options input { width: auto; }
+.schedule-view-toggle { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+.schedule-view-toggle button { min-height: 30px; padding: 5px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: 700 11px "DM Sans",sans-serif; cursor: pointer; }
+.schedule-view-toggle button[aria-pressed="true"] { background: var(--blue); color: #fff; }
+.monthly-schedule { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.monthly-schedule-heading { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.monthly-schedule-heading h3 { margin: 0; min-width: 150px; color: var(--navy); font: 800 15px "Manrope",sans-serif; text-align: center; text-transform: capitalize; }
+.monthly-schedule-heading button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 7px; background: #fff; cursor: pointer; }
+.monthly-schedule > p { margin: 9px 0 15px; color: var(--muted); font-size: 11px; text-align: center; }
+.monthly-schedule-grid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 6px; }
+.monthly-schedule-weekday { padding: 5px; color: var(--muted); font-size: 10px; font-weight: 700; text-align: center; }
+.monthly-schedule-day { min-height: 70px; display: grid; align-content: space-between; gap: 4px; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: #f7faff; color: var(--navy); text-align: left; cursor: pointer; }
+.monthly-schedule-day strong { font-size: 13px; }
+.monthly-schedule-day small { font-size: 10px; }
+.monthly-schedule-day.is-today { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+.monthly-schedule-day.is-closed { background: #f4f5f7; color: var(--muted); }
+.monthly-schedule-day:disabled { opacity: .45; cursor: default; }
+.monthly-schedule-day:not(:disabled):hover,.monthly-schedule-day:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+@media (max-width: 640px) { .monthly-schedule { padding: 10px; } .monthly-schedule-grid { gap: 3px; } .monthly-schedule-day { min-height: 55px; padding: 5px 3px; } .monthly-schedule-day small { font-size: 8px; overflow-wrap: anywhere; } }
 .staff-schedule { padding: 14px 0; border-bottom: 1px solid var(--line); }
 .staff-schedule:last-child { border-bottom: 0; }
 .staff-schedule-head { display: flex; align-items: center; gap: 10px; }

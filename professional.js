@@ -1,6 +1,6 @@
 ﻿import { queueView, upcomingFreeSlots, scheduledTicket, professionalInitial, serviceInitials, ticketState, ticketSubstatus, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
-import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, serviceAvailableAt, workPeriodsFor, scheduleFromPeriods, businessHoursForDate, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
-import { renderBookingCalendar, shiftCalendarMonth } from "./calendar-model.mjs";
+import { scheduleTimeline, scheduleMatrix, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, serviceAvailableAt, workPeriodsFor, scheduleFromPeriods, businessHoursForDate, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
+import { renderBookingCalendar, shiftCalendarMonth, calendarMonthDays } from "./calendar-model.mjs";
 import { loginCredentials } from "./login-model.mjs";
 import { establishmentSlug, storeProfile } from "./establishment-model.mjs";
 
@@ -38,6 +38,7 @@ const state = {
   schedulePausedByCalendar: false,
   calendarOpen: false,
   calendarMonth: null,
+  scheduleView: "day",
   publicLookup: freshPublicLookup(),
   employeeAccessOpen: false,
   systemAccessOpen: false,
@@ -127,11 +128,14 @@ function initials(name) {
   return name.split(" ").slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
 
-function professionalDirectory(establishment) {
-  return (establishment.professionals || []).map((professional) => typeof professional === "string"
-    ? { name: professional, availableTimes: establishment.availableTimes || [], lunchBreak: lunchBreakFor(establishment, professional) }
-    : { ...professional, lunchBreak: lunchBreakFor(establishment, professional.name) }
-  );
+function professionalDirectory(establishment, date = null) {
+  return (establishment.professionals || []).map((item) => {
+    const professional = typeof item === "string" ? { name: item, availableTimes: establishment.availableTimes || [] } : item;
+    const lunchBreak = lunchBreakFor(establishment, professional.name, date);
+    const daily = date && professional.slotDuration === 20 && professional.workPeriods?.length
+      ? scheduleFromPeriods(professional.workPeriods, lunchBreak) : null;
+    return { ...professional, ...(daily || {}), lunchBreak };
+  });
 }
 
 function staffStatusFor(data, professionalName) {
@@ -286,7 +290,7 @@ async function reconcileProfessionalCoverage(establishment, data) {
   professionalReconcileLoading.add(reconciliationKey);
   let changed = false;
   try {
-    for (const professional of professionalDirectory(establishment)) {
+    for (const professional of professionalDirectory(establishment, date)) {
       const appointments = data.appointments.filter((item) => item.professional === professional.name);
       const staffStatus = staffStatusFor(data, professional.name);
       const current = appointments.find((item) => item.status === "atendendo");
@@ -533,7 +537,7 @@ function publicAccessMenu(establishment, authenticated = false) {
 function bookingContent(establishment) {
   const booking = state.booking;
   if (booking.step < 3 && businessDayIsClosed(establishment, booking.date)) return "";
-  const availableServices = (establishment.services || []).filter(item => serviceAvailableAt(establishment, item, booking.date, booking.time) && serviceFitsSlot(establishment, booking.professional, booking.time, item.name, getData(establishment).slots || []));
+  const availableServices = (establishment.services || []).filter(item => serviceAvailableAt(establishment, item, booking.date, booking.time) && serviceFitsSlot(establishment, booking.professional, booking.time, item.name, getData(establishment).slots || [], booking.date));
 
   if (booking.step === 2) return `<div class="booking-modal-backdrop" data-booking-modal-backdrop>
     <section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
@@ -549,7 +553,26 @@ function bookingContent(establishment) {
   </div>`;
 
   const item = booking.confirmation;
-  return `<div class="booking-modal-backdrop"><section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-confirmation-title"><div class="booking-modal-head"><div><small>AGENDAMENTO CONCLUÍDO</small><h2 id="booking-confirmation-title">Agendamento confirmado</h2></div><button class="booking-modal-close" type="button" data-new-booking aria-label="Fechar confirmação">×</button></div><div class="booking-modal-form"><div class="confirmation"><div class="confirmation-icon">✓</div><p class="booking-lead">Seu horário na ${escapeHTML(establishment.name)} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(item.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div><div class="confirmation-row"><span>Local</span><strong>${escapeHTML(item.locationType === "online" ? "Atendimento On line" : item.serviceAddress || establishment.address)}</strong></div></div>${item.locationType === "online" && item.meetingUrl ? `<p><a href="${escapeHTML(item.meetingUrl)}" target="_blank" rel="noopener noreferrer">Abrir link da reunião</a></p>` : ""}<div class="call-ticket"><span>Senha no painel</span><strong>${escapeHTML(scheduledTicket(establishment, item.time, item.professional, item.service))}</strong><p>Esta senha identifica seu horário quando ele for chamado.</p></div><div class="checkin-password"><span>Sua senha de presença</span><strong>${escapeHTML(item.checkInCode)}</strong><p>Guarde esta senha para confirmar sua chegada. Ela não aparece no painel público.</p></div><div class="booking-actions"><span></span><button class="btn btn-primary" type="button" data-new-booking>Fazer outro agendamento</button></div></div></div></section></div>`;
+  return `<div class="booking-modal-backdrop"><section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-confirmation-title"><div class="booking-modal-head"><div><small>AGENDAMENTO CONCLUÍDO</small><h2 id="booking-confirmation-title">Agendamento confirmado</h2></div><button class="booking-modal-close" type="button" data-new-booking aria-label="Fechar confirmação">×</button></div><div class="booking-modal-form"><div class="confirmation"><div class="confirmation-icon">✓</div><p class="booking-lead">Seu horário na ${escapeHTML(establishment.name)} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(item.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div><div class="confirmation-row"><span>Local</span><strong>${escapeHTML(item.locationType === "online" ? "Atendimento On line" : item.serviceAddress || establishment.address)}</strong></div></div>${item.locationType === "online" && item.meetingUrl ? `<p><a href="${escapeHTML(item.meetingUrl)}" target="_blank" rel="noopener noreferrer">Abrir link da reunião</a></p>` : ""}<div class="call-ticket"><span>Senha no painel</span><strong>${escapeHTML(scheduledTicket(establishment, item.time, item.professional, item.service, item.date))}</strong><p>Esta senha identifica seu horário quando ele for chamado.</p></div><div class="checkin-password"><span>Sua senha de presença</span><strong>${escapeHTML(item.checkInCode)}</strong><p>Guarde esta senha para confirmar sua chegada. Ela não aparece no painel público.</p></div><div class="booking-actions"><span></span><button class="btn btn-primary" type="button" data-new-booking>Fazer outro agendamento</button></div></div></div></section></div>`;
+}
+
+function monthlyScheduleMarkup(establishment) {
+  const month = state.calendarMonth || state.booking.date.slice(0, 7);
+  const label = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(`${month}-01T12:00:00Z`));
+  const today = isoDate();
+  const clock = currentSaoPauloClock();
+  const days = calendarMonthDays(month).map(date => {
+    if (!date) return '<span class="monthly-schedule-empty" aria-hidden="true"></span>';
+    const past = date < today;
+    const closed = businessDayIsClosed(establishment, date);
+    const hasSchedule = !closed && scheduleMatrix(establishment, date).professionals.some(professional => professional.availableTimes.some(time =>
+      (date !== today || Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) > clock.minutes)
+      && (establishment.services || []).some(service => serviceAvailableAt(establishment, service, date, time)
+        && serviceFitsSlot(establishment, professional.name, time, service.name, [], date))));
+    const status = past ? "Passou" : closed ? "Fechado" : hasSchedule ? "Expediente" : "Sem horários";
+    return `<button type="button" class="monthly-schedule-day ${closed ? "is-closed" : ""} ${date === today ? "is-today" : ""}" data-monthly-date="${date}" aria-label="${prettyDate(date, true)}: ${status}" ${past ? "disabled" : ""}><strong>${Number(date.slice(-2))}</strong><small>${status}</small></button>`;
+  }).join("");
+  return `<section class="monthly-schedule" aria-label="Grade mensal de agendamento"><div class="monthly-schedule-heading"><button type="button" data-monthly-step="-1" aria-label="Mês anterior">‹</button><h3>${escapeHTML(label)}</h3><button type="button" data-monthly-step="1" aria-label="Próximo mês">›</button></div><p>Selecione um dia para ver os horários livres e fazer o agendamento.</p><div class="monthly-schedule-grid">${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map(day => `<span class="monthly-schedule-weekday">${day}</span>`).join("")}${days}</div></section>`;
 }
 
 function publicSchedule(establishment) {
@@ -583,9 +606,9 @@ function publicSchedule(establishment) {
       }
       const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
       const status = closed ? "closed" : ticketState({ date: state.booking.date, time, booked: Boolean(appointment), currentTime, paused, status: appointment?.status }, clock);
-      const serviceReady = !(establishment.services || []).length || establishment.services.some(service => serviceAvailableAt(establishment, service, state.booking.date, time) && serviceFitsSlot(establishment, professional.name, time, service.name, data.slots || []));
+      const serviceReady = !(establishment.services || []).length || establishment.services.some(service => serviceAvailableAt(establishment, service, state.booking.date, time) && serviceFitsSlot(establishment, professional.name, time, service.name, data.slots || [], state.booking.date));
       const substatus = ticketSubstatus(appointment, status);
-      const ticket = scheduledTicket(establishment, time, professional.name, appointment?.service);
+      const ticket = scheduledTicket(establishment, time, professional.name, appointment?.service, state.booking.date);
       const chosen = selected === time;
       const label = `${ticket}, ${professional.name}, ${time}, ${status === "free" && !serviceReady ? "nenhum serviço disponível" : TICKET_STATES[status]}${substatus ? `, ${substatus}` : ""}${chosen ? ", selecionado" : ""}${canManage && isToday && appointment ? ", abrir atendimento" : ""}`;
       const action = status === "free" && serviceReady ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"`
@@ -600,7 +623,8 @@ function publicSchedule(establishment) {
       : `<div class="matrix-person">${avatar}${name}</div>`;
     return `<tr class="${selected ? "matrix-row-selected" : ""}"><th scope="row">${person}</th>${cells}</tr>`;
   }).join("");
-  const toolbar = (turnControls = "") => `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div>${renderBookingCalendar({ selectedDate: state.booking.date, dateMode: state.booking.dateMode, today: isoDate(), month: state.calendarMonth, open: state.calendarOpen })}${turnControls}</div>${ticketStatusLegend()}</div>`;
+  const toolbar = (turnControls = "") => `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div>${renderBookingCalendar({ selectedDate: state.booking.date, dateMode: state.booking.dateMode, today: isoDate(), month: state.calendarMonth, open: state.calendarOpen })}${turnControls}</div><div class="schedule-view-toggle" role="group" aria-label="Visualização da agenda"><button type="button" data-schedule-view="day" aria-pressed="${state.scheduleView !== "month"}">Dia</button><button type="button" data-schedule-view="month" aria-pressed="${state.scheduleView === "month"}">Mês</button></div>${ticketStatusLegend()}</div>`;
+  if (state.scheduleView === "month") return `${toolbar()}${monthlyScheduleMarkup(establishment)}`;
   if (businessDayIsClosed(establishment, state.booking.date)) return `${toolbar()}<div class="schedule-empty" role="status">Sem expediente neste dia. Escolha outra data para agendar.</div>`;
   if (!professionals.length || !times.length) return `${toolbar()}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
   const periods = scheduleDayPeriods(timeline);
@@ -643,6 +667,7 @@ function moveScheduleTurn(establishment, direction = 1) {
 function startScheduleTurnTimer(establishment) {
   clearTimeout(scheduleTurnTimer);
   scheduleTurnTimer = null;
+  if (state.scheduleView === "month") return;
   if (businessDayIsClosed(establishment, state.booking.date)) return;
   if (state.scheduleAuto === false || !document.querySelector(".public-schedule-body")) return;
   const periods = scheduleDayPeriods(scheduleTimeline(establishment, getData(establishment).slots || [], state.booking.date));
@@ -921,10 +946,10 @@ function ensureQueueSubscription(establishment) {
 
 function professionalAvailability(establishment, data, date = isoDate()) {
   const slots = data.slots || [];
-  return professionalDirectory(establishment).map((professional) => ({
+  return professionalDirectory(establishment, date).map((professional) => ({
     ...professional,
     freeTimes: (professional.availableTimes || []).filter((time) =>
-      !businessDayIsClosed(establishment, date) && !professionalIsClosed(data, professional.name, date) && !slotHasPassed(date, time) && serviceFitsSlot(establishment, professional.name, time, undefined, slots)
+      !businessDayIsClosed(establishment, date) && !professionalIsClosed(data, professional.name, date) && !slotHasPassed(date, time) && serviceFitsSlot(establishment, professional.name, time, undefined, slots, date)
     ),
   }));
 }
@@ -933,8 +958,8 @@ function availableTimesFor(establishment, data, date = isoDate()) {
   if (businessDayIsClosed(establishment, date)) return [];
   if (!usesEmployeeSchedules(establishment)) {
     const busy = new Set((data.slots || []).map((slot) => slot.time));
-    const professionals = professionalDirectory(establishment);
-    return (establishment.availableTimes || []).filter((time) => !slotHasPassed(date, time) && !busy.has(time) && professionals.some((professional) => !professionalIsClosed(data, professional.name, date) && serviceFitsSlot(establishment, professional.name, time, undefined, data.slots || [])));
+    const professionals = professionalDirectory(establishment, date);
+    return (establishment.availableTimes || []).filter((time) => !slotHasPassed(date, time) && !busy.has(time) && professionals.some((professional) => !professionalIsClosed(data, professional.name, date) && serviceFitsSlot(establishment, professional.name, time, undefined, data.slots || [], date)));
   }
   return [...new Set(professionalAvailability(establishment, data, date).flatMap((professional) => professional.freeTimes))].sort();
 }
@@ -990,9 +1015,11 @@ function compactBusinessHours(establishment) {
 }
 
 function lunchSchedulesMarkup(establishment) {
-  return `<section class="panel lunch-config-panel"><div class="panel-head"><div><h2>Horários de almoço</h2><p>Defina o intervalo de cada profissional. Durante o almoço, o atendimento fica pausado.</p></div></div><div class="lunch-config-list">${professionalDirectory(establishment).map((professional) => {
+  const days = [["seg", "Seg"], ["ter", "Ter"], ["qua", "Qua"], ["qui", "Qui"], ["sex", "Sex"], ["sab", "Sáb"], ["dom", "Dom"]];
+  return `<section class="panel lunch-config-panel"><div class="panel-head"><div><h2>Horários de almoço</h2><p>Defina o intervalo e escolha os dias de almoço de cada profissional.</p></div></div><div class="lunch-config-list">${professionalDirectory(establishment).map((professional) => {
     const interval = professional.lunchBreak;
-    return `<form class="lunch-config-form" data-lunch-form data-professional-name="${escapeHTML(professional.name)}"><strong>${escapeHTML(professional.name)}</strong><label>Início<input type="time" name="start" value="${interval?.start || ""}" aria-label="Início do almoço de ${escapeHTML(professional.name)}"></label><label>Fim<input type="time" name="end" value="${interval?.end || ""}" aria-label="Fim do almoço de ${escapeHTML(professional.name)}"></label><button type="submit" class="btn btn-primary btn-sm">Salvar</button><small>Deixe os dois campos vazios para remover o intervalo.</small></form>`;
+    const custom = Boolean(interval?.days);
+    return `<form class="lunch-config-form" data-lunch-form data-professional-name="${escapeHTML(professional.name)}"><strong>${escapeHTML(professional.name)}</strong><label>Início<input type="time" name="start" value="${interval?.start || ""}" aria-label="Início do almoço de ${escapeHTML(professional.name)}"></label><label>Fim<input type="time" name="end" value="${interval?.end || ""}" aria-label="Fim do almoço de ${escapeHTML(professional.name)}"></label><label class="lunch-day-mode">Dias do almoço<select name="dayMode" data-lunch-day-mode><option value="all" ${custom ? "" : "selected"}>Todos os dias</option><option value="custom" ${custom ? "selected" : ""}>Selecionar dias</option></select></label><div class="lunch-day-options" data-lunch-days ${custom ? "" : "hidden"}>${days.map(([day, label]) => `<label><input type="checkbox" name="lunchDay" value="${day}" ${interval?.days?.includes(day) ? "checked" : ""}>${label}</label>`).join("")}</div><button type="submit" class="btn btn-primary btn-sm">Salvar</button><small>Deixe início e fim vazios para remover o intervalo.</small></form>`;
   }).join("")}</div></section>`;
 }
 
@@ -1113,7 +1140,7 @@ function nextCallModal(establishment) {
   const pending = appointments.filter(item => ["confirmado", "presente"].includes(item.status))
     .sort((a, b) => Number(b.status === "presente") - Number(a.status === "presente") || a.time.localeCompare(b.time));
   const paused = professionalIsPaused(data, name);
-  const professional = professionalDirectory(establishment).find(item => item.name === name);
+  const professional = professionalDirectory(establishment, isoDate()).find(item => item.name === name);
   const canCall = ready && professional && professionalIsOnShift(professional) && (current || pending.length || paused);
   const choice = (action, title, detail, disabled = false) => `<button class="next-call-choice next-call-${action}" type="button" data-next-call-action="${action}" ${disabled ? "disabled" : ""}><strong>${title}</strong><small>${detail}</small></button>`;
   const currentMessage = !ready ? '<p class="next-call-loading">Carregando a agenda do funcionário…</p>'
@@ -1163,7 +1190,7 @@ function appointmentRows(data, query = state.appointmentQuery, selection = null)
     .sort((a,b) => a.time.localeCompare(b.time));
   const normalizedQuery = normalizedSearch(query);
   const appointments = normalizedQuery
-    ? todayAppointments.filter((item) => normalizedSearch(item.client).includes(normalizedQuery) || String(item.checkInCode || "").toLowerCase() === normalizedQuery.replace(/\s/g, "") || scheduledTicket(establishment, item.time, item.professional, item.service).toLowerCase() === normalizedQuery)
+    ? todayAppointments.filter((item) => normalizedSearch(item.client).includes(normalizedQuery) || String(item.checkInCode || "").toLowerCase() === normalizedQuery.replace(/\s/g, "") || scheduledTicket(establishment, item.time, item.professional, item.service, item.date).toLowerCase() === normalizedQuery)
     : todayAppointments;
   if (!todayAppointments.length) return '<div class="empty">Nenhum atendimento marcado para hoje.</div>';
   if (!appointments.length) return `<div class="empty">Nenhum agendamento encontrado para <strong>${escapeHTML(query.trim())}</strong>.</div>`;
@@ -1178,7 +1205,7 @@ function appointmentRows(data, query = state.appointmentQuery, selection = null)
           : item.status === "atendendo"
             ? `<button class="btn btn-primary btn-sm" type="button" data-complete-appointment="${escapeHTML(item.id)}" data-professional-name="${escapeHTML(item.professional)}">Encerrar</button>`
             : item.status === "concluido" ? '<span>✓ Finalizado</span>' : "";
-    return `<div class="appointment-row"><span class="appt-time">${item.time}</span><span class="client"><span class="client-avatar">${initials(item.client)}</span><span><strong>${escapeHTML(item.client)}</strong><small>${escapeHTML(item.service)} · Painel ${escapeHTML(scheduledTicket(establishment, item.time, item.professional, item.service))}${item.checkInCode ? ` · Presença ${escapeHTML(item.checkInCode)}` : ""}</small></span></span><span class="professional">${escapeHTML(item.professional)}</span><span class="status ${escapeHTML(item.status)}">${escapeHTML(statusLabel(item.status))}</span><span class="appointment-presence-action">${action}</span></div>`;
+    return `<div class="appointment-row"><span class="appt-time">${item.time}</span><span class="client"><span class="client-avatar">${initials(item.client)}</span><span><strong>${escapeHTML(item.client)}</strong><small>${escapeHTML(item.service)} · Painel ${escapeHTML(scheduledTicket(establishment, item.time, item.professional, item.service, item.date))}${item.checkInCode ? ` · Presença ${escapeHTML(item.checkInCode)}` : ""}</small></span></span><span class="professional">${escapeHTML(item.professional)}</span><span class="status ${escapeHTML(item.status)}">${escapeHTML(statusLabel(item.status))}</span><span class="appointment-presence-action">${action}</span></div>`;
   }).join("");
 }
 
@@ -1447,6 +1474,31 @@ document.addEventListener("click", async (event) => {
   if (state.calendarOpen && !event.target.closest("[data-booking-calendar]")) {
     state.calendarOpen = false;
     refreshBookingCalendar();
+  }
+  const scheduleView = event.target.closest("[data-schedule-view]");
+  if (scheduleView) {
+    state.scheduleView = scheduleView.dataset.scheduleView === "month" ? "month" : "day";
+    state.calendarMonth = state.calendarMonth || state.booking.date.slice(0, 7);
+    state.calendarOpen = false;
+    clearTimeout(scheduleTurnTimer);
+    scheduleTurnTimer = null;
+    if (state.scheduleTurn) state.scheduleTurn.changedAt = Date.now();
+    render();
+    requestAnimationFrame(() => document.querySelector(`[data-schedule-view="${state.scheduleView}"]`)?.focus());
+    return;
+  }
+  const monthlyStep = event.target.closest("[data-monthly-step]");
+  if (monthlyStep) {
+    state.calendarMonth = shiftCalendarMonth(state.calendarMonth || state.booking.date.slice(0, 7), Number(monthlyStep.dataset.monthlyStep));
+    render();
+    requestAnimationFrame(() => document.querySelector(`[data-monthly-step="${monthlyStep.dataset.monthlyStep}"]`)?.focus());
+    return;
+  }
+  const monthlyDate = event.target.closest("[data-monthly-date]");
+  if (monthlyDate) {
+    state.scheduleView = "day";
+    selectBookingDate(monthlyDate.dataset.monthlyDate);
+    return;
   }
   if (event.target.closest("[data-calendar-toggle]")) {
     pauseCalendarSchedule();
@@ -1897,7 +1949,7 @@ document.addEventListener("click", async (event) => {
   if (pauseButton) {
     const establishment = activeEstablishment();
     const professionalName = pauseButton.dataset.professionalName;
-    const professional = professionalDirectory(establishment).find((item) => item.name === professionalName);
+    const professional = professionalDirectory(establishment, isoDate()).find((item) => item.name === professionalName);
     const pause = pauseButton.dataset.paused !== "true";
     pauseButton.disabled = true;
     pauseButton.textContent = pause ? "Pausando…" : "Retomando…";
@@ -1935,7 +1987,7 @@ document.addEventListener("click", async (event) => {
   if (completeAppointmentButton) {
     const establishment = activeEstablishment();
     const professionalName = completeAppointmentButton.dataset.professionalName;
-    const professional = professionalDirectory(establishment).find((item) => item.name === professionalName);
+    const professional = professionalDirectory(establishment, isoDate()).find((item) => item.name === professionalName);
     completeAppointmentButton.disabled = true;
     completeAppointmentButton.textContent = "Encerrando…";
     try {
@@ -1960,7 +2012,7 @@ document.addEventListener("click", async (event) => {
     confirmPresenceButton.textContent = "Confirmando…";
     try {
       await firebaseApi.confirmPresenceManually(establishment.slug, confirmPresenceButton.dataset.confirmPresence);
-      const professional = professionalDirectory(establishment).find((item) => item.name === appointment?.professional);
+      const professional = professionalDirectory(establishment, isoDate()).find((item) => item.name === appointment?.professional);
       const hasCurrent = data.appointments.some((item) => item.professional === appointment?.professional && item.status === "atendendo");
       if (professional && !professionalIsPaused(data, appointment?.professional) && !hasCurrent && professionalIsOnShift(professional)) {
         await firebaseApi.startNextProfessionalAppointment(establishment.slug, professional.name, isoDate());
@@ -1979,6 +2031,10 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-lunch-day-mode]")) {
+    event.target.closest("[data-lunch-form]").querySelector("[data-lunch-days]").hidden = event.target.value !== "custom";
+    return;
+  }
   if (event.target.matches("[data-service-availability-mode]")) {
     event.target.closest("[data-service-form]").querySelector("[data-service-weekly]").hidden = event.target.value !== "custom";
     return;
@@ -2200,7 +2256,12 @@ document.addEventListener("submit", async (event) => {
     const professionalName = event.target.dataset.professionalName;
     const start = String(form.get("start") || "");
     const end = String(form.get("end") || "");
-    const interval = start || end ? { start, end } : null;
+    const days = form.get("dayMode") === "custom" ? form.getAll("lunchDay") : null;
+    const interval = start || end ? { start, end, ...(days ? { days } : {}) } : null;
+    if (interval && days && !days.length) {
+      toast("Selecione pelo menos um dia de almoço.", "!");
+      return;
+    }
     if (interval && !lunchBreakFor({ ...establishment, professionalLunchBreaks: { [professionalName]: interval } }, professionalName)) {
       toast("Informe início e fim do almoço, com o fim após o início.", "!");
       return;
@@ -2210,7 +2271,7 @@ document.addEventListener("submit", async (event) => {
     try {
       establishment.professionalLunchBreaks = await firebaseApi.updateProfessionalLunchBreak(establishment.slug, professionalName, interval);
       establishment.professionals = establishment.professionals.map(professional => professional.name === professionalName && professional.slotDuration === 20
-        ? { ...professional, ...scheduleFromPeriods(workPeriodsFor(professional), interval) }
+        ? { ...professional, ...scheduleFromPeriods(workPeriodsFor(professional)) }
         : professional);
       establishment.availableTimes = [...new Set(establishment.professionals.flatMap(professional => professional.availableTimes || establishment.availableTimes || []))].sort();
       state.booking.time = null;
@@ -2327,7 +2388,7 @@ document.addEventListener("submit", async (event) => {
       event.target.querySelector("[data-booking-service]")?.focus();
       return;
     }
-    if (!serviceAvailableAt(establishment, service, state.booking.date, state.booking.time) || !serviceFitsSlot(establishment, state.booking.professional, state.booking.time, service.name, getData(establishment).slots || [])) {
+    if (!serviceAvailableAt(establishment, service, state.booking.date, state.booking.time) || !serviceFitsSlot(establishment, state.booking.professional, state.booking.time, service.name, getData(establishment).slots || [], state.booking.date)) {
       state.booking.step = 1;
       state.booking.time = null;
       render();
