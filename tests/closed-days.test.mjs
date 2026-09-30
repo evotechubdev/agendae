@@ -10,6 +10,7 @@ const source = readFileSync(new URL("../frontend/professional.js", import.meta.u
 const establishment = {
   hours: [{ label: "Seg a sex", value: "08:00 - 18:00" }, { label: "Sábado", value: "08:00 - 17:00" }, { label: "Domingo", value: "Fechado" }],
   professionals: [{ name: "Renam", availableTimes: ["10:20", "10:40"] }],
+  services: [{ name: "Corte", duration: 20 }],
   availableTimes: ["10:20", "10:40"],
 };
 
@@ -65,7 +66,7 @@ test("validação da reserva consulta o expediente salvo e rejeita domingo antes
     }),
   });
   vm.runInContext(apiSource.slice(apiSource.indexOf("export async function createAppointment("), apiSource.indexOf("export async function getOrCreateCheckInConfig(")).replace("export ", ""), context);
-  const appointment = { date: "2026-09-27", time: "10:20", professional: "Renam", client: "Cliente", checkInCode: "ABC123" };
+  const appointment = { date: "2026-09-27", time: "10:20", professional: "Renam", service: "Corte", client: "Cliente", checkInCode: "ABC123" };
   await assert.rejects(context.createAppointment("demo", appointment), error => error.code === "agendae/slot-unavailable" && /Sem expediente/.test(error.message));
   assert.equal(writes.length, 0);
   await context.createAppointment("demo", { ...appointment, date: "2026-09-28" });

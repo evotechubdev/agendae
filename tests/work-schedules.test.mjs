@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { scheduleFromPeriods, lunchBreakFor, serviceFitsSlot, isLunchTime, businessDayIsClosed, appointmentDurationMinutes } from "../frontend/schedule-model.mjs";
+import { scheduleFromPeriods, lunchBreakFor, serviceFitsSlot, serviceAvailableAt, isLunchTime, businessDayIsClosed, appointmentDurationMinutes } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/firebase-service.js", import.meta.url), "utf8");
 function fixture(bookings = []) {
@@ -35,7 +35,7 @@ test("reservas respeitam a duração inteira do serviço e não sobrepõem os ho
   const context = vm.createContext({
     db: {}, doc: (_db, ...parts) => parts.join("/"), collection: () => "appointments", documentKey: value => value.toLowerCase(),
     appointmentLookupKey: async () => "lookup", appointmentCodeLookupKey: async () => "code",
-    lunchBreakFor, isLunchTime, serviceFitsSlot, businessDayIsClosed, appointmentDurationMinutes, serverTimestamp: () => "now",
+    lunchBreakFor, isLunchTime, serviceFitsSlot, serviceAvailableAt, businessDayIsClosed, appointmentDurationMinutes, serverTimestamp: () => "now",
     slotRefsForAppointment: (_slug, item) => [`establishments/demo/slots/${item.date}_${item.time.replace(":", "")}_${item.professional.toLowerCase()}`, `establishments/demo/slots/${item.date}_${item.time.replace(":", "")}_establishment`],
     runTransaction: async (_db, callback) => callback({
       get: async ref => ref === "establishments/demo" ? { data: () => original } : { exists: () => ref === "establishments/demo/slots/2099-01-01_0900_a", data: () => existing, id: "2099-01-01_0900_a" },

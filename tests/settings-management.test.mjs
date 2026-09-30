@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { normalizeWeeklyAvailability } from "../frontend/establishment-model.mjs";
+import { serviceAvailableAt } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/firebase-service.js", import.meta.url), "utf8");
 const start = source.indexOf("export async function saveProfessional(");
@@ -11,6 +13,7 @@ function fixture(bookings = []) {
   const establishment = {
     professionals: [{ name: "Ana", role: "Cabeleireira", availableTimes: ["09:00"] }],
     services: [{ id: "corte", name: "Corte", duration: 20, price: 30, icon: "✦" }],
+    address2: "Rua B, 20",
     availableTimes: ["09:00"],
   };
   const writes = [];
@@ -20,6 +23,7 @@ function fixture(bookings = []) {
     collection: () => "slots", where: () => null, query: () => null,
     getDocs: async () => ({ docs: bookings.map(booking => ({ data: () => booking })) }),
     documentKey: value => value.toLowerCase(),
+    normalizeWeeklyAvailability, serviceAvailableAt, URL,
     serverTimestamp: () => "now",
     runTransaction: async (_db, callback) => callback({
       get: async () => ({ exists: () => true, data: () => establishment }),
@@ -53,4 +57,21 @@ test("preço pode mudar, mas duração de serviço reservado não", async () => 
   assert.equal(writes.length, 1);
   await assert.rejects(context.saveService("demo", "corte", { ...details, duration: 40 }), /reservas futuras/);
   assert.equal(writes.length, 1);
+});
+
+test("serviço salva local e múltiplos intervalos semanais", async () => {
+  const { context, writes } = fixture();
+  const weeklyAvailability = { seg: [{ start: "08:00", end: "10:00" }, { start: "14:00", end: "16:00" }] };
+  const services = await context.saveService("demo", "corte", { name: "Corte", duration: 20, price: 30, icon: "✦", locationType: "address2", weeklyAvailability });
+  assert.equal(services[0].locationType, "address2");
+  assert.deepEqual(services[0].weeklyAvailability.seg, weeklyAvailability.seg);
+  assert.equal(writes.length, 1);
+});
+
+test("mudança de horário do serviço preserva reservas futuras", async () => {
+  const date = "2099-01-01";
+  const weekday = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][new Date(`${date}T12:00:00Z`).getUTCDay()];
+  const { context, writes } = fixture([{ date, time: "09:00", service: "Corte" }]);
+  await assert.rejects(context.saveService("demo", "corte", { name: "Corte", duration: 20, price: 30, icon: "✦", weeklyAvailability: { [weekday]: [{ start: "10:00", end: "11:00" }] } }), /reservas futuras/);
+  assert.equal(writes.length, 0);
 });

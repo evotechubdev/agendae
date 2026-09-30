@@ -20,6 +20,21 @@ test("próximos horários livres respeitam reservas, duração, almoço e expedi
   assert.deepEqual(upcomingFreeSlots({ ...salon, hours: [{ label: "Segunda", value: "Fechado" }] }, { todaySlots: slots }, now), []);
 });
 
+test("fila anuncia apenas horários do expediente diário com serviço disponível", () => {
+  const salon = {
+    hours: [{ label: "Segunda", value: "10:00 - 12:00" }],
+    services: [{ name: "Consulta", duration: 30, weeklyAvailability: { seg: [{ start: "10:30", end: "11:30" }] } }],
+    professionals: [{ name: "Bia", availableTimes: ["09:00", "10:00", "10:30", "11:00", "11:30", "12:00"] }],
+  };
+  const now = { date: "2026-09-28", minutes: 9 * 60 };
+  assert.deepEqual(upcomingFreeSlots(salon, {}, now), [
+    { kind: "free", time: "10:30", professional: "Bia" },
+    { kind: "free", time: "11:00", professional: "Bia" },
+  ]);
+  assert.equal(queueView(salon, {}, { ...now, minutes: 9 * 60 + 30 }).current[0].ticketState, "paused");
+  assert.equal(queueView(salon, {}, { ...now, minutes: 12 * 60 }).current[0].ticketState, "closed");
+});
+
 test("encerramento individual só encerra a equipe quando todos terminarem o expediente", () => {
   const individual = { professionals: [{ name: "A", availableTimes: ["09:00", "17:00"] }, { name: "B", availableTimes: ["10:00", "18:00"] }] };
   const partial = queueView(individual, {}, { ...clock, minutes: 17 * 60 + 1 }).current;

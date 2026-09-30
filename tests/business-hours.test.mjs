@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { serviceAvailableAt, scheduleTimeline } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
 const start = source.indexOf("function compactBusinessHours(");
@@ -28,4 +29,26 @@ test("expedientes distintos por dia não são substituídos pelo horário de seg
   assert.match(result, /Seg<\/strong> das 09:00 às 18:00/);
   assert.match(result, /Sex<\/strong> das 09:00 às 16:00/);
   assert.doesNotMatch(result, /Seg a sex/);
+});
+
+test("serviço só cabe no intervalo do dia e no expediente da loja", () => {
+  const store = { hours: [{ label: "Segunda", value: "08:00 - 12:00" }, { label: "Terça", value: "Fechado" }, { label: "Quarta", value: "13:00 - 19:00" }] };
+  const service = { duration: 40, weeklyAvailability: { seg: [{ start: "09:00", end: "10:00" }], qua: [{ start: "14:00", end: "15:00" }] } };
+  assert.equal(serviceAvailableAt(store, service, "2026-09-28", "09:00"), true);
+  assert.equal(serviceAvailableAt(store, service, "2026-09-28", "09:30"), false);
+  assert.equal(serviceAvailableAt(store, service, "2026-09-29", "09:00"), false);
+  assert.equal(serviceAvailableAt(store, service, "2026-09-30", "14:00"), true);
+  assert.equal(serviceAvailableAt(store, { duration: 40 }, "2026-09-28", "11:30"), false);
+});
+
+test("linha do tempo mostra somente o expediente do dia selecionado", () => {
+  const store = { hours: [{ label: "Segunda", value: "08:00 - 12:00" }, { label: "Quarta", value: "13:00 - 19:00" }],
+    professionals: [{ name: "Ana", availableTimes: ["08:00", "09:00", "13:00", "14:00"] }] };
+  const monday = scheduleTimeline(store, [], "2026-09-28");
+  const wednesday = scheduleTimeline(store, [], "2026-09-30");
+  assert.equal(monday.startTime, "08:00");
+  assert.equal(monday.endTime, "12:00");
+  assert.equal(wednesday.startTime, "13:00");
+  assert.equal(wednesday.endTime, "19:00");
+  assert.deepEqual(wednesday.professionals[0].availableTimes, ["13:00", "14:00"]);
 });

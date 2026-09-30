@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-import { lunchBreakFor, isLunchTime, scheduleFromPeriods, workPeriodsFor, serviceFitsSlot, businessDayIsClosed, appointmentDurationMinutes, appointmentPresenceWindow } from "./schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, scheduleFromPeriods, workPeriodsFor, serviceFitsSlot, serviceAvailableAt, businessDayIsClosed, appointmentDurationMinutes, appointmentPresenceWindow } from "./schedule-model.mjs";
+import { normalizeWeeklyAvailability } from "./establishment-model.mjs";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
@@ -241,7 +242,20 @@ export async function createEstablishmentWithOwner(details) {
 }
 
 export async function saveStoreProfile(slug, profile) {
-  await updateDoc(doc(db, "establishments", slug), { ...profile, updatedAt: serverTimestamp() });
+  const reference = doc(db, "establishments", slug);
+  const snapshot = await getDoc(reference);
+  if (!snapshot.exists()) throw new Error("Estabelecimento não encontrado.");
+  const establishment = snapshot.data();
+  if (!profile.address2 && (establishment.services || []).some(service => service.locationType === "address2")) throw new Error("O Endereço 2 está associado a um serviço. Altere o local do serviço antes de remover o endereço.");
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const slots = await getDocs(query(collection(db, "establishments", slug, "slots"), where("date", ">=", today)));
+  const updated = { ...establishment, ...profile };
+  if (slots.docs.some(item => {
+    const booking = item.data();
+    const service = (establishment.services || []).find(value => value.name === booking.service);
+    return service && !serviceAvailableAt(updated, service, booking.date, booking.time);
+  })) throw new Error("O novo expediente conflita com reservas futuras. Ajuste os horários ou reagende os atendimentos antes de salvar.");
+  await updateDoc(reference, { ...profile, updatedAt: serverTimestamp() });
 }
 
 export async function publishStore(slug) {
@@ -383,12 +397,27 @@ export async function saveService(slug, serviceId, details) {
     const current = services.find(item => item.id === serviceId);
     if (serviceId && !current) throw new Error("Serviço não encontrado.");
     if (services.some(item => item.name.toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR") && item.id !== serviceId)) throw new Error("Já existe um serviço com este nome.");
-    if (current && (current.name !== name || Number(current.duration) !== duration)) {
+    const locationType = String(details.locationType || current?.locationType || "address1");
+    if (!["address1", "address2", "online"].includes(locationType)) throw new Error("Selecione um local de atendimento válido.");
+    if (locationType === "address2" && !establishment.address2) throw new Error("Cadastre o Endereço 2 na aba Loja antes de usá-lo em um serviço.");
+    const meetingUrl = locationType === "online" ? String(details.meetingUrl ?? current?.meetingUrl ?? "").trim() : "";
+    if (meetingUrl) {
+      let url;
+      try { url = new URL(meetingUrl); } catch { throw new Error("Informe um link de reunião válido."); }
+      if (!["http:", "https:"].includes(url.protocol)) throw new Error("O link de reunião deve começar com http ou https.");
+    }
+    const weeklyAvailability = Object.hasOwn(details, "weeklyAvailability") ? normalizeWeeklyAvailability(details.weeklyAvailability) : current?.weeklyAvailability ?? null;
+    const coreChanged = current && (current.name !== name || Number(current.duration) !== duration || (current.locationType || "address1") !== locationType);
+    const scheduleChanged = current && JSON.stringify(current.weeklyAvailability ?? null) !== JSON.stringify(weeklyAvailability);
+    if (coreChanged || scheduleChanged) {
       const slots = await getDocs(query(collection(db, "establishments", slug, "slots"), where("service", "==", current.name)));
       const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
-      if (slots.docs.some(item => item.data().date >= today)) throw new Error("Este serviço possui reservas futuras. Mantenha o nome e a duração até os atendimentos terminarem.");
+      if (slots.docs.some(snapshot => {
+        const booking = snapshot.data();
+        return booking.date >= today && (coreChanged || !serviceAvailableAt(establishment, { ...current, duration, weeklyAvailability }, booking.date, booking.time));
+      })) throw new Error("Este serviço possui reservas futuras incompatíveis. Mantenha o local, nome, duração e horários desses atendimentos.");
     }
-    const item = { ...(current || {}), id: serviceId || documentKey(name) || crypto.randomUUID(), name, duration, price, icon };
+    const item = { ...(current || {}), id: serviceId || documentKey(name) || crypto.randomUUID(), name, duration, price, icon, locationType, meetingUrl, weeklyAvailability };
     if (!current && services.some(service => service.id === item.id)) throw new Error("Já existe um serviço com este identificador.");
     const next = current ? services.map(service => service.id === serviceId ? item : service) : [...services, item];
     const serviceDurations = Object.fromEntries(next.map(service => [service.name, Number(service.duration) || 20]));
@@ -476,7 +505,7 @@ export function observePublicState(slug, callback) {
   const unsubscribeEstablishment = onSnapshot(doc(db, "establishments", slug), (snapshot) => {
     const establishment = snapshot.data() || {};
     establishmentHours = establishment.hours || [];
-    establishmentSchedule = { professionals: establishment.professionals || [], services: establishment.services || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee", extraWorkingDates: establishment.extraWorkingDates || {} };
+    establishmentSchedule = { name: establishment.name || "", address: establishment.address || "", address2: establishment.address2 || "", professionals: establishment.professionals || [], services: establishment.services || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee", extraWorkingDates: establishment.extraWorkingDates || {} };
     professionalLunchBreaks = { ...Object.fromEntries((establishment.professionals || []).filter((item) => item.lunchBreak).map((item) => [item.name, item.lunchBreak])), ...establishment.professionalLunchBreaks };
     emit();
   }, () => emit());
@@ -567,12 +596,20 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
       throw error;
     }
     const establishment = establishmentSnapshot.data() || {};
-    const durationMinutes = appointmentDurationMinutes(establishment, { ...appointment, durationMinutes: undefined });
     if (businessDayIsClosed(establishment, appointment.date)) {
       const error = new Error("Sem expediente neste dia. Escolha outra data para agendar.");
       error.code = "agendae/slot-unavailable";
       throw error;
     }
+    const service = (establishment.services || []).find(item => item.name === appointment.service);
+    if (!serviceAvailableAt(establishment, service, appointment.date, appointment.time)) {
+      const error = new Error("Este serviço não está disponível neste dia e horário.");
+      error.code = "agendae/slot-unavailable";
+      throw error;
+    }
+    const durationMinutes = appointmentDurationMinutes(establishment, { ...appointment, durationMinutes: undefined });
+    const locationType = service.locationType || "address1";
+    const serviceAddress = locationType === "online" ? "" : locationType === "address2" ? establishment.address2 || "" : establishment.address || "";
     const professional = (establishment.professionals || []).find(item => item.name === appointment.professional);
     if (professional?.workPeriods?.length && (!professional.availableTimes.includes(appointment.time) || !serviceFitsSlot(establishment, appointment.professional, appointment.time, appointment.service))) {
       const error = new Error("Este atendimento não cabe na escala do profissional. Escolha outro horário.");
@@ -614,6 +651,9 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
     });
     transaction.set(appointmentRef, {
       ...appointment,
+      locationType,
+      serviceAddress,
+      meetingUrl: locationType === "online" ? service.meetingUrl || "" : "",
       durationMinutes,
       status: "confirmado",
       createdAt: serverTimestamp(),
@@ -625,6 +665,8 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
       time: appointment.time,
       service: appointment.service,
       professional: appointment.professional,
+      locationType,
+      serviceAddress,
       status: "confirmado",
     };
     transaction.set(lookupRef, {
@@ -632,7 +674,7 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
       updatedAt: serverTimestamp(),
     });
     transaction.set(codeLookupRef, {
-      appointments: [publicAppointment],
+      appointments: [{ ...publicAppointment, meetingUrl: locationType === "online" ? service.meetingUrl || "" : "" }],
       updatedAt: serverTimestamp(),
     });
     transaction.set(presenceRef, {

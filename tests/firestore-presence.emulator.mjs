@@ -73,11 +73,15 @@ test("reserva pública grava a duração e os documentos de consulta sob as nova
   const appointment = { ...appointmentAt(60), id, client: "Cliente", phone: "11999999999", checkInCode: "ABC123" };
   const item = { appointmentId: id, date: appointment.date, time: appointment.time, professional: appointment.professional, service: appointment.service, status: "confirmado", durationMinutes: 20 };
   if (legacy) { delete appointment.durationMinutes; delete item.durationMinutes; }
+  else {
+    Object.assign(appointment, { locationType: "online", serviceAddress: "", meetingUrl: "https://meet.example.com/consulta" });
+    Object.assign(item, { locationType: "online", serviceAddress: "" });
+  }
   const result = await request(":commit", { writes: [
     write(`establishments/demo/appointments/${id}`, appointment),
     write(`establishments/demo/slots/${id}`, { date: item.date, time: item.time, professional: item.professional, service: item.service }),
     write(`establishments/demo/appointmentLookups/${id}`, { appointments: [item] }),
-    write(`establishments/demo/appointmentCodeLookups/${id}`, { appointments: [item] }),
+    write(`establishments/demo/appointmentCodeLookups/${id}`, { appointments: [{ ...item, ...(!legacy ? { meetingUrl: appointment.meetingUrl } : {}) }] }),
     write(`establishments/demo/appointmentPresence/${id}`, { appointmentId: id, date: item.date, status: "confirmado" }),
   ] }, null);
   assert.equal(result.status, 200, JSON.stringify(result.body));

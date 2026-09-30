@@ -1,5 +1,5 @@
 ﻿import { queueView, upcomingFreeSlots, scheduledTicket, professionalInitial, serviceInitials, ticketState, ticketSubstatus, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
-import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessHoursForDate, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
+import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, serviceAvailableAt, workPeriodsFor, scheduleFromPeriods, businessHoursForDate, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
 import { renderBookingCalendar, shiftCalendarMonth } from "./calendar-model.mjs";
 import { loginCredentials } from "./login-model.mjs";
 import { establishmentSlug, storeProfile } from "./establishment-model.mjs";
@@ -533,13 +533,14 @@ function publicAccessMenu(establishment, authenticated = false) {
 function bookingContent(establishment) {
   const booking = state.booking;
   if (booking.step < 3 && businessDayIsClosed(establishment, booking.date)) return "";
+  const availableServices = (establishment.services || []).filter(item => serviceAvailableAt(establishment, item, booking.date, booking.time) && serviceFitsSlot(establishment, booking.professional, booking.time, item.name, getData(establishment).slots || []));
 
   if (booking.step === 2) return `<div class="booking-modal-backdrop" data-booking-modal-backdrop>
     <section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
       <div class="booking-modal-head"><div><small>FINALIZAR AGENDAMENTO</small><h2 id="booking-modal-title">Escolha o serviço e confirme</h2></div><button class="booking-modal-close" type="button" data-close-selected-booking aria-label="Fechar janela">×</button></div>
       <form id="booking-form" class="booking-modal-form">
         <p class="booking-modal-lead">Selecione o serviço desejado. A duração e o valor variam conforme a opção escolhida.</p>
-        <fieldset class="booking-service-picker"><legend>Serviço <span>Obrigatório</span></legend><div class="booking-service-options">${establishment.services.map((item) => `<label class="booking-service-option"><input type="radio" name="service" value="${escapeHTML(item.id)}" data-booking-service required ${booking.serviceId === item.id ? "checked" : ""}><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span class="booking-service-info"><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span><i aria-hidden="true">✓</i></label>`).join("")}</div></fieldset>
+        <fieldset class="booking-service-picker"><legend>Serviço <span>Obrigatório</span></legend><div class="booking-service-options">${availableServices.map((item) => `<label class="booking-service-option"><input type="radio" name="service" value="${escapeHTML(item.id)}" data-booking-service required ${booking.serviceId === item.id ? "checked" : ""}><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span class="booking-service-info"><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos · ${escapeHTML(serviceLocationLabel(establishment, item))}</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span><i aria-hidden="true">✓</i></label>`).join("") || '<p class="empty">Nenhum serviço disponível neste horário. Escolha outro.</p>'}</div></fieldset>
         <div class="mini-field-grid"><div class="field full"><label for="customer-name">Nome completo</label><input id="customer-name" name="name" type="text" autocomplete="name" required placeholder="Digite seu nome"></div><div class="field full"><label for="customer-phone">Telefone <span class="optional-label">(opcional)</span></label><input id="customer-phone" name="phone" type="tel" autocomplete="tel" placeholder="(00) 00000-0000"></div></div>
         <div class="confirmation-data booking-review"><div class="confirmation-row"><span>Data</span><strong>${prettyDate(booking.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(booking.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(booking.professional)}</strong></div></div>
         <div class="booking-actions"><button class="btn btn-outline" type="button" data-booking-back>Voltar</button><button class="btn btn-yellow" type="submit">Confirmar agendamento</button></div>
@@ -548,14 +549,14 @@ function bookingContent(establishment) {
   </div>`;
 
   const item = booking.confirmation;
-  return `<div class="booking-modal-backdrop"><section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-confirmation-title"><div class="booking-modal-head"><div><small>AGENDAMENTO CONCLUÍDO</small><h2 id="booking-confirmation-title">Agendamento confirmado</h2></div><button class="booking-modal-close" type="button" data-new-booking aria-label="Fechar confirmação">×</button></div><div class="booking-modal-form"><div class="confirmation"><div class="confirmation-icon">✓</div><p class="booking-lead">Seu horário na ${escapeHTML(establishment.name)} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(item.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div></div><div class="call-ticket"><span>Senha no painel</span><strong>${escapeHTML(scheduledTicket(establishment, item.time, item.professional, item.service))}</strong><p>Esta senha identifica seu horário quando ele for chamado.</p></div><div class="checkin-password"><span>Sua senha de presença</span><strong>${escapeHTML(item.checkInCode)}</strong><p>Guarde esta senha para confirmar sua chegada. Ela não aparece no painel público.</p></div><div class="booking-actions"><span></span><button class="btn btn-primary" type="button" data-new-booking>Fazer outro agendamento</button></div></div></div></section></div>`;
+  return `<div class="booking-modal-backdrop"><section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-confirmation-title"><div class="booking-modal-head"><div><small>AGENDAMENTO CONCLUÍDO</small><h2 id="booking-confirmation-title">Agendamento confirmado</h2></div><button class="booking-modal-close" type="button" data-new-booking aria-label="Fechar confirmação">×</button></div><div class="booking-modal-form"><div class="confirmation"><div class="confirmation-icon">✓</div><p class="booking-lead">Seu horário na ${escapeHTML(establishment.name)} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(item.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div><div class="confirmation-row"><span>Local</span><strong>${escapeHTML(item.locationType === "online" ? "Atendimento On line" : item.serviceAddress || establishment.address)}</strong></div></div>${item.locationType === "online" && item.meetingUrl ? `<p><a href="${escapeHTML(item.meetingUrl)}" target="_blank" rel="noopener noreferrer">Abrir link da reunião</a></p>` : ""}<div class="call-ticket"><span>Senha no painel</span><strong>${escapeHTML(scheduledTicket(establishment, item.time, item.professional, item.service))}</strong><p>Esta senha identifica seu horário quando ele for chamado.</p></div><div class="checkin-password"><span>Sua senha de presença</span><strong>${escapeHTML(item.checkInCode)}</strong><p>Guarde esta senha para confirmar sua chegada. Ela não aparece no painel público.</p></div><div class="booking-actions"><span></span><button class="btn btn-primary" type="button" data-new-booking>Fazer outro agendamento</button></div></div></div></section></div>`;
 }
 
 function publicSchedule(establishment) {
   if (establishment.setupComplete === false) return `<div class="schedule-empty" role="status">A agenda de ${escapeHTML(establishment.name)} está em configuração. Os horários para agendamento aparecerão aqui após a publicação pelo responsável.</div>`;
   const data = getData(establishment);
   const canManage = typeof session === "function" && session()?.slug === establishment.slug;
-  const timeline = scheduleTimeline(establishment, data.slots || []);
+  const timeline = scheduleTimeline(establishment, data.slots || [], state.booking.date);
   const { times, professionals, step, majorStep } = timeline;
   const clock = currentSaoPauloClock();
   const isToday = state.booking.date === clock.date;
@@ -582,13 +583,14 @@ function publicSchedule(establishment) {
       }
       const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
       const status = closed ? "closed" : ticketState({ date: state.booking.date, time, booked: Boolean(appointment), currentTime, paused, status: appointment?.status }, clock);
+      const serviceReady = !(establishment.services || []).length || establishment.services.some(service => serviceAvailableAt(establishment, service, state.booking.date, time) && serviceFitsSlot(establishment, professional.name, time, service.name, data.slots || []));
       const substatus = ticketSubstatus(appointment, status);
       const ticket = scheduledTicket(establishment, time, professional.name, appointment?.service);
       const chosen = selected === time;
-      const label = `${ticket}, ${professional.name}, ${time}, ${TICKET_STATES[status]}${substatus ? `, ${substatus}` : ""}${chosen ? ", selecionado" : ""}${canManage && isToday && appointment ? ", abrir atendimento" : ""}`;
-      const action = status === "free" ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"`
+      const label = `${ticket}, ${professional.name}, ${time}, ${status === "free" && !serviceReady ? "nenhum serviço disponível" : TICKET_STATES[status]}${substatus ? `, ${substatus}` : ""}${chosen ? ", selecionado" : ""}${canManage && isToday && appointment ? ", abrir atendimento" : ""}`;
+      const action = status === "free" && serviceReady ? `data-public-slot data-professional-name="${escapeHTML(professional.name)}" data-slot-time="${escapeHTML(time)}" aria-pressed="${chosen}"`
         : canManage && isToday && appointment ? `data-open-attendance-slot data-appointment-id="${escapeHTML(appointment.appointmentId || "")}" data-professional-name="${escapeHTML(appointment.professional || professional.name)}" data-slot-time="${escapeHTML(time)}"` : 'disabled';
-      return `<td colspan="${span}"><button class="matrix-slot ${span * step <= 20 ? "matrix-slot-tight" : ""} ${span * step < 20 ? "matrix-slot-short" : ""} ticket-state-${status} ${chosen ? "selected" : ""} ${substatus ? "has-confirmed-presence" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code"><span>${escapeHTML(ticket.slice(0, 3))}</span><span>${escapeHTML(ticket.slice(3))}</span></strong><small class="matrix-start-time">${escapeHTML(time)}</small><i class="matrix-status-dot" aria-hidden="true">${chosen || substatus ? "✓" : ""}</i>${substatus ? `<small class="matrix-presence-confirmed">${substatus}</small>` : ""}</button></td>`;
+      return `<td colspan="${span}"><button class="matrix-slot ${span * step <= 20 ? "matrix-slot-tight" : ""} ${span * step < 20 ? "matrix-slot-short" : ""} ticket-state-${status} ${status === "free" && !serviceReady ? "service-unavailable" : ""} ${chosen ? "selected" : ""} ${substatus ? "has-confirmed-presence" : ""}" type="button" ${action} aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code"><span>${escapeHTML(ticket.slice(0, 3))}</span><span>${escapeHTML(ticket.slice(3))}</span></strong><small class="matrix-start-time">${escapeHTML(time)}</small><i class="matrix-status-dot" aria-hidden="true">${chosen || substatus ? "✓" : ""}</i>${substatus ? `<small class="matrix-presence-confirmed">${substatus}</small>` : ""}</button></td>`;
     }).join("");
     const avatar = `<span class="matrix-avatar" aria-hidden="true">${escapeHTML(Array.from(professional.name.trim())[0]?.toLocaleUpperCase("pt-BR") || "?")}</span>`;
     const name = `<span><strong>${escapeHTML(professional.name)}</strong><small>${escapeHTML(professional.role || "Profissional")}</small></span>`;
@@ -624,7 +626,7 @@ function publicSchedule(establishment) {
 function moveScheduleTurn(establishment, direction = 1) {
   const body = document.querySelector(".public-schedule-body");
   if (!body) return;
-  const periods = scheduleDayPeriods(scheduleTimeline(establishment, getData(establishment).slots || []));
+  const periods = scheduleDayPeriods(scheduleTimeline(establishment, getData(establishment).slots || [], state.booking.date));
   if (periods.length < 2) return;
   const index = Math.max(0, periods.findIndex(period => period.id === state.scheduleTurn?.id));
   const next = periods[(index + direction + periods.length) % periods.length];
@@ -643,7 +645,7 @@ function startScheduleTurnTimer(establishment) {
   scheduleTurnTimer = null;
   if (businessDayIsClosed(establishment, state.booking.date)) return;
   if (state.scheduleAuto === false || !document.querySelector(".public-schedule-body")) return;
-  const periods = scheduleDayPeriods(scheduleTimeline(establishment, getData(establishment).slots || []));
+  const periods = scheduleDayPeriods(scheduleTimeline(establishment, getData(establishment).slots || [], state.booking.date));
   if (periods.length < 2) return;
   const elapsed = Date.now() - (state.scheduleTurn?.changedAt ?? Date.now());
   scheduleTurnTimer = setTimeout(() => {
@@ -673,8 +675,21 @@ function restoreScheduleScroll() {
   matrix.addEventListener("scroll", () => { state.scheduleScrollLeft = matrix.scrollLeft; }, { passive: true });
 }
 
+function serviceLocationLabel(establishment, service) {
+  if (service.locationType === "online") return "Atendimento On line";
+  if (service.locationType === "address2") return `Endereço 2: ${establishment.address2 || "a definir"}`;
+  return `Endereço 1: ${establishment.address || "a definir"}`;
+}
+
+function serviceWeeklyLabel(service) {
+  if (service.weeklyAvailability == null) return "Todo o expediente";
+  return [["seg", "Seg"], ["ter", "Ter"], ["qua", "Qua"], ["qui", "Qui"], ["sex", "Sex"], ["sab", "Sáb"], ["dom", "Dom"]]
+    .filter(([day]) => service.weeklyAvailability[day]?.length)
+    .map(([day, label]) => `${label} ${service.weeklyAvailability[day].map(interval => `${interval.start}–${interval.end}`).join(", ")}`).join(" · ");
+}
+
 function publicServiceCards(establishment) {
-  return `<section class="public-services" id="servicos-agendamento"><div class="service-list">${establishment.services.map((item) => `<article class="service-card-display"><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("") || (establishment.setupComplete === false ? '<p class="empty">Os serviços aparecerão após o cadastro.</p>' : "")}</div></section>`;
+  return `<section class="public-services" id="servicos-agendamento"><div class="service-list">${establishment.services.map((item) => `<article class="service-card-display" title="${escapeHTML(`${serviceLocationLabel(establishment, item)} · ${serviceWeeklyLabel(item)}`)}"><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos · ${escapeHTML(serviceLocationLabel(establishment, item))}</small><small>${escapeHTML(serviceWeeklyLabel(item))}</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("") || (establishment.setupComplete === false ? '<p class="empty">Os serviços aparecerão após o cadastro.</p>' : "")}</div></section>`;
 }
 
 function moveServiceCarousel(direction = 1) {
@@ -706,9 +721,12 @@ function publicAppointmentLookup() {
     : lookup.searched && !lookup.results.length
       ? `<div class="lookup-message">Nenhum agendamento foi encontrado com ${lookup.method === "code" ? "essa senha" : "esse nome completo"}.</div>`
       : lookup.results.map((item) => {
-        const canCheckIn = item.status === "confirmado" && appointmentPresenceWindow(activeEstablishment(), item).allowed;
+        const online = item.locationType === "online";
+        const canCheckIn = !online && item.status === "confirmado" && appointmentPresenceWindow(activeEstablishment(), item).allowed;
         const isPresent = item.status === "presente";
-        return `<article class="lookup-result checkin-result"><div><small>${prettyDate(item.date, true)}</small><strong>${escapeHTML(item.time)} · ${escapeHTML(item.service)}</strong><span>${escapeHTML(item.professional)}</span></div><div><em class="status ${escapeHTML(item.status || "confirmado")}">${escapeHTML(statusLabel(item.status))}</em>${canCheckIn ? `<button class="btn btn-primary btn-sm" type="button" data-start-checkin="${escapeHTML(item.appointmentId)}">Ler QR e confirmar</button>` : isPresent ? '<span class="presence-done">✓ Presença registrada</span>' : `<span class="presence-unavailable">${presenceWindowLabel(activeEstablishment(), item)}</span>`}</div></article>`;
+        const place = online ? "Atendimento On line" : item.serviceAddress || activeEstablishment()?.address || "Endereço a confirmar";
+        const meetingLink = online && lookup.method === "code" && /^https?:\/\//i.test(item.meetingUrl || "") ? `<a href="${escapeHTML(item.meetingUrl)}" target="_blank" rel="noopener noreferrer">Abrir reunião</a>` : "";
+        return `<article class="lookup-result checkin-result"><div><small>${prettyDate(item.date, true)}</small><strong>${escapeHTML(item.time)} · ${escapeHTML(item.service)}</strong><span>${escapeHTML(item.professional)}</span><span>${escapeHTML(place)}</span>${meetingLink}</div><div><em class="status ${escapeHTML(item.status || "confirmado")}">${escapeHTML(statusLabel(item.status))}</em>${online ? `<span class="presence-unavailable">${meetingLink ? "Entre pelo link no horário reservado." : lookup.method === "name" ? "Use sua senha para consultar os detalhes online." : "O estabelecimento informará o acesso online."}</span>` : canCheckIn ? `<button class="btn btn-primary btn-sm" type="button" data-start-checkin="${escapeHTML(item.appointmentId)}">Ler QR e confirmar</button>` : isPresent ? '<span class="presence-done">✓ Presença registrada</span>' : `<span class="presence-unavailable">${presenceWindowLabel(activeEstablishment(), item)}</span>`}</div></article>`;
       }).join("");
   const success = lookup.success ? `<div class="checkin-success" role="status"><span>✓</span><div><strong>Presença confirmada!</strong><p>${escapeHTML(lookup.success.time)} · ${escapeHTML(lookup.success.service)}. A equipe já pode ver que você chegou.</p></div></div>` : "";
   const scanner = lookup.scanning ? `<div class="booking-modal-backdrop" data-checkin-backdrop>
@@ -962,9 +980,11 @@ function compactBusinessHours(establishment) {
       ? [{ label: "Seg a sex", value: weekdays[0].value }]
       : weekdays;
   const saturday = hours.find((item) => labelKey(item.label).startsWith("sab"));
+  const sunday = hours.find((item) => labelKey(item.label).startsWith("dom"));
   const parts = [
     ...weekdayParts.map((item) => `<span><strong>${item.label}</strong> ${escapeHTML(range(item.value))}</span>`),
     saturday?.value ? `<span><strong>Sáb</strong> ${escapeHTML(range(saturday.value))}</span>` : "",
+    sunday?.value ? `<span><strong>Dom</strong> ${escapeHTML(range(sunday.value))}</span>` : "",
   ].filter(Boolean);
   return parts.join('<i aria-hidden="true">•</i>') || `<span>${escapeHTML(establishment.todayHours || "Consulte o funcionamento")}</span>`;
 }
@@ -989,9 +1009,24 @@ function professionalSettingsMarkup(establishment) {
   return `<div class="settings-section"><p class="settings-hint">Cadastre quem atende na agenda. O acesso por login continua vinculado à conta da equipe.</p>${items || '<p class="empty">Nenhum funcionário cadastrado.</p>'}<form class="settings-item-form" data-professional-form><h3>Adicionar funcionário</h3><div class="settings-fields"><label>Nome<input name="name" maxlength="80" required></label><label>Função<input name="role" maxlength="80" placeholder="Profissional"></label></div><button class="btn btn-primary btn-sm" type="submit">Adicionar funcionário</button></form></div>`;
 }
 
+function serviceIntervalMarkup(interval = {}) {
+  return `<div class="service-interval-row" data-service-interval><input type="time" data-interval-start value="${escapeHTML(interval.start || "08:00")}" aria-label="Início do intervalo"><span>até</span><input type="time" data-interval-end value="${escapeHTML(interval.end || "18:00")}" aria-label="Fim do intervalo"><button type="button" data-remove-service-interval aria-label="Remover intervalo">×</button></div>`;
+}
+
+function serviceSettingsForm(item = {}) {
+  const days = [["seg", "Segunda"], ["ter", "Terça"], ["qua", "Quarta"], ["qui", "Quinta"], ["sex", "Sexta"], ["sab", "Sábado"], ["dom", "Domingo"]];
+  const custom = item.weeklyAvailability != null;
+  const online = item.locationType === "online";
+  const weeklyRows = days.map(([day, label]) => {
+    const intervals = item.weeklyAvailability?.[day] || [];
+    return `<div class="service-day-row" data-service-day="${day}"><label><input type="checkbox" data-service-day-enabled ${intervals.length ? "checked" : ""}>${label}</label><div class="service-intervals" data-service-intervals>${(intervals.length ? intervals : [{}]).map(serviceIntervalMarkup).join("")}</div><button class="btn btn-outline btn-sm" type="button" data-add-service-interval>+ Intervalo</button></div>`;
+  }).join("");
+  return `<form class="settings-item-form" data-service-form ${item.id ? `data-service-id="${escapeHTML(item.id)}"` : ""}>${item.id ? "" : "<h3>Adicionar serviço</h3>"}<div class="settings-fields settings-service-fields"><label>Serviço<input name="name" value="${escapeHTML(item.name || "")}" maxlength="80" required></label><label>Duração (min)<input name="duration" type="number" min="1" max="1440" step="1" value="${Number(item.duration) || 20}" required></label><label>Preço (R$)<input name="price" type="number" min="0" step="0.01" value="${Number(item.price) || 0}" required></label><label>Ícone<input name="icon" value="${escapeHTML(item.icon || "✦")}" maxlength="8" aria-label="Ícone do serviço"></label><label>Local do atendimento<select name="locationType" data-service-location><option value="address1" ${!item.locationType || item.locationType === "address1" ? "selected" : ""}>Endereço 1</option><option value="address2" ${item.locationType === "address2" ? "selected" : ""}>Endereço 2</option><option value="online" ${online ? "selected" : ""}>Atendimento On line</option></select></label><label data-service-meeting-url ${online ? "" : "hidden"}>Link da reunião <small>(opcional)</small><input name="meetingUrl" type="url" value="${escapeHTML(item.meetingUrl || "")}" placeholder="https://..."></label></div><label class="service-availability-mode">Disponibilidade do serviço<select name="availabilityMode" data-service-availability-mode><option value="all" ${custom ? "" : "selected"}>Todo o expediente da loja</option><option value="custom" ${custom ? "selected" : ""}>Dias e horários específicos</option></select></label><div class="service-weekly-grid" data-service-weekly ${custom ? "" : "hidden"}>${weeklyRows}</div><div class="settings-item-actions"><button class="btn btn-primary btn-sm" type="submit">${item.id ? "Salvar" : "Adicionar serviço"}</button>${item.id ? `<button class="btn btn-outline btn-sm" type="button" data-remove-service="${escapeHTML(item.id)}">Remover</button>` : ""}</div></form>`;
+}
+
 function serviceSettingsMarkup(establishment) {
-  const items = (establishment.services || []).map((item) => `<form class="settings-item-form" data-service-form data-service-id="${escapeHTML(item.id)}"><div class="settings-fields settings-service-fields"><label>Serviço<input name="name" value="${escapeHTML(item.name)}" maxlength="80" required></label><label>Duração (min)<input name="duration" type="number" min="1" max="1440" step="1" value="${Number(item.duration) || 20}" required></label><label>Preço (R$)<input name="price" type="number" min="0" step="0.01" value="${Number(item.price) || 0}" required></label><label>Ícone<input name="icon" value="${escapeHTML(item.icon || "✦")}" maxlength="8" aria-label="Ícone do serviço"></label></div><div class="settings-item-actions"><button class="btn btn-primary btn-sm" type="submit">Salvar</button><button class="btn btn-outline btn-sm" type="button" data-remove-service="${escapeHTML(item.id)}">Remover</button></div></form>`).join("");
-  return `<div class="settings-section"><p class="settings-hint">Os serviços aparecem na escolha do cliente. Alterações de nome ou duração exigem que não haja reservas futuras para o serviço.</p>${items || '<p class="empty">Nenhum serviço cadastrado.</p>'}<form class="settings-item-form" data-service-form><h3>Adicionar serviço</h3><div class="settings-fields settings-service-fields"><label>Serviço<input name="name" maxlength="80" required></label><label>Duração (min)<input name="duration" type="number" min="1" max="1440" step="1" value="20" required></label><label>Preço (R$)<input name="price" type="number" min="0" step="0.01" value="0" required></label><label>Ícone<input name="icon" maxlength="8" value="✦" aria-label="Ícone do serviço"></label></div><button class="btn btn-primary btn-sm" type="submit">Adicionar serviço</button></form></div>`;
+  const items = (establishment.services || []).map(serviceSettingsForm).join("");
+  return `<div class="settings-section"><p class="settings-hint">Defina o local e, se desejar, os dias e horários próprios de cada serviço. O horário também precisa caber no expediente da loja e na escala do profissional.</p>${items || '<p class="empty">Nenhum serviço cadastrado.</p>'}${serviceSettingsForm()}</div>`;
 }
 
 function hoursSettingsMarkup(establishment) {
@@ -1000,14 +1035,17 @@ function hoursSettingsMarkup(establishment) {
 
 function storeSettingsMarkup(establishment) {
   if (session()?.role !== "admin") return '<div class="settings-section"><p class="settings-hint">Somente o administrador da loja pode alterar os dados do estabelecimento.</p></div>';
-  const weekday = (establishment.hours || []).find(item => /seg/i.test(item.label || "") && /sex/i.test(item.label || ""));
-  const times = String(weekday?.value || "").match(/(\d{2}:\d{2}).*?(\d{2}:\d{2})/);
-  const saturday = (establishment.hours || []).find(item => /s[aá]b/i.test(item.label || ""));
-  const sunday = (establishment.hours || []).find(item => /dom/i.test(item.label || ""));
-  const ready = establishment.name !== "Estabelecimento em configuração" && establishment.category && establishment.neighborhood && establishment.address && establishment.hours?.length && establishment.professionals?.length && establishment.services?.length && establishment.availableTimes?.length;
+  const days = [["seg", "Segunda", "2026-09-28"], ["ter", "Terça", "2026-09-29"], ["qua", "Quarta", "2026-09-30"], ["qui", "Quinta", "2026-10-01"], ["sex", "Sexta", "2026-10-02"], ["sab", "Sábado", "2026-10-03"], ["dom", "Domingo", "2026-10-04"]];
+  const weeklyRows = days.map(([day, label, date]) => {
+    const entry = businessHoursForDate(establishment, date);
+    const open = entry ? !/fechado/i.test(entry.value || "") : (establishment.hours || []).length ? false : !["sab", "dom"].includes(day);
+    const times = String(entry?.value || "").match(/(\d{2}:\d{2}).*?(\d{2}:\d{2})/);
+    return `<div class="store-day-row"><label><input type="checkbox" name="day_${day}_open" ${open ? "checked" : ""}>${label}</label><input type="time" name="day_${day}_start" value="${times?.[1] || "08:00"}" aria-label="Abertura na ${label}"><span>até</span><input type="time" name="day_${day}_end" value="${times?.[2] || "18:00"}" aria-label="Fechamento na ${label}"></div>`;
+  }).join("");
+  const ready = establishment.name !== "Estabelecimento em configuração" && establishment.category && establishment.neighborhood && establishment.address && establishment.hours?.length && establishment.professionals?.length && establishment.services?.length && establishment.availableTimes?.length && (!(establishment.services || []).some(item => item.locationType === "address2") || establishment.address2);
   return `<div class="settings-section store-profile-settings"><p class="settings-hint">O endereço da página é <strong>${escapeHTML(establishment.slug)}</strong>. Preencha os dados da loja aqui; depois cadastre funcionários, escalas e serviços nas outras abas.</p>
-    <form class="settings-item-form" data-store-profile-form><h3>Dados do estabelecimento</h3><div class="settings-fields"><label>Nome da loja<input name="name" maxlength="100" required value="${escapeHTML(establishment.name === "Estabelecimento em configuração" ? "" : establishment.name)}"></label><label>Categoria<input name="category" required value="${escapeHTML(establishment.category || "")}" placeholder="Ex.: Barbearia"></label><label>Bairro<input name="neighborhood" required value="${escapeHTML(establishment.neighborhood || "")}"></label><label>Endereço<input name="address" required value="${escapeHTML(establishment.address || "")}"></label></div>
-      <h3>Funcionamento</h3><p class="settings-hint">A escala cadastrada na aba Horários deve caber neste expediente. Os dias abertos usam a mesma faixa de horários.</p><div class="settings-fields"><label>Abre às<input name="opening" type="time" required value="${times?.[1] || "08:00"}"></label><label>Fecha às<input name="closing" type="time" required value="${times?.[2] || "18:00"}"></label></div><div class="store-weekend-options"><label><input name="saturdayOpen" type="checkbox" ${saturday && !/fechado/i.test(saturday.value) ? "checked" : ""}> Abre aos sábados</label><label><input name="sundayOpen" type="checkbox" ${sunday && !/fechado/i.test(sunday.value) ? "checked" : ""}> Abre aos domingos</label></div><button class="btn btn-primary btn-sm" type="submit">Salvar dados da loja</button></form>
+    <form class="settings-item-form" data-store-profile-form><h3>Dados do estabelecimento</h3><div class="settings-fields"><label>Nome da loja<input name="name" maxlength="100" required value="${escapeHTML(establishment.name === "Estabelecimento em configuração" ? "" : establishment.name)}"></label><label>Categoria<input name="category" required value="${escapeHTML(establishment.category || "")}" placeholder="Ex.: Barbearia"></label><label>Bairro<input name="neighborhood" required value="${escapeHTML(establishment.neighborhood || "")}"></label><label>Endereço 1<input name="address" required value="${escapeHTML(establishment.address || "")}"></label><label>Endereço 2 <small>(opcional)</small><input name="address2" value="${escapeHTML(establishment.address2 || "")}" placeholder="Local de atendimento de serviços específicos"></label></div>
+      <h3>Expediente por dia da semana</h3><p class="settings-hint">Marque os dias de atendimento e informe a abertura e o fechamento de cada um. A escala dos profissionais também precisa caber nesses horários.</p><div class="store-weekly-grid">${weeklyRows}</div><button class="btn btn-primary btn-sm" type="submit">Salvar dados da loja</button></form>
     ${establishment.setupComplete === false ? `<div class="store-publish"><strong>Publicação</strong><p>Para aparecer na busca e aceitar agendamentos, salve os dados da loja, adicione pelo menos um funcionário, uma escala e um serviço.</p><button class="btn btn-primary btn-sm" type="button" data-publish-store ${ready ? "" : "disabled"}>Publicar estabelecimento</button></div>` : '<p class="settings-hint">Este estabelecimento já está publicado.</p>'}</div>`;
 }
 
@@ -1647,6 +1685,24 @@ document.addEventListener("click", async (event) => {
     else toast("Mantenha pelo menos um período de trabalho.", "!");
     return;
   }
+  const addServiceInterval = event.target.closest("[data-add-service-interval]");
+  if (addServiceInterval) {
+    const day = addServiceInterval.closest("[data-service-day]");
+    day.closest("[data-service-form]").dataset.dirty = "true";
+    day.querySelector("[data-service-day-enabled]").checked = true;
+    day.querySelector("[data-service-intervals]").insertAdjacentHTML("beforeend", serviceIntervalMarkup());
+    day.querySelector("[data-service-interval]:last-child [data-interval-start]")?.focus();
+    return;
+  }
+  const removeServiceInterval = event.target.closest("[data-remove-service-interval]");
+  if (removeServiceInterval) {
+    const day = removeServiceInterval.closest("[data-service-day]");
+    const rows = day.querySelectorAll("[data-service-interval]");
+    if (rows.length > 1) removeServiceInterval.closest("[data-service-interval]").remove();
+    else day.querySelector("[data-service-day-enabled]").checked = false;
+    day.closest("[data-service-form]").dataset.dirty = "true";
+    return;
+  }
   if (event.target.closest("[data-agenda-logo]")) {
     event.preventDefault();
     const establishment = activeEstablishment();
@@ -1923,6 +1979,14 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-service-availability-mode]")) {
+    event.target.closest("[data-service-form]").querySelector("[data-service-weekly]").hidden = event.target.value !== "custom";
+    return;
+  }
+  if (event.target.matches("[data-service-location]")) {
+    event.target.closest("[data-service-form]").querySelector("[data-service-meeting-url]").hidden = event.target.value !== "online";
+    return;
+  }
   if (event.target.matches("[data-schedule-turn-auto]")) {
     state.scheduleAuto = event.target.checked;
     if (event.target.checked) state.schedulePausedByCalendar = false;
@@ -2071,8 +2135,12 @@ document.addEventListener("submit", async (event) => {
         Object.assign(establishment, result);
         toast("Funcionário salvo.");
       } else {
+        const weeklyAvailability = form.get("availabilityMode") === "custom"
+          ? Object.fromEntries([...event.target.querySelectorAll("[data-service-day]")].filter(day => day.querySelector("[data-service-day-enabled]").checked).map(day => [day.dataset.serviceDay, [...day.querySelectorAll("[data-service-interval]")].map(row => ({ start: row.querySelector("[data-interval-start]").value, end: row.querySelector("[data-interval-end]").value }))]))
+          : null;
         establishment.services = await firebaseApi.saveService(establishment.slug, event.target.dataset.serviceId || "", {
           name: form.get("name"), duration: form.get("duration"), price: form.get("price"), icon: form.get("icon"),
+          locationType: form.get("locationType"), meetingUrl: form.get("meetingUrl"), weeklyAvailability,
         });
         toast("Serviço salvo.");
       }
@@ -2259,8 +2327,16 @@ document.addEventListener("submit", async (event) => {
       event.target.querySelector("[data-booking-service]")?.focus();
       return;
     }
+    if (!serviceAvailableAt(establishment, service, state.booking.date, state.booking.time) || !serviceFitsSlot(establishment, state.booking.professional, state.booking.time, service.name, getData(establishment).slots || [])) {
+      state.booking.step = 1;
+      state.booking.time = null;
+      render();
+      toast("Este serviço não está disponível no dia e horário escolhido.", "!");
+      return;
+    }
     state.booking.serviceId = selectedServiceId;
-    const appointment = { id: crypto.randomUUID(), date: state.booking.date, time: state.booking.time, client: form.get("name").trim(), phone: form.get("phone").trim(), service: service.name, professional: state.booking.professional, status: "confirmado", checkInCode: generateCheckInCode() };
+    const locationType = service.locationType || "address1";
+    const appointment = { id: crypto.randomUUID(), date: state.booking.date, time: state.booking.time, client: form.get("name").trim(), phone: form.get("phone").trim(), service: service.name, professional: state.booking.professional, locationType, serviceAddress: locationType === "online" ? "" : locationType === "address2" ? establishment.address2 || "" : establishment.address || "", meetingUrl: locationType === "online" ? service.meetingUrl || "" : "", status: "confirmado", checkInCode: generateCheckInCode() };
     const button = event.target.querySelector("button[type=submit]");
     button.disabled = true;
     button.textContent = "Confirmando…";

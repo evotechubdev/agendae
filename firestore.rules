@@ -64,7 +64,7 @@ service cloud.firestore {
           'extraWorkingDates', 'staffClosedDates', 'updatedAt'
         ])) || (administers(slug)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'name', 'initials', 'category', 'neighborhood', 'address',
+            'name', 'initials', 'category', 'neighborhood', 'address', 'address2',
             'hours', 'setupComplete', 'updatedAt'
           ])
           && (request.resource.data.get('setupComplete', true) != true || (
@@ -130,7 +130,8 @@ service cloud.firestore {
         allow create: if published(slug) && (manages(slug)
           || (request.resource.data.keys().hasOnly([
             'id', 'date', 'time', 'client', 'phone', 'service',
-            'professional', 'status', 'checkInCode', 'createdAt', 'durationMinutes'
+            'professional', 'status', 'checkInCode', 'createdAt', 'durationMinutes',
+            'locationType', 'serviceAddress', 'meetingUrl'
           ])
           && request.resource.data.date is string
           && request.resource.data.time is string
@@ -162,8 +163,10 @@ service cloud.firestore {
       match /appointmentLookups/{lookupKey} {
         function validPublicAppointment(item) {
           let appointment = getAfter(/databases/$(database)/documents/establishments/$(slug)/appointments/$(item.appointmentId)).data;
-          return item.keys().hasOnly(['appointmentId', 'date', 'time', 'service', 'professional', 'status', 'durationMinutes'])
+          return item.keys().hasOnly(['appointmentId', 'date', 'time', 'service', 'professional', 'status', 'durationMinutes', 'locationType', 'serviceAddress'])
             && item.get('durationMinutes', 20) == appointment.get('durationMinutes', 20)
+            && item.get('locationType', 'address1') == appointment.get('locationType', 'address1')
+            && item.get('serviceAddress', '') == appointment.get('serviceAddress', '')
             && item.date == appointment.date
             && item.time == appointment.time
             && item['service'] == appointment['service']
@@ -189,8 +192,11 @@ service cloud.firestore {
       match /appointmentCodeLookups/{lookupKey} {
         function validCodeAppointment(item) {
           let appointment = getAfter(/databases/$(database)/documents/establishments/$(slug)/appointments/$(item.appointmentId)).data;
-          return item.keys().hasOnly(['appointmentId', 'date', 'time', 'service', 'professional', 'status', 'durationMinutes'])
+          return item.keys().hasOnly(['appointmentId', 'date', 'time', 'service', 'professional', 'status', 'durationMinutes', 'locationType', 'serviceAddress', 'meetingUrl'])
             && item.get('durationMinutes', 20) == appointment.get('durationMinutes', 20)
+            && item.get('locationType', 'address1') == appointment.get('locationType', 'address1')
+            && item.get('serviceAddress', '') == appointment.get('serviceAddress', '')
+            && item.get('meetingUrl', '') == appointment.get('meetingUrl', '')
             && item.date == appointment.date
             && item.time == appointment.time
             && item['service'] == appointment['service']

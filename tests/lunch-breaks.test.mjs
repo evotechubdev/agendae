@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { renderBookingCalendar } from "../frontend/calendar-model.mjs";
-import { lunchBreakFor, isLunchTime, scheduleMatrix, scheduleBands, scheduleTimeline, scheduleDayPeriods, businessDayIsClosed, appointmentDurationMinutes } from "../frontend/schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, scheduleMatrix, scheduleBands, scheduleTimeline, scheduleDayPeriods, businessDayIsClosed, serviceAvailableAt, serviceFitsSlot, appointmentDurationMinutes } from "../frontend/schedule-model.mjs";
 import { queueView, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES } from "../frontend/queue-model.mjs";
 
 const establishment = {
   slug: "demo",
   availableTimes: ["11:30", "12:00", "12:30", "13:00", "13:30", "14:00"],
   professionals: ["Renam", "Carlos", "Marcos"],
+  services: [{ name: "Cabelo Tesoura", duration: 20 }],
   professionalLunchBreaks: {
     Renam: { start: "12:00", end: "13:00" },
     Carlos: { start: "13:00", end: "14:00" },
@@ -68,7 +69,7 @@ test("agenda exibe Pausado em vermelho para almoço em vez de senha agendável",
     getData: () => ({ slots: [] }), currentSaoPauloClock: () => ({ date, minutes: 12 * 60 }),
     professionalIsPaused: () => false, professionalIsClosed: () => false, professionalIsOnShift: () => true, currentProfessionalSlot: () => "12:00", staffStatusFor: () => ({}),
     isoDate: () => date, prettyDate: () => "", ticketStatusLegend: () => "", escapeHTML: (value) => String(value),
-    scheduleTimeline, scheduleBands, scheduleDayPeriods, businessDayIsClosed, renderBookingCalendar, isLunchTime, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES,
+    scheduleTimeline, scheduleBands, scheduleDayPeriods, businessDayIsClosed, serviceAvailableAt, serviceFitsSlot, renderBookingCalendar, isLunchTime, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES,
   });
   vm.runInContext(source.slice(start, end), context);
   const html = context.publicSchedule(establishment);
@@ -87,7 +88,7 @@ function apiContext() {
   const context = vm.createContext({
     db: {}, doc: (_db, ...parts) => parts.join("/"), collection: () => "appointments",
     documentKey: (value) => value, appointmentLookupKey: async () => "name", appointmentCodeLookupKey: async () => "code",
-    lunchBreakFor, isLunchTime, businessDayIsClosed, appointmentDurationMinutes, serverTimestamp: () => "timestamp",
+    lunchBreakFor, isLunchTime, businessDayIsClosed, serviceAvailableAt, appointmentDurationMinutes, serverTimestamp: () => "timestamp",
     runTransaction: async (_db, callback) => callback({
       get: async (ref) => ref === "establishments/demo" ? { exists: () => true, data: () => saved } : { exists: () => false },
       update: (ref, value) => { writes.push({ ref, value }); saved = { ...saved, ...value }; },
