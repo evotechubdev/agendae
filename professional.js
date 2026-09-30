@@ -2345,7 +2345,7 @@ async function initializeFirebase() {
     console.error("Agendae: falha ao carregar o Firebase.", error);
     catalogLoaded = true;
     render();
-      toast("Não foi possível carregar o sistema. Verifique sua conexão.", "!");
+      toast(error?.message || "Não foi possível carregar o sistema. Verifique sua conexão.", "!");
   }
 }
 

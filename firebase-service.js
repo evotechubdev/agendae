@@ -26,19 +26,18 @@ import {
   writeBatch,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAwW4poyzbL0sLbbTjGONqN7JxsIuzDDeA",
-  authDomain: "agendae-prod.firebaseapp.com",
-  projectId: "agendae-prod",
-  storageBucket: "agendae-prod.firebasestorage.app",
-  messagingSenderId: "921429063351",
-  appId: "1:921429063351:web:1b173346971b1013ccff32",
-};
-
+export const integrationApiBaseUrl = "https://agendae-backend-t5ax.onrender.com";
+let firebaseConfigResponse;
+try {
+  firebaseConfigResponse = await fetch(`${integrationApiBaseUrl}/v1/config/firebase`, { cache: "no-store" });
+} catch {
+  throw new Error("Não foi possível carregar a configuração do Firebase no Render.");
+}
+if (!firebaseConfigResponse.ok) throw new Error("Configuração do Firebase indisponível no Render.");
+const firebaseConfig = await firebaseConfigResponse.json();
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
-export const integrationApiBaseUrl = "https://agendae-backend-t5ax.onrender.com";
 
 async function systemRequest(path, options = {}) {
   let response;
