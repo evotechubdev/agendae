@@ -38,9 +38,7 @@ function write(path, data, mask) {
   return { update: { name: `${root}/${path}`, fields: fields(data) }, ...(mask ? { updateMask: { fieldPaths: Object.keys(data) } } : {}) };
 }
 
-test("somente o administrador do sistema cria a loja e a conta; a loja exige configuração para publicar", async () => {
-  const seed = await request("/systemAdmins/sys", { fields: fields({ name: "Sistema", active: true }) });
-  assert.equal(seed.status, 200, JSON.stringify(seed.body));
+test("somente o backend cria a loja e a conta; a loja exige configuração para publicar", async () => {
   const details = newEstablishment({ name: "Nova Loja", ownerPassword: "senha123" });
   const create = { writes: [
     write("establishments/novaloja", details.establishment),
@@ -48,7 +46,9 @@ test("somente o administrador do sistema cria a loja e a conta; a loja exige con
   ] };
   const denied = await request(":commit", create, tokenFor("visitor"));
   assert.equal(denied.status, 403, JSON.stringify(denied.body));
-  const created = await request(":commit", create, tokenFor("sys"));
+  const deniedSystem = await request(":commit", create, tokenFor("sys"));
+  assert.equal(deniedSystem.status, 403, JSON.stringify(deniedSystem.body));
+  const created = await request(":commit", create);
   assert.equal(created.status, 200, JSON.stringify(created.body));
   const premature = await request(":commit", { writes: [write("establishments/novaloja", { setupComplete: true }, true)] }, tokenFor("owner"));
   assert.equal(premature.status, 403, JSON.stringify(premature.body));

@@ -2,7 +2,7 @@
 import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessHoursForDate, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
 import { renderBookingCalendar, shiftCalendarMonth } from "./calendar-model.mjs";
 import { loginCredentials } from "./login-model.mjs";
-import { establishmentSlug, newEstablishment, storeProfile } from "./establishment-model.mjs";
+import { establishmentSlug, storeProfile } from "./establishment-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -135,12 +135,6 @@ function staffStatusFor(data, professionalName) {
 function professionalIsPaused(data, professionalName, date = isoDate()) {
   const status = staffStatusFor(data, professionalName);
   return Boolean(status.paused && (!status.pausedDate || status.pausedDate === date));
-}
-
-function temporaryStorePassword() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join("");
 }
 
 function professionalIsClosed(data, professionalName, date = isoDate()) {
@@ -423,7 +417,7 @@ function systemAccessModal() {
       <form id="system-create-form"><div class="field"><label for="store-name">Nome do estabelecimento</label><input id="store-name" name="name" required maxlength="100" placeholder="Ex.: Salão Bela" autocomplete="organization"><small data-generated-store-login>O endereço e o e-mail serão gerados a partir do nome.</small></div>
         <button class="btn btn-primary btn-block" type="submit">Criar estabelecimento</button></form>
       <button class="system-signout" type="button" data-system-logout>Sair da administração</button>
-    </div>` : `<form id="system-login-form" class="system-access-body"><p class="booking-modal-lead">Acesso exclusivo para administradores do sistema.</p><div class="field"><label for="system-email">E-mail</label><input id="system-email" name="email" type="email" autocomplete="username" required></div><div class="field"><label for="system-password">Senha</label><input id="system-password" name="password" type="password" autocomplete="current-password" required></div><button class="btn btn-primary btn-block" type="submit">Entrar na administração</button></form>`;
+    </div>` : `<form id="system-login-form" class="system-access-body"><p class="booking-modal-lead">Acesso exclusivo para administradores do sistema.</p><div class="field"><label for="system-login">Login</label><input id="system-login" name="login" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="admin" required></div><div class="field"><label for="system-password">Senha</label><input id="system-password" name="password" type="password" autocomplete="current-password" required></div><button class="btn btn-primary btn-block" type="submit">Entrar na administração</button></form>`;
   return `<div class="booking-modal-backdrop" data-system-access-backdrop><section class="booking-modal system-access-modal" role="dialog" aria-modal="true" aria-labelledby="system-access-title"><div class="booking-modal-head"><div><small>ADMINISTRAÇÃO DO SISTEMA</small><h2 id="system-access-title">${admin ? "Novo estabelecimento" : "Entrar"}</h2></div><button class="booking-modal-close" type="button" data-close-system-access aria-label="Fechar">×</button></div>${content}</section></div>`;
 }
 
@@ -1313,7 +1307,7 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-open-system-access]")) {
     state.systemAccessOpen = true;
     render();
-    requestAnimationFrame(() => document.querySelector("#system-email, #store-name")?.focus());
+    requestAnimationFrame(() => document.querySelector("#system-login, #store-name")?.focus());
     return;
   }
   if (event.target.closest("[data-close-system-access]") || event.target.matches("[data-system-access-backdrop]")) {
@@ -1943,7 +1937,7 @@ document.addEventListener("submit", async (event) => {
     button.disabled = true;
     authFlowInProgress = true;
     try {
-      firebaseSession = await firebaseApi.loginSystemAdmin(String(form.get("email")), String(form.get("password")));
+      firebaseSession = await firebaseApi.loginSystemAdmin(String(form.get("login")), String(form.get("password")));
       state.createdStoreSlug = "";
       state.createdStoreEmail = "";
       state.createdStorePassword = "";
@@ -1959,12 +1953,11 @@ document.addEventListener("submit", async (event) => {
     const button = event.target.querySelector('button[type="submit"]');
     button.disabled = true;
     try {
-      const details = newEstablishment({ ...Object.fromEntries(new FormData(event.target)), ownerPassword: temporaryStorePassword() });
-      await firebaseApi.createEstablishmentWithOwner(details);
+      const details = await firebaseApi.createEstablishmentWithOwner({ name: new FormData(event.target).get("name") });
       establishments[details.slug] = details.establishment;
       state.createdStoreSlug = details.slug;
-      state.createdStoreEmail = details.owner.email;
-      state.createdStorePassword = details.owner.password;
+      state.createdStoreEmail = details.email;
+      state.createdStorePassword = details.password;
       render();
       toast("Estabelecimento e administrador da loja criados.");
     } catch (error) {
