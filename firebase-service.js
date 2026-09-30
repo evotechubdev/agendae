@@ -1,9 +1,12 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { lunchBreakFor, isLunchTime, scheduleFromPeriods, workPeriodsFor, serviceFitsSlot, businessDayIsClosed, appointmentDurationMinutes, appointmentPresenceWindow } from "./schedule-model.mjs";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
+  createUserWithEmailAndPassword,
+  deleteUser,
   getAuth,
+  inMemoryPersistence,
   onAuthStateChanged,
   setPersistence,
   signInWithEmailAndPassword,
@@ -111,6 +114,11 @@ async function appointmentCodeLookupKey(slug, code) {
 
 async function profileFor(user) {
   if (!user) return null;
+  const systemAdmin = await getDoc(doc(db, "systemAdmins", user.uid));
+  if (systemAdmin.exists() && systemAdmin.data().active === true) return {
+    uid: user.uid, email: user.email, name: systemAdmin.data().name || user.email,
+    role: "system_admin", slug: "",
+  };
   const profileRef = doc(db, "users", user.uid);
   const profileSnapshot = await getDoc(profileRef);
 
@@ -183,6 +191,62 @@ export async function login(email, password, remember = true, legacyEmail = "", 
 
 export async function logout() {
   await signOut(auth);
+}
+
+export async function loginSystemAdmin(email, password) {
+  await setPersistence(auth, browserLocalPersistence);
+  const credential = await signInWithEmailAndPassword(auth, email, password);
+  try {
+    const profile = await profileFor(credential.user);
+    if (profile.role !== "system_admin") {
+      const error = new Error("Esta conta não possui acesso de administrador do sistema.");
+      error.code = "agendae/system-admin-required";
+      throw error;
+    }
+    return profile;
+  } catch (error) {
+    await signOut(auth);
+    throw error;
+  }
+}
+
+export async function createEstablishmentWithOwner(details) {
+  if (!auth.currentUser || !(await getDoc(doc(db, "systemAdmins", auth.currentUser.uid))).data()?.active) {
+    throw new Error("Entre como administrador do sistema para criar uma loja.");
+  }
+  const reference = doc(db, "establishments", details.slug);
+  if ((await getDoc(reference)).exists()) throw new Error("Este identificador de loja já está em uso.");
+  const provisioningApp = initializeApp(firebaseConfig, `store-provisioning-${crypto.randomUUID()}`);
+  const provisioningAuth = getAuth(provisioningApp);
+  let ownerUser = null;
+  try {
+    await setPersistence(provisioningAuth, inMemoryPersistence);
+    ownerUser = (await createUserWithEmailAndPassword(provisioningAuth, details.owner.email, details.owner.password)).user;
+    const batch = writeBatch(db);
+    batch.set(reference, { ...details.establishment, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    batch.set(doc(db, "users", ownerUser.uid), {
+      name: details.owner.name, email: details.owner.email, role: "admin",
+      establishmentSlug: details.slug, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    });
+    try {
+      await batch.commit();
+    } catch (error) {
+      try { await deleteUser(ownerUser); }
+      catch { throw new Error("A conta foi criada, mas a loja não foi salva. Remova a conta no Firebase Authentication antes de tentar novamente."); }
+      throw error;
+    }
+  } finally {
+    await signOut(provisioningAuth).catch(() => {});
+    await deleteApp(provisioningApp);
+  }
+}
+
+export async function saveStoreProfile(slug, profile) {
+  await updateDoc(doc(db, "establishments", slug), { ...profile, updatedAt: serverTimestamp() });
+}
+
+export async function publishStore(slug) {
+  await updateDoc(doc(db, "establishments", slug), { setupComplete: true, updatedAt: serverTimestamp() });
 }
 
 export async function loadEstablishments() {
@@ -949,6 +1013,7 @@ export function firebaseErrorMessage(error) {
     "auth/network-request-failed": "Não foi possível conectar ao serviço de acesso.",
     "agendae/profile-not-found": "Este usuário ainda não está vinculado a um estabelecimento.",
     "agendae/establishment-mismatch": "Este funcionário não pertence ao estabelecimento selecionado.",
+    "agendae/system-admin-required": "Esta conta não possui acesso de administrador do sistema.",
     "agendae/slot-unavailable": error?.message,
     "agendae/professional-paused": error?.message,
     "agendae/professional-busy": error?.message,
