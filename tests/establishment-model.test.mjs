@@ -2,13 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { establishmentSlug, newEstablishment, storeProfile } from "../frontend/establishment-model.mjs";
 
-test("o cadastro inicial cria apenas a loja provisória e o vínculo do administrador", () => {
-  const result = newEstablishment({ slug: "Salão Bela", ownerName: "Ana", ownerEmail: "ANA@EXAMPLE.COM", ownerPassword: "senha123" });
-  assert.equal(result.slug, "salao-bela");
+test("o nome gera o endereço e o login exclusivos da loja", () => {
+  const result = newEstablishment({ name: "Salão Bela", ownerPassword: "senha123" });
+  assert.equal(result.slug, "salaobela");
+  assert.equal(result.establishment.name, "Salão Bela");
   assert.equal(result.establishment.setupComplete, false);
   assert.deepEqual(result.establishment.professionals, []);
   assert.deepEqual(result.establishment.services, []);
-  assert.equal(result.owner.email, "ana@example.com");
+  assert.equal(result.owner.email, "salaobela-admin@agendae.com.br");
+  assert.equal(result.owner.name, "Administrador");
   assert.equal(establishmentSlug("Clínica & Cia"), "clinica-cia");
 });
 

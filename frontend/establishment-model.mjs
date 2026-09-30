@@ -4,17 +4,17 @@
 }
 
 export function newEstablishment(input) {
-  const slug = establishmentSlug(input.slug);
-  const ownerName = String(input.ownerName || "").trim().replace(/\s+/g, " ");
-  const ownerEmail = String(input.ownerEmail || "").trim().toLowerCase();
+  const name = String(input.name || "").trim().replace(/\s+/g, " ");
+  const slug = establishmentSlug(name).replace(/-/g, "");
   const ownerPassword = String(input.ownerPassword || "");
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 60 || ["home", "login"].includes(slug)) throw new Error("Informe um identificador válido para a URL da loja.");
-  if (!ownerName || ownerName.length > 80 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail) || ownerPassword.length < 6) throw new Error("Informe o nome, um e-mail válido e uma senha de pelo menos 6 caracteres para o administrador da loja.");
+  if (!name || name.length > 100 || !/^[a-z0-9]+$/.test(slug) || slug.length > 60 || ["home", "login"].includes(slug)) throw new Error("Informe um nome válido para o estabelecimento.");
+  if (ownerPassword.length < 6) throw new Error("A senha inicial precisa ter pelo menos 6 caracteres.");
   return {
-    slug, owner: { name: ownerName, email: ownerEmail, password: ownerPassword },
+    slug, owner: { name: "Administrador", email: `${slug}-admin@agendae.com.br`, password: ownerPassword },
     establishment: {
-      slug, name: "Estabelecimento em configuração", active: true, setupComplete: false,
-      initials: "EC", category: "", neighborhood: "", address: "", type: "business",
+      slug, name, active: true, setupComplete: false,
+      initials: name.split(" ").map(part => part[0]).slice(0, 2).join("").toLocaleUpperCase("pt-BR"),
+      category: "", neighborhood: "", address: "", type: "business",
       openNow: false, averageWaitMinutes: 20, scheduleMode: "employee",
       hours: [], availableTimes: [], professionals: [], services: [], serviceDurations: {},
       professionalLunchBreaks: {}, extraWorkingDates: {}, staffClosedDates: {},
