@@ -27,7 +27,7 @@ export function isLunchTime(interval, time) {
   return Boolean(interval && value >= minutes(interval.start) && value < minutes(interval.end));
 }
 
-function businessHoursForDate(establishment, date) {
+export function businessHoursForDate(establishment, date) {
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   const day = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][weekday];
   const key = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");

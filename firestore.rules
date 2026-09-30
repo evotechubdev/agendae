@@ -16,6 +16,26 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.establishmentSlug == slug;
     }
 
+    function isSystemAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/systemAdmins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/systemAdmins/$(request.auth.uid)).data.active == true;
+    }
+
+    function administers(slug) {
+      return manages(slug)
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function published(slug) {
+      return get(/databases/$(database)/documents/establishments/$(slug)).data.get('setupComplete', true) == true;
+    }
+
+    match /systemAdmins/{userId} {
+      allow get: if signedIn() && request.auth.uid == userId;
+      allow list, create, update, delete: if false;
+    }
+
     function validCheckInToken(slug, token) {
       return token is string
         && exists(/databases/$(database)/documents/establishments/$(slug)/checkIn/config)
@@ -37,7 +57,10 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if ownsProfile(userId);
-      allow create: if false;
+      allow create: if isSystemAdmin()
+        && request.resource.data.role == 'admin'
+        && request.resource.data.establishmentSlug is string
+        && getAfter(/databases/$(database)/documents/establishments/$(request.resource.data.establishmentSlug)).data.setupComplete == false;
       allow update: if ownsProfile(userId)
         && request.resource.data.establishmentSlug == resource.data.establishmentSlug
         && request.resource.data.role == resource.data.role;
@@ -46,13 +69,42 @@ service cloud.firestore {
 
     match /establishments/{slug} {
       allow read: if true;
-      allow create, delete: if false;
-      allow update: if manages(slug)
+      allow create: if isSystemAdmin()
+        && request.resource.data.slug == slug
+        && request.resource.data.active == true
+        && request.resource.data.setupComplete == false
+        && request.resource.data.professionals == []
+        && request.resource.data.services == [];
+      allow delete: if false;
+      allow update: if (manages(slug)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'scheduleMode', 'professionalLunchBreaks', 'professionals',
           'availableTimes', 'services', 'serviceDurations',
           'extraWorkingDates', 'staffClosedDates', 'updatedAt'
-        ]);
+        ])) || (administers(slug)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name', 'initials', 'category', 'neighborhood', 'address',
+            'hours', 'setupComplete', 'updatedAt'
+          ])
+          && (request.resource.data.get('setupComplete', true) != true || (
+            request.resource.data.name is string
+            && request.resource.data.name != 'Estabelecimento em configuração'
+            && request.resource.data.name.size() > 0
+            && request.resource.data.category is string
+            && request.resource.data.category.size() > 0
+            && request.resource.data.neighborhood is string
+            && request.resource.data.neighborhood.size() > 0
+            && request.resource.data.address is string
+            && request.resource.data.address.size() > 0
+            && request.resource.data.hours is list
+            && request.resource.data.hours.size() > 0
+            && request.resource.data.professionals is list
+            && request.resource.data.professionals.size() > 0
+            && request.resource.data.availableTimes is list
+            && request.resource.data.availableTimes.size() > 0
+            && request.resource.data.services is list
+            && request.resource.data.services.size() > 0
+          )));
 
       match /public/{documentId} {
         allow read: if true;
@@ -78,13 +130,13 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/establishments/$(slug)/appointmentPresence/$(appointmentId)).data.status == 'presente';
         }
         allow read: if true;
-        allow create: if manages(slug)
+        allow create: if published(slug) && (manages(slug)
           || (request.resource.data.keys().hasOnly(['date', 'time', 'service', 'professional', 'createdAt'])
             && request.resource.data.date is string
             && request.resource.data.time is string
             && request.resource.data['service'] is string
             && request.resource.data.professional is string
-            && getAfter(/databases/$(database)/documents/establishments/$(slug)).data.get('staffClosedDates', {}).get(request.resource.data.professional, '') != request.resource.data.date);
+            && getAfter(/databases/$(database)/documents/establishments/$(slug)).data.get('staffClosedDates', {}).get(request.resource.data.professional, '') != request.resource.data.date));
         allow update: if (manages(slug)
             && (request.resource.data.get('status', '') != 'presente'
               || resource.data.get('status', '') == 'presente'
@@ -94,7 +146,7 @@ service cloud.firestore {
       }
 
       match /appointments/{appointmentId} {
-        allow create: if manages(slug)
+        allow create: if published(slug) && (manages(slug)
           || (request.resource.data.keys().hasOnly([
             'id', 'date', 'time', 'client', 'phone', 'service',
             'professional', 'status', 'checkInCode', 'createdAt', 'durationMinutes'
@@ -110,7 +162,7 @@ service cloud.firestore {
           && request.resource.data.get('durationMinutes', 20) > 0
            && request.resource.data.get('durationMinutes', 20) <= 1440
            && request.resource.data.status == 'confirmado'
-           && getAfter(/databases/$(database)/documents/establishments/$(slug)).data.get('staffClosedDates', {}).get(request.resource.data.professional, '') != request.resource.data.date);
+            && getAfter(/databases/$(database)/documents/establishments/$(slug)).data.get('staffClosedDates', {}).get(request.resource.data.professional, '') != request.resource.data.date));
         allow read, delete: if manages(slug);
         allow update: if (manages(slug)
             && (request.resource.data.status != 'presente' || resource.data.status == 'presente' || presenceWithinWindow(slug, resource.data)))

@@ -55,6 +55,14 @@ O erro `agendae/profile-not-found` significa que a autenticação funcionou, mas
 
 Os dados ficam organizados em `establishments/{slug}`. Agendamentos privados e filas só podem ser lidos por usuários cujo documento `users/{uid}` esteja vinculado ao mesmo `establishmentSlug`. Horários ocupados e o estado público da fila não expõem dados pessoais.
 
+### Criar estabelecimentos pela interface
+
+O botão **Entrar** da página principal abre o acesso do administrador do sistema. Para habilitar a primeira conta desse tipo, crie uma conta de e-mail e senha no Firebase Authentication e, no Firestore, crie `systemAdmins/{UID}` com `active: true` (booleano) e `name` (texto). O ID deve ser o UID exato da conta. Com uma sessão administrativa do Firebase CLI, `node scripts/link-system-admin.cjs EMAIL` verifica o vínculo e `node scripts/link-system-admin.cjs EMAIL --apply` o cria após confirmar que a conta existe. Esse vínculo inicial é feito por um operador com acesso ao Firebase; o site não permite criar administradores do sistema. Publique as regras atuais de `firestore.rules` antes de usar o fluxo.
+
+Na interface, o administrador do sistema informa somente o identificador da URL e o nome, e-mail e senha inicial do administrador da nova loja. O sistema cria a conta no Authentication, o perfil `users/{UID}` e `establishments/{slug}`. A loja começa com `setupComplete: false`, sem aparecer na busca ou aceitar acesso público. O endereço de primeiro acesso da loja é `https://evotechubdev.github.io/agendae/?route=login&establishment=SLUG`.
+
+Ao entrar, o administrador da loja abre **Configurações da loja → Loja** para definir nome, categoria, bairro, endereço e expediente. Nas abas **Funcionários**, **Horários** e **Serviços**, cadastra a equipe, as escalas e os serviços. Depois usa **Publicar estabelecimento** na aba **Loja**. A publicação exige esses dados e torna a página pública visível na busca. O identificador da URL fica fixo após a criação.
+
 ### Confirmação de presença
 
 Ao criar um agendamento, o cliente recebe uma senha de seis caracteres. Na página pública ele pode localizar o horário pelo nome completo ou por essa senha e, ao chegar, ler o QR code exibido no balcão. O painel da equipe gera o QR exclusivo do estabelecimento e também permite confirmar a chegada manualmente pela lista de atendimentos.

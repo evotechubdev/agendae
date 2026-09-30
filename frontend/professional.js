@@ -1,7 +1,8 @@
-import { queueView, upcomingFreeSlots, scheduledTicket, professionalInitial, serviceInitials, ticketState, ticketSubstatus, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
-import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
+﻿import { queueView, upcomingFreeSlots, scheduledTicket, professionalInitial, serviceInitials, ticketState, ticketSubstatus, TICKET_STATES, allProfessionalsClosed } from "./queue-model.mjs";
+import { scheduleTimeline, scheduleDayPeriods, lunchBreakFor, isLunchTime, serviceFitsSlot, workPeriodsFor, scheduleFromPeriods, businessHoursForDate, businessOpeningMinutes, businessDayIsClosed, appointmentPresenceWindow } from "./schedule-model.mjs";
 import { renderBookingCalendar, shiftCalendarMonth } from "./calendar-model.mjs";
 import { loginCredentials } from "./login-model.mjs";
+import { newEstablishment, storeProfile } from "./establishment-model.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const app = document.querySelector("#app");
@@ -38,6 +39,8 @@ const state = {
   calendarMonth: null,
   publicLookup: freshPublicLookup(),
   employeeAccessOpen: false,
+  systemAccessOpen: false,
+  createdStoreSlug: "",
   settingsOpen: false,
   settingsTab: "professionals",
   apiKeyStatus: { slug: "", loading: false, loaded: false, active: false, lastFour: null, variable: "", automationReady: false, pending: "", deployRequested: false, error: "" },
@@ -213,6 +216,7 @@ function navigate(path) {
   if (route() !== previousRoute) state.publicLookup = freshPublicLookup();
   state.calendarOpen = false;
   state.employeeAccessOpen = false;
+  state.systemAccessOpen = false;
   state.settingsOpen = false;
   state.apiKeySecret = null;
   state.attendanceOpen = false;
@@ -351,19 +355,30 @@ function footer() {
   return `<footer class="footer"><div class="footer-inner">${logo()}<span>Agendamentos e filas em um só lugar.</span><span>© ${new Date().getFullYear()} Agendae</span></div></footer>`;
 }
 
+function storeOpenNow(establishment) {
+  const clock = currentSaoPauloClock();
+  if (businessDayIsClosed(establishment, clock.date)) return false;
+  const opening = businessOpeningMinutes(establishment, clock.date);
+  const closingText = String(businessHoursForDate(establishment, clock.date)?.value || "");
+  const times = [...closingText.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g)];
+  if (opening === null || times.length < 2) return Boolean(establishment.openNow);
+  const closing = Number(times.at(-1)[1]) * 60 + Number(times.at(-1)[2]);
+  return clock.minutes >= opening && clock.minutes < closing;
+}
+
 function renderHome() {
   document.title = "Agendae — Encontre seu estabelecimento";
-  const directory = Object.values(establishments);
+  const directory = Object.values(establishments).filter(item => item.setupComplete !== false);
   const sample = directory[0];
   const directoryHtml = !catalogLoaded
     ? '<div class="empty">Carregando estabelecimentos…</div>'
     : directory.length
-      ? directory.map((item) => `<button class="directory-item" data-open-establishment="${item.slug}"><span class="est-avatar ${item.type === "clinic" ? "green" : ""}">${escapeHTML(item.initials)}</span><span class="directory-meta"><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(item.category)} · ${escapeHTML(item.neighborhood)}</small></span><span class="open-tag">${item.openNow ? "ABERTO" : "FECHADO"}</span></button>`).join("")
+      ? directory.map((item) => `<button class="directory-item" data-open-establishment="${item.slug}"><span class="est-avatar ${item.type === "clinic" ? "green" : ""}">${escapeHTML(item.initials)}</span><span class="directory-meta"><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(item.category)} · ${escapeHTML(item.neighborhood)}</small></span><span class="open-tag">${storeOpenNow(item) ? "ABERTO" : "FECHADO"}</span></button>`).join("")
       : '<div class="empty">Nenhum estabelecimento disponível.</div>';
   app.innerHTML = `
     <header class="home-header"><div class="home-nav">
       <a href="${href("/")}" data-link>${logo()}</a>
-      <nav class="home-nav-links"><a class="home-nav-link" href="#encontrar">Encontrar estabelecimento</a><a class="home-nav-link" href="#para-negocios">Para estabelecimentos</a><a class="btn btn-primary" href="${href("/login")}" data-link>Entrar</a></nav>
+       <nav class="home-nav-links"><a class="home-nav-link" href="#encontrar">Encontrar estabelecimento</a><a class="home-nav-link" href="#para-negocios">Para estabelecimentos</a><button class="btn btn-primary" type="button" data-open-system-access>${session()?.role === "system_admin" ? "Administração" : "Entrar"}</button></nav>
     </div></header>
     <main>
       <section class="home-hero" id="encontrar"><div class="home-hero-inner">
@@ -384,8 +399,24 @@ function renderHome() {
         </aside>
       </div></section>
       <section class="trust-strip"><div class="trust-inner"><div class="trust-item"><span class="trust-icon">✓</span>Agendamento confirmado na hora</div><div class="trust-item"><span class="trust-icon">◷</span>Horários livres atualizados</div><div class="trust-item"><span class="trust-icon">#</span>Fila de senhas online</div></div></section>
-      <section class="business-cta" id="para-negocios"><div><h2>Seu estabelecimento também pode ter uma agenda profissional.</h2><p>Controle horários, clientes e fila de atendimento em uma única interface.</p></div><a class="btn btn-yellow" href="${href("/login")}" data-link>Acessar área do estabelecimento</a></section>
-    </main>${footer()}`;
+       <section class="business-cta" id="para-negocios"><div><h2>Seu estabelecimento também pode ter uma agenda profissional.</h2><p>Controle horários, clientes e fila de atendimento em uma única interface.</p></div><button class="btn btn-yellow" type="button" data-open-system-access>Administração do sistema</button></section>
+     </main>${footer()}${systemAccessModal()}`;
+}
+
+function systemAccessModal() {
+  if (!state.systemAccessOpen) return "";
+  const admin = session()?.role === "system_admin";
+  const content = admin ? `
+    <div class="system-access-body"><p class="booking-modal-lead">Conectado como ${escapeHTML(session().name)}. Crie o endereço da loja e o acesso inicial do administrador. Ele preencherá os dados do estabelecimento depois.</p>
+      ${state.createdStoreSlug ? `<div class="system-created" role="status"><strong>Estabelecimento criado.</strong><p>Envie ao administrador da loja este endereço de acesso e as credenciais que você definiu:</p><code>${escapeHTML(new URL(href(`/login?establishment=${state.createdStoreSlug}`), location.origin).toString())}</code></div>` : ""}
+      <form id="system-create-form"><div class="field"><label for="store-slug">Identificador da loja na URL</label><input id="store-slug" name="slug" required maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="ex.: salaobela" autocomplete="off"></div>
+        <div class="field"><label for="owner-name">Nome do administrador da loja</label><input id="owner-name" name="ownerName" required maxlength="80" autocomplete="name"></div>
+        <div class="field"><label for="owner-email">E-mail de acesso</label><input id="owner-email" name="ownerEmail" type="email" required autocomplete="off"></div>
+        <div class="field"><label for="owner-password">Senha inicial</label><input id="owner-password" name="ownerPassword" type="password" required minlength="6" autocomplete="new-password"></div>
+        <button class="btn btn-primary btn-block" type="submit">Criar estabelecimento</button></form>
+      <button class="system-signout" type="button" data-system-logout>Sair da administração</button>
+    </div>` : `<form id="system-login-form" class="system-access-body"><p class="booking-modal-lead">Acesso exclusivo para administradores do sistema.</p><div class="field"><label for="system-email">E-mail</label><input id="system-email" name="email" type="email" autocomplete="username" required></div><div class="field"><label for="system-password">Senha</label><input id="system-password" name="password" type="password" autocomplete="current-password" required></div><button class="btn btn-primary btn-block" type="submit">Entrar na administração</button></form>`;
+  return `<div class="booking-modal-backdrop" data-system-access-backdrop><section class="booking-modal system-access-modal" role="dialog" aria-modal="true" aria-labelledby="system-access-title"><div class="booking-modal-head"><div><small>ADMINISTRAÇÃO DO SISTEMA</small><h2 id="system-access-title">${admin ? "Novo estabelecimento" : "Entrar"}</h2></div><button class="booking-modal-close" type="button" data-close-system-access aria-label="Fechar">×</button></div>${content}</section></div>`;
 }
 
 function renderLogin() {
@@ -907,6 +938,19 @@ function hoursSettingsMarkup(establishment) {
   return `<div class="settings-section">${workSchedulesMarkup(establishment)}${lunchSchedulesMarkup(establishment)}${extraWorkingDatesMarkup(establishment)}<section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Esta configuração vale para novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" type="button" data-schedule-mode="employee"><span>♙</span><strong>Por funcionário</strong><small>Cada profissional tem seus horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" type="button" data-schedule-mode="establishment"><span>▣</span><strong>Grade compartilhada</strong><small>Uma agenda para a equipe.</small></button></div></section></div>`;
 }
 
+function storeSettingsMarkup(establishment) {
+  if (session()?.role !== "admin") return '<div class="settings-section"><p class="settings-hint">Somente o administrador da loja pode alterar os dados do estabelecimento.</p></div>';
+  const weekday = (establishment.hours || []).find(item => /seg/i.test(item.label || "") && /sex/i.test(item.label || ""));
+  const times = String(weekday?.value || "").match(/(\d{2}:\d{2}).*?(\d{2}:\d{2})/);
+  const saturday = (establishment.hours || []).find(item => /s[aá]b/i.test(item.label || ""));
+  const sunday = (establishment.hours || []).find(item => /dom/i.test(item.label || ""));
+  const ready = establishment.name !== "Estabelecimento em configuração" && establishment.category && establishment.neighborhood && establishment.address && establishment.hours?.length && establishment.professionals?.length && establishment.services?.length && establishment.availableTimes?.length;
+  return `<div class="settings-section store-profile-settings"><p class="settings-hint">O endereço da página é <strong>${escapeHTML(establishment.slug)}</strong>. Preencha os dados da loja aqui; depois cadastre funcionários, escalas e serviços nas outras abas.</p>
+    <form class="settings-item-form" data-store-profile-form><h3>Dados do estabelecimento</h3><div class="settings-fields"><label>Nome da loja<input name="name" maxlength="100" required value="${escapeHTML(establishment.name === "Estabelecimento em configuração" ? "" : establishment.name)}"></label><label>Categoria<input name="category" required value="${escapeHTML(establishment.category || "")}" placeholder="Ex.: Barbearia"></label><label>Bairro<input name="neighborhood" required value="${escapeHTML(establishment.neighborhood || "")}"></label><label>Endereço<input name="address" required value="${escapeHTML(establishment.address || "")}"></label></div>
+      <h3>Funcionamento</h3><p class="settings-hint">A escala cadastrada na aba Horários deve caber neste expediente. Os dias abertos usam a mesma faixa de horários.</p><div class="settings-fields"><label>Abre às<input name="opening" type="time" required value="${times?.[1] || "08:00"}"></label><label>Fecha às<input name="closing" type="time" required value="${times?.[2] || "18:00"}"></label></div><div class="store-weekend-options"><label><input name="saturdayOpen" type="checkbox" ${saturday && !/fechado/i.test(saturday.value) ? "checked" : ""}> Abre aos sábados</label><label><input name="sundayOpen" type="checkbox" ${sunday && !/fechado/i.test(sunday.value) ? "checked" : ""}> Abre aos domingos</label></div><button class="btn btn-primary btn-sm" type="submit">Salvar dados da loja</button></form>
+    ${establishment.setupComplete === false ? `<div class="store-publish"><strong>Publicação</strong><p>Para aparecer na busca e aceitar agendamentos, salve os dados da loja, adicione pelo menos um funcionário, uma escala e um serviço.</p><button class="btn btn-primary btn-sm" type="button" data-publish-store ${ready ? "" : "disabled"}>Publicar estabelecimento</button></div>` : '<p class="settings-hint">Este estabelecimento já está publicado.</p>'}</div>`;
+}
+
 function apiSettingsMarkup(establishment) {
   const base = firebaseApi?.integrationApiBaseUrl || "https://agendae-backend-t5ax.onrender.com";
   if (session()?.role !== "admin") return '<div class="settings-section"><p class="settings-hint">A chave de API pode criar agendamentos. Peça a um administrador da loja para configurar a integração.</p></div>';
@@ -946,8 +990,8 @@ async function loadApiKeyStatus(establishment) {
 
 function settingsModal(establishment) {
   if (!state.settingsOpen) return "";
-  const tabs = [["professionals", "Funcionários"], ["hours", "Horários"], ["services", "Serviços"], ["api", "API"]];
-  const content = state.settingsTab === "hours" ? hoursSettingsMarkup(establishment) : state.settingsTab === "services" ? serviceSettingsMarkup(establishment) : state.settingsTab === "api" ? apiSettingsMarkup(establishment) : professionalSettingsMarkup(establishment);
+  const tabs = [["store", "Loja"], ["professionals", "Funcionários"], ["hours", "Horários"], ["services", "Serviços"], ["api", "API"]];
+  const content = state.settingsTab === "store" ? storeSettingsMarkup(establishment) : state.settingsTab === "hours" ? hoursSettingsMarkup(establishment) : state.settingsTab === "services" ? serviceSettingsMarkup(establishment) : state.settingsTab === "api" ? apiSettingsMarkup(establishment) : professionalSettingsMarkup(establishment);
   return `<div class="booking-modal-backdrop" data-settings-backdrop><section class="booking-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div class="booking-modal-head"><div><small>ÁREA DA EQUIPE</small><h2 id="settings-title">Configurações da loja</h2></div><button class="booking-modal-close" type="button" data-close-settings aria-label="Fechar configurações">×</button></div><nav class="settings-tabs" aria-label="Configurações">${tabs.map(([key, label]) => `<button type="button" data-settings-tab="${key}" class="${state.settingsTab === key ? "active" : ""}" ${state.settingsTab === key ? 'aria-current="page"' : ""}>${label}</button>`).join("")}</nav><div class="settings-body">${content}</div></section></div>`;
 }
 
@@ -1194,6 +1238,7 @@ function render() {
   if (!catalogLoaded) return renderLoading();
   const establishment = establishments[current];
   if (!establishment) return renderNotFound();
+  if (establishment.setupComplete === false && session()?.slug !== establishment.slug) return renderNotFound();
   const routeParams = new URLSearchParams(location.search);
   if (routeParams.get("display") === "queue") return renderQueueDisplay(establishment);
   const authenticated = session()?.slug === establishment.slug;
@@ -1245,6 +1290,26 @@ document.addEventListener("pointerdown", pauseCalendarInteraction);
 document.addEventListener("focusin", pauseCalendarInteraction);
 
 document.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-open-system-access]")) {
+    state.systemAccessOpen = true;
+    render();
+    requestAnimationFrame(() => document.querySelector("#system-email, #store-slug")?.focus());
+    return;
+  }
+  if (event.target.closest("[data-close-system-access]") || event.target.matches("[data-system-access-backdrop]")) {
+    state.systemAccessOpen = false;
+    render();
+    document.querySelector("[data-open-system-access]")?.focus();
+    return;
+  }
+  if (event.target.closest("[data-system-logout]")) {
+    await firebaseApi?.logout();
+    firebaseSession = null;
+    state.createdStoreSlug = "";
+    state.systemAccessOpen = false;
+    render();
+    return;
+  }
   if (state.calendarOpen && !event.target.closest("[data-booking-calendar]")) {
     state.calendarOpen = false;
     refreshBookingCalendar();
@@ -1278,6 +1343,15 @@ document.addEventListener("click", async (event) => {
   if (openMenu && !openMenu.contains(event.target)) openMenu.open = false;
   let establishmentForModal;
   const canManage = () => { establishmentForModal = activeEstablishment(); return establishmentForModal && session()?.slug === establishmentForModal.slug; };
+  if (event.target.closest("[data-publish-store]") && canManage() && session()?.role === "admin" && firebaseApi) {
+    try {
+      await firebaseApi.publishStore(establishmentForModal.slug);
+      establishmentForModal.setupComplete = true;
+      render();
+      toast("Estabelecimento publicado e disponível na busca.");
+    } catch (error) { toast(firebaseApi.firebaseErrorMessage(error), "!"); }
+    return;
+  }
   if (event.target.closest("[data-open-settings]") && canManage()) {
     state.attendanceOpen = false;
     state.nextCallProfessional = null;
@@ -1784,7 +1858,7 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("input", (event) => {
-  const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form], [data-extra-working-form], [data-professional-form], [data-service-form]");
+  const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form], [data-extra-working-form], [data-professional-form], [data-service-form], [data-store-profile-form]");
   if (scheduleForm) { scheduleForm.dataset.dirty = "true"; return; }
   if (!event.target.matches("[data-appointment-search]")) return;
   state.appointmentQuery = event.target.value;
@@ -1799,6 +1873,56 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (event.target.id === "system-login-form") {
+    if (!firebaseApi || authFlowInProgress) return;
+    const button = event.target.querySelector('button[type="submit"]');
+    const form = new FormData(event.target);
+    button.disabled = true;
+    authFlowInProgress = true;
+    try {
+      firebaseSession = await firebaseApi.loginSystemAdmin(String(form.get("email")), String(form.get("password")));
+      state.createdStoreSlug = "";
+      render();
+    } catch (error) {
+      button.disabled = false;
+      showLoginError(event.target, firebaseApi.firebaseErrorMessage(error));
+    } finally { authFlowInProgress = false; }
+    return;
+  }
+  if (event.target.id === "system-create-form") {
+    if (!firebaseApi || session()?.role !== "system_admin") return;
+    const button = event.target.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      const details = newEstablishment(Object.fromEntries(new FormData(event.target)));
+      await firebaseApi.createEstablishmentWithOwner(details);
+      establishments[details.slug] = details.establishment;
+      state.createdStoreSlug = details.slug;
+      render();
+      toast("Estabelecimento e administrador da loja criados.");
+    } catch (error) {
+      button.disabled = false;
+      showLoginError(event.target, firebaseApi.firebaseErrorMessage(error));
+    }
+    return;
+  }
+  if (event.target.matches("[data-store-profile-form]")) {
+    const establishment = activeEstablishment();
+    if (!establishment || session()?.slug !== establishment.slug || session()?.role !== "admin" || !firebaseApi) return;
+    const button = event.target.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      const profile = storeProfile(Object.fromEntries(new FormData(event.target)));
+      await firebaseApi.saveStoreProfile(establishment.slug, profile);
+      Object.assign(establishment, profile);
+      render();
+      toast("Dados da loja salvos.");
+    } catch (error) {
+      button.disabled = false;
+      toast(firebaseApi.firebaseErrorMessage(error), "!");
+    }
+    return;
+  }
   if (event.target.matches("[data-professional-form], [data-service-form]")) {
     const establishment = activeEstablishment();
     if (!establishment || session()?.slug !== establishment.slug || !firebaseApi) return;
@@ -1959,6 +2083,11 @@ document.addEventListener("submit", async (event) => {
       }
       state.booking = freshBooking();
       navigate(`/${establishmentSlug}`);
+      if (establishments[establishmentSlug]?.setupComplete === false && firebaseSession.role === "admin") {
+        state.settingsTab = "store";
+        state.settingsOpen = true;
+        render();
+      }
       toast(`Login realizado. Bem-vindo, ${firebaseSession.name.split(" ")[0]}!`);
     } catch (error) {
       button.disabled = false;
@@ -2038,6 +2167,12 @@ window.addEventListener("resize", () => {
   }
 });
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.systemAccessOpen) {
+    state.systemAccessOpen = false;
+    render();
+    document.querySelector("[data-open-system-access]")?.focus();
+    return;
+  }
   if (event.key === "Escape" && state.nextCallProfessional) {
     event.preventDefault();
     const name = state.nextCallProfessional;
@@ -2124,6 +2259,10 @@ async function initializeFirebase() {
       firebaseSession = profile;
       if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; }
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
+      if (profile?.role === "admin" && establishments[route()]?.setupComplete === false && !state.settingsOpen) {
+        state.settingsTab = "store";
+        state.settingsOpen = true;
+      }
       if (profile && route() === "login" && !authFlowInProgress) {
         const requestedSlug = new URLSearchParams(location.search).get("establishment");
         if (requestedSlug && requestedSlug !== profile.slug) {
@@ -2131,6 +2270,11 @@ async function initializeFirebase() {
           return;
         }
         navigate(`/${profile.slug}`);
+        if (profile.role === "admin" && establishments[profile.slug]?.setupComplete === false) {
+          state.settingsTab = "store";
+          state.settingsOpen = true;
+          render();
+        }
       } else if (!settingsIsEditing()) render();
     });
     render();
