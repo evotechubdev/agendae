@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { scheduleMatrix } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/firebase-service.js", import.meta.url), "utf8");
 const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -22,6 +23,7 @@ function fixture(withPending = true) {
     existingAppointmentSlot: async (_transaction, _slug, item) => `slot:${item.time}`,
     isLunchTime: () => false,
     lunchBreakFor: () => null,
+    scheduleMatrix,
     runTransaction: async (_db, callback) => callback({
       get: async ref => {
         if (ref === "establishments/demo") return { exists: () => true, data: () => ({ professionals: [{ name: "Ana", availableTimes: ["09:00", "09:20"], scheduleStart: "00:00", scheduleEnd: "24:00" }] }) };

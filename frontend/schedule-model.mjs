@@ -1,10 +1,13 @@
-export function scheduleMatrix(establishment) {
+export function scheduleMatrix(establishment, date = null) {
   const employeeMode = establishment.scheduleMode !== "establishment";
   const professionals = (establishment.professionals || []).map((item) => {
     const professional = typeof item === "string" ? { name: item } : item;
-    const source = employeeMode ? professional.availableTimes || establishment.availableTimes || [] : establishment.availableTimes || [];
+    const lunchBreak = lunchBreakFor(establishment, professional.name, date);
+    const dailySchedule = date && professional.slotDuration === 20 && professional.workPeriods?.length
+      ? scheduleFromPeriods(professional.workPeriods, lunchBreak) : null;
+    const source = employeeMode ? dailySchedule?.availableTimes || professional.availableTimes || establishment.availableTimes || [] : establishment.availableTimes || [];
     const times = [...new Set(source.filter((time) => /^\d{1,2}:\d{2}$/.test(time) && Number(time.split(":")[0]) < 24 && Number(time.split(":")[1]) < 60).map((time) => time.padStart(5, "0")))].sort((a, b) => minutes(a) - minutes(b));
-    return { ...professional, availableTimes: times, lunchBreak: lunchBreakFor(establishment, professional.name) };
+    return { ...professional, availableTimes: times, lunchBreak, pauseIntervals: dailySchedule?.pauseIntervals || professional.pauseIntervals || [] };
   });
   const times = [...new Set(professionals.flatMap((professional) => [...professional.availableTimes, ...(professional.lunchBreak ? [professional.lunchBreak.start, professional.lunchBreak.end] : []), ...(professional.pauseIntervals || []).flatMap(interval => [interval.start, interval.end])]))].sort((a, b) => minutes(a) - minutes(b));
   return {
@@ -13,13 +16,17 @@ export function scheduleMatrix(establishment) {
   };
 }
 
-export function lunchBreakFor(establishment, professionalName) {
+export function lunchBreakFor(establishment, professionalName, date = null) {
   const professional = (establishment.professionals || []).find((item) => item.name === professionalName);
   const configured = establishment.professionalLunchBreaks || {};
   const interval = Object.hasOwn(configured, professionalName) ? configured[professionalName] : professional?.lunchBreak;
   const validTime = (time) => /^\d{2}:\d{2}$/.test(time || "") && minutes(time) >= 0 && minutes(time) < 1440 && Number(time.split(":")[1]) < 60;
-  return interval && validTime(interval.start) && validTime(interval.end) && minutes(interval.end) > minutes(interval.start)
-    ? { start: interval.start, end: interval.end } : null;
+  const validDays = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"];
+  if (!interval || !validTime(interval.start) || !validTime(interval.end) || minutes(interval.end) <= minutes(interval.start)
+    || (interval.days != null && (!Array.isArray(interval.days) || !interval.days.length || interval.days.some(day => !validDays.includes(day))))) return null;
+  const day = date && validDays[(new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7];
+  if (day && interval.days && !interval.days.includes(day)) return null;
+  return { start: interval.start, end: interval.end, ...(interval.days ? { days: interval.days } : {}) };
 }
 
 export function isLunchTime(interval, time) {
@@ -182,13 +189,15 @@ export function appointmentPresenceWindow(establishment, appointment, now = new 
   return { allowed, opens, end };
 }
 
-export function serviceFitsSlot(establishment, professionalName, time, service, bookings = []) {
+export function serviceFitsSlot(establishment, professionalName, time, service, bookings = [], date = null) {
   const start = minutes(time);
   const end = start + serviceDurationFor(establishment, professionalName, service);
-  const lunch = lunchBreakFor(establishment, professionalName);
+  const lunch = lunchBreakFor(establishment, professionalName, date);
   if (lunch && start < minutes(lunch.end) && end > minutes(lunch.start)) return false;
   const professional = (establishment.professionals || []).find((item) => item.name === professionalName);
-  if ((professional?.pauseIntervals || []).some((interval) => start < minutes(interval.end) && end > minutes(interval.start))) return false;
+  const pauses = date && professional?.slotDuration === 20 && professional.workPeriods?.length
+    ? scheduleFromPeriods(professional.workPeriods, lunch).pauseIntervals : professional?.pauseIntervals || [];
+  if (pauses.some((interval) => start < minutes(interval.end) && end > minutes(interval.start))) return false;
   if (professional?.workPeriods?.length && !professional.workPeriods.some(period => start >= minutes(period.start) && end <= minutes(period.end))) return false;
   if (professional?.scheduleEnd && end > minutes(professional.scheduleEnd)) return false;
   return !bookings.some((item) => {
@@ -202,7 +211,7 @@ export function serviceFitsSlot(establishment, professionalName, time, service, 
 
 export function scheduleTimeline(establishment, bookings = [], date = null) {
   const dailyHours = date ? businessHoursRangeForDate(establishment, date) : null;
-  const fullMatrix = scheduleMatrix(establishment);
+  const fullMatrix = scheduleMatrix(establishment, date);
   const withinDay = time => !dailyHours || minutes(time) >= dailyHours.start && minutes(time) < dailyHours.end;
   const matrix = dailyHours ? { times: fullMatrix.times.filter(withinDay), professionals: fullMatrix.professionals.map(item => ({ ...item, availableTimes: item.availableTimes.filter(withinDay) })) } : fullMatrix;
   if (!matrix.times.length) return { ...matrix, step: 60, majorStep: 60 };
@@ -216,7 +225,7 @@ export function scheduleTimeline(establishment, bookings = [], date = null) {
   const jobsFor = (professional) => professional.availableTimes.map((time) => {
     const booking = bookings.find((item) => item.time === time && (item.professional === professional.name || item.id?.endsWith("_establishment")));
     const duration = serviceDurationFor(establishment, professional.name, booking?.service);
-    return { time, start: minutes(time), end: minutes(time) + duration, booked: Boolean(booking), valid: Boolean(booking) || serviceFitsSlot(establishment, professional.name, time, undefined, bookings) };
+    return { time, start: minutes(time), end: minutes(time) + duration, booked: Boolean(booking), valid: Boolean(booking) || serviceFitsSlot(establishment, professional.name, time, undefined, bookings, date) };
   });
   const jobs = matrix.professionals.map(jobsFor);
   const step = jobs.flat().reduce((value, job) => gcd(value, job.end), matrix.times.reduce((value, time) => gcd(value, minutes(time)), 60));

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { renderBookingCalendar } from "../frontend/calendar-model.mjs";
-import { lunchBreakFor, isLunchTime, scheduleMatrix, scheduleBands, scheduleTimeline, scheduleDayPeriods, businessDayIsClosed, serviceAvailableAt, serviceFitsSlot, appointmentDurationMinutes } from "../frontend/schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, scheduleFromPeriods, scheduleMatrix, scheduleBands, scheduleTimeline, scheduleDayPeriods, businessDayIsClosed, serviceAvailableAt, serviceFitsSlot, appointmentDurationMinutes } from "../frontend/schedule-model.mjs";
 import { queueView, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES } from "../frontend/queue-model.mjs";
 
 const establishment = {
@@ -26,6 +26,33 @@ test("almoço é individual, inclui o início e libera no horário final", () =>
   assert.equal(isLunchTime(interval, 12 * 60 + 59), true);
   assert.equal(isLunchTime(interval, "13:00"), false);
   assert.equal(lunchBreakFor(establishment, "Sem cadastro"), null);
+});
+
+test("almoço em dias escolhidos libera a escala nos demais dias", () => {
+  const store = {
+    professionals: [{ name: "Ana", ...scheduleFromPeriods([{ start: "09:00", end: "11:00" }]) }],
+    professionalLunchBreaks: { Ana: { start: "10:00", end: "10:40", days: ["seg"] } },
+  };
+  assert.equal(lunchBreakFor(store, "Ana", "2026-09-28")?.start, "10:00");
+  assert.equal(lunchBreakFor(store, "Ana", "2026-09-29"), null);
+  assert.equal(scheduleMatrix(store, "2026-09-28").professionals[0].availableTimes.includes("10:00"), false);
+  assert.equal(scheduleMatrix(store, "2026-09-29").professionals[0].availableTimes.includes("10:00"), true);
+  assert.equal(serviceFitsSlot(store, "Ana", "10:00", "", [], "2026-09-28"), false);
+  assert.equal(serviceFitsSlot(store, "Ana", "10:00", "", [], "2026-09-29"), true);
+  assert.equal(lunchBreakFor({ professionalLunchBreaks: { Ana: { start: "10:00", end: "11:00", days: [] } } }, "Ana"), null);
+});
+
+test("almoço fora da grade de vinte minutos ajusta os horários somente no dia escolhido", () => {
+  const store = {
+    professionals: [{ name: "Ana", ...scheduleFromPeriods([{ start: "08:00", end: "15:00" }]) }],
+    professionalLunchBreaks: { Ana: { start: "12:30", end: "13:30", days: ["seg"] } },
+  };
+  const monday = scheduleMatrix(store, "2026-09-28").professionals[0].availableTimes;
+  const tuesday = scheduleMatrix(store, "2026-09-29").professionals[0].availableTimes;
+  assert.ok(monday.includes("13:30"));
+  assert.ok(!monday.includes("13:20"));
+  assert.ok(tuesday.includes("13:20"));
+  assert.ok(!tuesday.includes("13:30"));
 });
 
 test("intervalos inválidos não criam pausa e remoção explícita prevalece sobre o cadastro", () => {
@@ -88,7 +115,7 @@ function apiContext() {
   const context = vm.createContext({
     db: {}, doc: (_db, ...parts) => parts.join("/"), collection: () => "appointments",
     documentKey: (value) => value, appointmentLookupKey: async () => "name", appointmentCodeLookupKey: async () => "code",
-    lunchBreakFor, isLunchTime, businessDayIsClosed, serviceAvailableAt, appointmentDurationMinutes, serverTimestamp: () => "timestamp",
+    scheduleMatrix, lunchBreakFor, isLunchTime, businessDayIsClosed, serviceAvailableAt, appointmentDurationMinutes, serverTimestamp: () => "timestamp",
     runTransaction: async (_db, callback) => callback({
       get: async (ref) => ref === "establishments/demo" ? { exists: () => true, data: () => saved } : { exists: () => false },
       update: (ref, value) => { writes.push({ ref, value }); saved = { ...saved, ...value }; },
