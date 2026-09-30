@@ -48,26 +48,56 @@ test("administrador vê as abas e uma tela com lista e cadastro", () => {
   assert.match(app.innerHTML, /href="\/novaloja" data-link>Abrir página<\/a>/);
   assert.match(app.innerHTML, /id="system-create-form"/);
   assert.match(app.innerHTML, /data-system-logout/);
+  context.state.createdStoreSlug = "novaloja";
+  context.state.createdStoreEmail = "novaloja-admin@agendae.com.br";
+  context.state.createdStorePassword = "senha-temporaria";
+  context.renderSystemManagement();
+  assert.match(app.innerHTML, /Página de agendamento criada/);
+  assert.match(app.innerHTML, /Página: https:\/\/example\.test\/novaloja/);
 });
 
-test("rota de loja em configuração mostra sua página e link para o responsável", () => {
-  const app = { innerHTML: "" };
-  const store = { slug: "graziellematos", name: "Grazielle Matos", initials: "GM", setupComplete: false };
-  const context = vm.createContext({
-    app, document: { title: "" }, state: {}, location: { search: "" }, URLSearchParams,
+test("loja recém-criada abre a página padrão de agendamento", () => {
+  const store = { slug: "graziellematos", name: "Grazielle Matos", initials: "GM", address: "", services: [], setupComplete: false };
+  const rendered = [];
+  const routeContext = vm.createContext({
+    state: {}, location: { search: "" }, URLSearchParams,
     SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", catalogLoaded: true,
     establishments: { graziellematos: store },
     scheduleTurnTimer: null, adminRefreshTimer: null, monitorClockTimer: null, serviceCarouselTimer: null,
     clearTimeout() {}, clearInterval() {}, session: () => null, route: () => "graziellematos",
-    href: path => path, logo: () => "Agendae", escapeHTML: value => String(value),
-    initials: name => name.slice(0, 2).toUpperCase(),
+    renderEstablishmentPublic: value => rendered.push(value),
     renderNotFound: () => assert.fail("A loja cadastrada não deve aparecer como inexistente"),
   });
-  vm.runInContext(source.slice(source.indexOf("function renderPendingStore("), source.indexOf("function activeEstablishment()")), context);
-  context.render();
+  vm.runInContext(source.slice(source.indexOf("function render() {"), source.indexOf("function activeEstablishment()")), routeContext);
+  routeContext.render();
+  assert.deepEqual(rendered, [store]);
+
+  const app = { innerHTML: "" };
+  const pageContext = vm.createContext({
+    app, document: { title: "" }, location: { search: "" }, URLSearchParams,
+    state: { booking: { step: 1, date: "2026-09-30" }, publicLookup: { scanning: false }, attendanceOpen: false },
+    session: () => null, getData: () => ({}), href: path => path, logo: () => "Agendae", escapeHTML: value => String(value),
+    publicCurrentAttendance: () => "Atendendo agora", publicAccessMenu: () => "Entrar", publicSchedule: () => "Agenda",
+    compactBusinessHours: () => "Funcionamento", publicServiceCards: () => "Serviços",
+    employeeAccessModal: () => "", requestAnimationFrame() {},
+  });
+  vm.runInContext(source.slice(source.indexOf("function renderEstablishmentPublic("), source.indexOf("function appointmentRows(")), pageContext);
+  pageContext.renderEstablishmentPublic(store);
+  assert.match(app.innerHTML, /class="est-page"/);
   assert.match(app.innerHTML, /Grazielle Matos/);
-  assert.match(app.innerHTML, /EM CONFIGURAÇÃO/);
-  assert.match(app.innerHTML, /href="\/login\?establishment=graziellematos"/);
+  assert.match(app.innerHTML, /public-schedule-panel/);
+  assert.match(app.innerHTML, /public-services-panel/);
+  assert.match(app.innerHTML, /Agenda em configuração/);
+  assert.match(app.innerHTML, /data-open-checkin disabled/);
+  assert.doesNotMatch(app.innerHTML, /Estabelecimento não encontrado/);
+});
+
+test("agenda recém-criada não libera horários antes da publicação", () => {
+  const context = vm.createContext({ escapeHTML: value => String(value) });
+  vm.runInContext(source.slice(source.indexOf("function publicSchedule("), source.indexOf("function moveScheduleTurn(")), context);
+  const markup = context.publicSchedule({ name: "Grazielle Matos", setupComplete: false });
+  assert.match(markup, /agenda de Grazielle Matos está em configuração/);
+  assert.doesNotMatch(markup, /data-public-slot/);
 });
 
 test("rota de gestão abre a Home sem sessão administrativa", () => {
