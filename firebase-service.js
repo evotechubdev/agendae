@@ -1,12 +1,9 @@
-import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { lunchBreakFor, isLunchTime, scheduleFromPeriods, workPeriodsFor, serviceFitsSlot, businessDayIsClosed, appointmentDurationMinutes, appointmentPresenceWindow } from "./schedule-model.mjs";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
-  createUserWithEmailAndPassword,
-  deleteUser,
   getAuth,
-  inMemoryPersistence,
   onAuthStateChanged,
   setPersistence,
   signInWithEmailAndPassword,
@@ -42,6 +39,27 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 export const integrationApiBaseUrl = "https://agendae-backend-t5ax.onrender.com";
+
+async function systemRequest(path, options = {}) {
+  let response;
+  try {
+    response = await fetch(`${integrationApiBaseUrl}/v1/admin/system/${path}`, { cache: "no-store", ...options });
+  } catch {
+    throw new Error("Não foi possível conectar à API no Render. Tente novamente.");
+  }
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.message || "Não foi possível concluir a operação.");
+  return result;
+}
+
+async function authenticatedSystemRequest(path, options = {}) {
+  if (!auth.currentUser) throw new Error("Entre como administrador do sistema.");
+  const token = await auth.currentUser.getIdToken();
+  return systemRequest(path, {
+    ...options,
+    headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) },
+  });
+}
 
 async function integrationAdminRequest(slug, method = "GET") {
   if (!auth.currentUser) throw new Error("Entre como administrador para configurar a API.");
@@ -115,18 +133,11 @@ async function appointmentCodeLookupKey(slug, code) {
 
 async function profileFor(user) {
   if (!user) return null;
-  const systemAdmin = await getDoc(doc(db, "systemAdmins", user.uid));
-  if (systemAdmin.exists() && systemAdmin.data().active === true) return {
-    uid: user.uid, email: user.email, name: systemAdmin.data().name || user.email,
-    role: "system_admin", slug: "",
-  };
   const profileRef = doc(db, "users", user.uid);
   const profileSnapshot = await getDoc(profileRef);
 
   if (!profileSnapshot.exists()) {
-    const error = new Error("Usuário sem estabelecimento vinculado.");
-    error.code = "agendae/profile-not-found";
-    throw error;
+    return authenticatedSystemRequest("session");
   }
 
   const profile = profileSnapshot.data();
@@ -203,7 +214,9 @@ export async function changeOwnPassword(password) {
   });
 }
 
-export async function loginSystemAdmin(email, password) {
+export async function loginSystemAdmin(login, password) {
+  const input = String(login || "").trim().toLowerCase();
+  const { email } = await systemRequest(`login-email?login=${encodeURIComponent(input)}`);
   await setPersistence(auth, browserLocalPersistence);
   const credential = await signInWithEmailAndPassword(auth, email, password);
   try {
@@ -221,35 +234,11 @@ export async function loginSystemAdmin(email, password) {
 }
 
 export async function createEstablishmentWithOwner(details) {
-  if (!auth.currentUser || !(await getDoc(doc(db, "systemAdmins", auth.currentUser.uid))).data()?.active) {
-    throw new Error("Entre como administrador do sistema para criar uma loja.");
-  }
-  const reference = doc(db, "establishments", details.slug);
-  if ((await getDoc(reference)).exists()) throw new Error("Este identificador de loja já está em uso.");
-  const provisioningApp = initializeApp(firebaseConfig, `store-provisioning-${crypto.randomUUID()}`);
-  const provisioningAuth = getAuth(provisioningApp);
-  let ownerUser = null;
-  try {
-    await setPersistence(provisioningAuth, inMemoryPersistence);
-    ownerUser = (await createUserWithEmailAndPassword(provisioningAuth, details.owner.email, details.owner.password)).user;
-    const batch = writeBatch(db);
-    batch.set(reference, { ...details.establishment, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-    batch.set(doc(db, "users", ownerUser.uid), {
-      name: details.owner.name, email: details.owner.email, role: "admin",
-      establishmentSlug: details.slug, mustChangePassword: true,
-      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-    });
-    try {
-      await batch.commit();
-    } catch (error) {
-      try { await deleteUser(ownerUser); }
-      catch { throw new Error("A conta foi criada, mas a loja não foi salva. Remova a conta no Firebase Authentication antes de tentar novamente."); }
-      throw error;
-    }
-  } finally {
-    await signOut(provisioningAuth).catch(() => {});
-    await deleteApp(provisioningApp);
-  }
+  return authenticatedSystemRequest("establishments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: details.name }),
+  });
 }
 
 export async function saveStoreProfile(slug, profile) {
