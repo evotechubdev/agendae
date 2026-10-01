@@ -11,7 +11,7 @@
       #message { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; color: #435062; text-align: center; }
       #message[hidden] { display: none; }
       .store-marker { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: default; }
-      .store-marker span { max-width: 180px; overflow: hidden; padding: 7px 10px; border: 2px solid #fff; border-radius: 8px; color: #fff; background: #0b2f78; box-shadow: 0 2px 8px #1b2e4266; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .store-marker span { max-width: min(280px, calc(100vw - 90px)); overflow-wrap: anywhere; padding: 7px 10px; border: 2px solid #fff; border-radius: 8px; color: #fff; background: #0b2f78; box-shadow: 0 2px 8px #1b2e4266; font-weight: 700; text-align: center; }
       .store-marker::after { content: ""; width: 14px; height: 14px; border: 3px solid #fff; border-radius: 50%; background: #0b2f78; box-shadow: 0 2px 8px #1b2e4266; }
     </style>
   </head>
