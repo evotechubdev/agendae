@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { TICKET_STATES, allProfessionalsClosed } from "../frontend/queue-model.mjs";
+import { TICKET_STATES, allProfessionalsClosed, upcomingFreeSlots, queueView } from "../frontend/queue-model.mjs";
 import { businessOpeningMinutes, businessDayIsClosed } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
@@ -72,6 +72,17 @@ test("abertura respeita o dia, o minuto exato e a grade quando não há horário
   establishment.hours.push({ label: "Segunda", value: "10:00 - 18:00" });
   assert.equal(businessOpeningMinutes(establishment, "2026-09-28"), 600);
   assert.equal(businessOpeningMinutes({ professionals: [{ name: "A", availableTimes: ["09:20"] }, { name: "B", availableTimes: ["08:40"] }] }, "2026-09-28"), 520);
+});
+
+test("fila preserva atendimento e horários livres do segundo endereço", () => {
+  const establishment = {
+    address2: "Clínica B", hours: [{ label: "Segunda", value: "Fechado" }], hours2: [{ label: "Segunda", value: "14:00 - 16:00" }],
+    professionals: [{ name: "Ana", availableTimes: ["14:00", "14:20", "14:40"] }],
+    services: [{ name: "Consulta", duration: 20, locationType: "address2" }],
+  };
+  const clock = { date: "2026-09-28", minutes: 14 * 60 + 5 };
+  assert.deepEqual(upcomingFreeSlots(establishment, {}, clock).map(item => item.time), ["14:20", "14:40"]);
+  assert.equal(queueView(establishment, {}, clock).current[0].ticketState, "in-service");
 });
 
 test("domingo fechado informa que não há expediente sem inventar atendimento ou pausa", () => {

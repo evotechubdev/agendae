@@ -57,7 +57,8 @@ export function scheduledTicket(establishment, time, professional, service, date
 }
 
 export function queueView(establishment, data, clock) {
-  const dailyHours = businessHoursRangeForDate(establishment, clock.date);
+  const dailyRanges = [businessHoursRangeForDate(establishment, clock.date), ...(establishment.address2 ? [businessHoursRangeForDate(establishment, clock.date, "address2")] : [])].filter(Boolean);
+  const withinWorkplace = time => !dailyRanges.length || dailyRanges.some(range => timeMinutes(time) >= range.start && timeMinutes(time) < range.end);
   const publicSlots = Array.isArray(data.todaySlots);
   const entries = publicSlots ? data.todaySlots : (data.appointments || []);
   const professionals = [...new Set((establishment?.professionals || []).map((item) => typeof item === "string" ? item : item.name).filter(Boolean))];
@@ -73,10 +74,10 @@ export function queueView(establishment, data, clock) {
   const current = [];
   const inactivePosition = (professional, time = null, ticketState = "paused") => ({ date: clock.date, time, professional, kind: "scheduled", ticket: null, ticketState });
   for (const professional of professionals) {
-    const times = scheduleTimes(establishment, professional, clock.date).filter((time) => !dailyHours || timeMinutes(time) >= dailyHours.start && timeMinutes(time) < dailyHours.end);
+    const times = scheduleTimes(establishment, professional, clock.date).filter(withinWorkplace);
     const directoryEntry = (establishment.professionals || []).find((item) => item.name === professional);
-    const shiftEnd = dailyHours
-      ? Math.min(directoryEntry?.scheduleEnd ? timeMinutes(directoryEntry.scheduleEnd) : dailyHours.end, dailyHours.end)
+    const shiftEnd = dailyRanges.length
+      ? Math.min(directoryEntry?.scheduleEnd ? timeMinutes(directoryEntry.scheduleEnd) : Math.max(...dailyRanges.map(range => range.end)), Math.max(...dailyRanges.map(range => range.end)))
       : directoryEntry?.scheduleEnd ? timeMinutes(directoryEntry.scheduleEnd) : null;
     if (closed.has(professional)) {
       current.push(inactivePosition(professional, null, "closed"));
@@ -88,7 +89,7 @@ export function queueView(establishment, data, clock) {
     }
     const status = activeStaff.find((item) => item.professional === professional);
     const ongoing = scheduled.filter((item) => item.professional === professional && item.status === "atendendo").at(-1);
-    const onShift = times.length && clock.minutes >= timeMinutes(times[0]) && (shiftEnd !== null ? clock.minutes < shiftEnd : clock.minutes <= timeMinutes(times.at(-1)));
+    const onShift = times.length && clock.minutes >= timeMinutes(times[0]) && (shiftEnd !== null ? clock.minutes < shiftEnd : clock.minutes <= timeMinutes(times.at(-1))) && (!dailyRanges.length || dailyRanges.some(range => clock.minutes >= range.start && clock.minutes < range.end));
     const time = status?.currentTime || ongoing?.time || (onShift ? times.filter((slot) => timeMinutes(slot) <= clock.minutes).at(-1) : null);
     const onLunch = isLunchTime(lunchBreakFor(establishment, professional, clock.date), clock.minutes);
     const interval = pauseIntervalFor(establishment, professional, clock.minutes);
@@ -122,13 +123,13 @@ export function queueView(establishment, data, clock) {
 
 export function upcomingFreeSlots(establishment, data, clock) {
   if (businessDayIsClosed(establishment, clock.date)) return [];
-  const dailyHours = businessHoursRangeForDate(establishment, clock.date);
+  const dailyRanges = [businessHoursRangeForDate(establishment, clock.date), ...(establishment.address2 ? [businessHoursRangeForDate(establishment, clock.date, "address2")] : [])].filter(Boolean);
   const entries = Array.isArray(data.todaySlots) ? data.todaySlots : (data.slots || data.appointments || []);
   const bookings = entries.filter((item) => item.date === clock.date);
   const closed = new Set((data.staffStatuses || []).filter(item => item.closedDate === clock.date).map(item => item.professional));
   return scheduleMatrix(establishment, clock.date).professionals.filter(professional => !closed.has(professional.name)).flatMap((professional) => professional.availableTimes
     .filter((time) => timeMinutes(time) > clock.minutes
-      && (!dailyHours || timeMinutes(time) >= dailyHours.start && timeMinutes(time) < dailyHours.end)
+      && (!dailyRanges.length || dailyRanges.some(range => timeMinutes(time) >= range.start && timeMinutes(time) < range.end))
       && ((establishment.services || []).length
         ? establishment.services.some((service) => serviceAvailableAt(establishment, service, clock.date, time)
           && serviceFitsSlot(establishment, professional.name, time, service.name, bookings, clock.date))
