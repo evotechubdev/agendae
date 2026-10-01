@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addressFallbackQuery, addressMapQuery, geocodeAddress, singleEstablishmentStyle, validMapPoint } from "../frontend/address-map.mjs";
+import { addressFallbackQuery, addressMapLabel, addressMapQuery, geocodeAddress, googleMapsPlaceQuery, singleEstablishmentStyle, validMapPoint } from "../frontend/address-map.mjs";
 
 test("cada endereço gera sua própria busca e um mapa com marcador", () => {
   const establishment = {
@@ -10,6 +10,11 @@ test("cada endereço gera sua própria busca e um mapa com marcador", () => {
   const first = addressMapQuery(establishment);
   const second = addressMapQuery(establishment, "2");
   assert.equal(first, "Edifício Bahia Center, Salvador, BA, Brasil");
+  assert.equal(addressMapLabel(establishment), "Edifício Bahia Center, sala 1306");
+  assert.equal(googleMapsPlaceQuery(establishment), "Edifício Bahia Center, Avenida Antônio Carlos Magalhães, 100, Salvador, BA, Brasil");
+  assert.equal(googleMapsPlaceQuery(establishment, "2"), "Rua Chile, 20, Salvador, BA, Brasil");
+  assert.equal(googleMapsPlaceQuery({ ...establishment, number: "SN" }), "Edifício Bahia Center, Avenida Antônio Carlos Magalhães, Salvador, BA, Brasil");
+  assert.equal(googleMapsPlaceQuery({ address: "Rua A, 10, Salvador" }), "Rua A, 10, Salvador");
   assert.equal(addressMapQuery({ ...establishment, complement2: "Sala 1306, Edifício Chile" }, "2"), "Edifício Chile, Salvador, BA, Brasil");
   assert.match(addressFallbackQuery(establishment), /Avenida Antônio Carlos Magalhães, 100, Salvador, BA, Brasil/);
   assert.match(second, /Rua Chile, 20, Salvador, BA, Brasil/);

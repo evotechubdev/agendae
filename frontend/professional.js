@@ -3,7 +3,7 @@ import { scheduleTimeline, scheduleMatrix, scheduleDayPeriods, lunchBreakFor, is
 import { renderBookingCalendar, shiftCalendarMonth, calendarMonthDays } from "./calendar-model.mjs";
 import { loginCredentials } from "./login-model.mjs";
 import { establishmentSlug, storeProfile } from "./establishment-model.mjs";
-import { addressFallbackQuery, addressMapQuery, cachedMapPoint, geocodeAddress, validMapPoint } from "./address-map.mjs";
+import { addressFallbackQuery, addressMapLabel, addressMapQuery, cachedMapPoint, geocodeAddress, googleMapsPlaceQuery, validMapPoint } from "./address-map.mjs";
 import { formatPostalCode, lookupPostalCode, matchingPostalCode, postalDigits, searchPostalCodes } from "./postal-code.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
@@ -716,15 +716,16 @@ function publicMapMarkup(establishment) {
   const address = addresses[selected];
   if (!address) return "";
   const suffix = selected === "address2" ? "2" : "";
+  const mapLabel = addressMapLabel(establishment, suffix);
   const query = addressMapQuery(establishment, suffix);
   const savedPoint = establishment[selected === "address2" ? "mapCoordinates2" : "mapCoordinates1"];
   const point = validMapPoint(savedPoint, query) ? savedPoint : cachedMapPoint(query);
   const choices = addresses.address2 ? `<div class="public-location-choices" role="group" aria-label="Selecionar endereço no mapa"><button type="button" data-map-address="address1" aria-pressed="${selected === "address1"}" ${addresses.address1 ? "" : "disabled"}>Endereço 1</button><button type="button" data-map-address="address2" aria-pressed="${selected === "address2"}">Endereço 2</button></div>` : "";
-  const mapLink = point ? `https://www.openstreetmap.org/?mlat=${point.lat}&amp;mlon=${point.lon}#map=17/${point.lat}/${point.lon}` : `https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(query)}`;
+  const mapLink = `https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(googleMapsPlaceQuery(establishment, suffix))}`;
   const mapUrl = new URL(`${BASE}/location-map.html`, location.origin);
-  if (point) mapUrl.search = new URLSearchParams({ lat: String(point.lat), lon: String(point.lon), name: establishment.name }).toString();
-  const map = point ? `<div class="public-map-view"><iframe title="Ponto do ${selected === "address2" ? "Endereço 2" : "Endereço 1"} de ${escapeHTML(establishment.name)}" src="${mapUrl.href.replaceAll("&", "&amp;")}" loading="lazy"></iframe><small>Mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · localização aproximada</small></div>` : `<div class="public-map-empty"><p>O ponto deste endereço ainda não foi localizado.</p><button type="button" class="btn btn-outline btn-sm" data-map-locate="${selected}">Localizar ponto no mapa</button><small data-map-status role="status"></small></div>`;
-  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Onde estamos</h2>${choices}<p>${escapeHTML(address)}</p><a href="${mapLink}" target="_blank" rel="noopener noreferrer">Abrir no mapa</a></div>${map}</section>`;
+  if (point) mapUrl.search = new URLSearchParams({ lat: String(point.lat), lon: String(point.lon), name: mapLabel }).toString();
+  const map = point ? `<div class="public-map-view"><iframe title="Localização de ${escapeHTML(mapLabel)} no ${selected === "address2" ? "Endereço 2" : "Endereço 1"}" src="${mapUrl.href.replaceAll("&", "&amp;")}" loading="lazy"></iframe><small>Mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · localização aproximada</small></div>` : `<div class="public-map-empty"><p>O ponto deste endereço ainda não foi localizado.</p><button type="button" class="btn btn-outline btn-sm" data-map-locate="${selected}">Localizar ponto no mapa</button><small data-map-status role="status"></small></div>`;
+  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Onde estamos</h2>${choices}<p>${escapeHTML(address)}</p><a href="${mapLink}" target="_blank" rel="noopener noreferrer">Abrir no Google Maps</a></div>${map}</section>`;
 }
 
 function selectPublicMapAddress(establishment, type) {
