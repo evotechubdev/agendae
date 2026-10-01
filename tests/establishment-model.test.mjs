@@ -19,6 +19,7 @@ test("os dados públicos são configurados pelo administrador da loja", () => {
   assert.equal(profile.initials, "SB");
   assert.equal(profile.address, "Rua A, 10, Sala 2 - Centro, São Paulo - SP, 01001-000");
   assert.equal(profile.zipCode, "01001-000");
+  assert.equal(storeProfile({ ...profile, number: "sn", opening: "08:00", closing: "18:00" }).number, "SN");
   assert.deepEqual(profile.hours, [
     { label: "Seg a sex", value: "08:00 - 18:00" },
     { label: "Sábado", value: "08:00 - 18:00" },

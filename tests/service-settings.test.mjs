@@ -24,6 +24,8 @@ test("loja oferece expediente independente em cada dia e segundo endereço", () 
   assert.match(html, /name="city2"/);
   assert.match(html, /name="state2"/);
   assert.match(html, /name="complement2"/);
+  assert.match(html, /placeholder="Ex.: 123 ou SN"/);
+  assert.match(html, /data-postal-status="2"/);
   assert.match(html, /name="day_seg_open" checked/);
   assert.match(html, /name="day_seg_end" value="12:00"/);
   assert.match(html, /name="day_ter_open" /);
