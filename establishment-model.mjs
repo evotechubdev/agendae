@@ -3,8 +3,6 @@
     .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-import { googleMapsEmbedUrl } from "./address-map.mjs";
-
 export function newEstablishment(input) {
   const name = String(input.name || "").trim().replace(/\s+/g, " ");
   const slug = establishmentSlug(name).replace(/-/g, "");
@@ -16,7 +14,7 @@ export function newEstablishment(input) {
     establishment: {
       slug, name, active: true, setupComplete: false,
       initials: name.split(" ").map(part => part[0]).slice(0, 2).join("").toLocaleUpperCase("pt-BR"),
-      category: "", neighborhood: "", street: "", number: "", zipCode: "", city: "", state: "", complement: "", mapEmbedUrl: "", address: "", street2: "", number2: "", neighborhood2: "", zipCode2: "", city2: "", state2: "", complement2: "", mapEmbedUrl2: "", address2: "", mapCoordinates1: null, mapCoordinates2: null, type: "business",
+      category: "", neighborhood: "", street: "", number: "", zipCode: "", city: "", state: "", complement: "", address: "", street2: "", number2: "", neighborhood2: "", zipCode2: "", city2: "", state2: "", complement2: "", address2: "", mapCoordinates1: null, mapCoordinates2: null, type: "business",
       openNow: false, averageWaitMinutes: 20, scheduleMode: "employee",
       hours: [], availableTimes: [], professionals: [], services: [], serviceDurations: {},
       professionalLunchBreaks: {}, extraWorkingDates: {}, staffClosedDates: {},
@@ -28,16 +26,14 @@ export function storeProfile(input) {
   const name = String(input.name || "").trim().replace(/\s+/g, " ");
   const category = String(input.category || "").trim();
   const readAddress = (suffix, required) => {
-    const values = Object.fromEntries(["street", "number", "neighborhood", "zipCode", "city", "state", "complement", "mapEmbedUrl"].map(key => [key, String(input[`${key}${suffix}`] || "").trim()]));
+    const values = Object.fromEntries(["street", "number", "neighborhood", "zipCode", "city", "state", "complement"].map(key => [key, String(input[`${key}${suffix}`] || "").trim()]));
     const { street, neighborhood, zipCode, city, complement } = values;
     const number = /^s\/?n$/i.test(values.number) ? "SN" : values.number;
     const state = values.state.toUpperCase();
     if (!required && !Object.values(values).some(Boolean)) return { ...values, state, address: "" };
     if (!street || !number || !neighborhood || !/^\d{5}-?\d{3}$/.test(zipCode) || !city || !/^[A-Z]{2}$/.test(state)) throw new Error(`Preencha rua, número, bairro, CEP, cidade e estado válidos do Endereço ${suffix ? "2" : "1"}.`);
-    const mapEmbedUrl = values.mapEmbedUrl ? googleMapsEmbedUrl(values.mapEmbedUrl) : "";
-    if (values.mapEmbedUrl && !mapEmbedUrl) throw new Error(`Cole um link ou código de incorporação válido do Google Maps para o Endereço ${suffix ? "2" : "1"}.`);
     const formattedZipCode = `${zipCode.replace(/\D/g, "").slice(0, 5)}-${zipCode.replace(/\D/g, "").slice(5)}`;
-    return { street, number, neighborhood, zipCode: formattedZipCode, city, state, complement, mapEmbedUrl, address: `${street}, ${number}${complement ? `, ${complement}` : ""} - ${neighborhood}, ${city} - ${state}, ${formattedZipCode}` };
+    return { street, number, neighborhood, zipCode: formattedZipCode, city, state, complement, address: `${street}, ${number}${complement ? `, ${complement}` : ""} - ${neighborhood}, ${city} - ${state}, ${formattedZipCode}` };
   };
   const first = readAddress("", true);
   const second = readAddress("2", false);
@@ -67,7 +63,7 @@ export function storeProfile(input) {
   }
   return {
     name, category, ...first,
-    street2: second.street, number2: second.number, neighborhood2: second.neighborhood, zipCode2: second.zipCode, city2: second.city, state2: second.state, complement2: second.complement, mapEmbedUrl2: second.mapEmbedUrl, address2: second.address,
+    street2: second.street, number2: second.number, neighborhood2: second.neighborhood, zipCode2: second.zipCode, city2: second.city, state2: second.state, complement2: second.complement, address2: second.address,
     initials: name.split(" ").map(part => part[0]).slice(0, 2).join("").toLocaleUpperCase("pt-BR"),
     hours,
   };

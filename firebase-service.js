@@ -36,7 +36,7 @@ try {
 }
 if (!firebaseConfigResponse.ok) throw new Error("Configuração do Firebase indisponível no Render.");
 const { mapsEmbedKey, ...firebaseConfig } = await firebaseConfigResponse.json();
-export const googleMapsEmbedKey = String(mapsEmbedKey || "").trim();
+export const googleMapsEmbedKey = String(mapsEmbedKey || firebaseConfig.apiKey || "").trim();
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
