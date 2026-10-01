@@ -1,0 +1,44 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { addressMapQuery, geocodeAddress, mapEmbedUrl, validMapPoint } from "../frontend/address-map.mjs";
+
+test("cada endereço gera sua própria busca e um mapa com marcador", () => {
+  const establishment = {
+    street: "Avenida Antônio Carlos Magalhães", number: "100", city: "Salvador", state: "BA", complement: "Sala 1306",
+    street2: "Rua Chile", number2: "20", city2: "Salvador", state2: "BA",
+  };
+  const first = addressMapQuery(establishment);
+  const second = addressMapQuery(establishment, "2");
+  assert.match(first, /Avenida Antônio Carlos Magalhães, 100, Salvador, BA, Brasil/);
+  assert.doesNotMatch(first, /Sala 1306/);
+  assert.match(second, /Rua Chile, 20, Salvador, BA, Brasil/);
+  assert.notEqual(first, second);
+  const point = { lat: -12.98, lon: -38.47, query: second };
+  assert.equal(validMapPoint(point, second), true);
+  assert.equal(validMapPoint(point, first), false);
+  assert.match(mapEmbedUrl(point), /marker=-12\.98%2C-38\.47/);
+  assert.equal(addressMapQuery({ address: "Avenida Antônio Carlos Magalhães, Edifício Bahia Center, sala 1306, Salvador Bahia" }), "Avenida Antônio Carlos Magalhães, Salvador Bahia");
+});
+
+test("geocodificação guarda coordenadas de uma rua para reutilização", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalStorage = globalThis.localStorage;
+  const values = new Map();
+  const calls = [];
+  globalThis.localStorage = { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value) };
+  globalThis.fetch = async url => {
+    calls.push(String(url));
+    return { ok: true, json: async () => [{ lat: "-12.98", lon: "-38.47", addresstype: "road" }] };
+  };
+  try {
+    const query = "Avenida Antônio Carlos Magalhães, Salvador Bahia";
+    const point = await geocodeAddress(query);
+    assert.deepEqual(point, { lat: -12.98, lon: -38.47, query });
+    assert.match(calls[0], /countrycodes=br/);
+    assert.deepEqual(await geocodeAddress(query), point);
+    assert.equal(calls.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.localStorage = originalStorage;
+  }
+});

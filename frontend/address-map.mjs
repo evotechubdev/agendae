@@ -1,0 +1,59 @@
+const GEOCODER_URL = "https://nominatim.openstreetmap.org/search";
+const CACHE_PREFIX = "agendae:map-point:";
+let nextRequestAt = 0;
+let requestQueue = Promise.resolve();
+
+export function addressMapQuery(establishment, suffix = "") {
+  const street = String(establishment[`street${suffix}`] || "").trim();
+  const number = String(establishment[`number${suffix}`] || "").trim();
+  const city = String(establishment[`city${suffix}`] || "").trim();
+  const state = String(establishment[`state${suffix}`] || "").trim();
+  if (street && city) return [street, number, city, state, "Brasil"].filter(Boolean).join(", ");
+  const legacy = String(establishment[suffix ? "address2" : "address"] || "").trim();
+  return legacy.split(",").map(part => part.trim())
+    .filter(part => part && !/^(edif[ií]cio|sala|andar|apto\.?|apartamento|bloco)\b/i.test(part))
+    .join(", ");
+}
+
+export function validMapPoint(point, query) {
+  return point?.query === query && typeof point.lat === "number" && typeof point.lon === "number"
+    && Number.isFinite(point.lat) && Number.isFinite(point.lon)
+    && Math.abs(point.lat) <= 90 && Math.abs(point.lon) <= 180;
+}
+
+export function cachedMapPoint(query) {
+  try {
+    const point = JSON.parse(localStorage.getItem(CACHE_PREFIX + query) || "null");
+    return validMapPoint(point, query) ? point : null;
+  } catch { return null; }
+}
+
+export function mapEmbedUrl(point) {
+  const lat = Number(point.lat);
+  const lon = Number(point.lon);
+  const box = [lon - 0.004, lat - 0.0025, lon + 0.004, lat + 0.0025].join(",");
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(box)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lon}`)}`;
+}
+
+export async function geocodeAddress(query) {
+  const cached = cachedMapPoint(query);
+  if (cached) return cached;
+  const search = async () => {
+    const wait = Math.max(0, nextRequestAt - Date.now());
+    if (wait) await new Promise(resolve => setTimeout(resolve, wait));
+    nextRequestAt = Date.now() + 1100;
+    const url = new URL(GEOCODER_URL);
+    url.search = new URLSearchParams({ q: query, format: "jsonv2", limit: "1", countrycodes: "br", addressdetails: "1" }).toString();
+    const response = await fetch(url, { referrerPolicy: "strict-origin-when-cross-origin" });
+    if (!response.ok) throw new Error("Não foi possível consultar o mapa agora.");
+    const results = await response.json();
+    const first = results[0];
+    const point = { lat: Number(first?.lat), lon: Number(first?.lon), query };
+    if (!first || !validMapPoint(point, query) || ["city", "town", "village", "municipality", "county", "state", "country", "postcode", "suburb"].includes(first.addresstype)) return null;
+    try { localStorage.setItem(CACHE_PREFIX + query, JSON.stringify(point)); } catch { /* Storage can be unavailable. */ }
+    return point;
+  };
+  const pending = requestQueue.then(search, search);
+  requestQueue = pending.catch(() => {});
+  return pending;
+}

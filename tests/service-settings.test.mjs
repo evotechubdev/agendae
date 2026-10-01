@@ -10,13 +10,20 @@ const context = vm.createContext({
   session: () => ({ role: "admin" }),
 });
 vm.runInContext(source.slice(source.indexOf("function serviceIntervalMarkup("), source.indexOf("function hoursSettingsMarkup(")), context);
-vm.runInContext(source.slice(source.indexOf("function storeSettingsMarkup("), source.indexOf("function apiSettingsMarkup(")), context);
+vm.runInContext(source.slice(source.indexOf("function storeAddressFields("), source.indexOf("function apiSettingsMarkup(")), context);
 
 test("loja oferece expediente independente em cada dia e segundo endereço", () => {
   const html = context.storeSettingsMarkup({ slug: "clinica", name: "Clínica", address: "Rua A", address2: "Rua B", hours: [
     { label: "Segunda", value: "08:00 - 12:00" }, { label: "Terça", value: "Fechado" },
   ], services: [], professionals: [] });
-  assert.match(html, /name="address2" value="Rua B"/);
+  assert.match(html, /<h3>Endereços<\/h3>/);
+  assert.match(html, /name="street2"[^>]*value="Rua B"/);
+  assert.match(html, /name="number2"/);
+  assert.match(html, /name="neighborhood2"/);
+  assert.match(html, /name="zipCode2"/);
+  assert.match(html, /name="city2"/);
+  assert.match(html, /name="state2"/);
+  assert.match(html, /name="complement2"/);
   assert.match(html, /name="day_seg_open" checked/);
   assert.match(html, /name="day_seg_end" value="12:00"/);
   assert.match(html, /name="day_ter_open" /);
