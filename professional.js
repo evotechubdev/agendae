@@ -3,7 +3,7 @@ import { scheduleTimeline, scheduleMatrix, scheduleDayPeriods, lunchBreakFor, is
 import { renderBookingCalendar, shiftCalendarMonth, calendarMonthDays } from "./calendar-model.mjs";
 import { loginCredentials } from "./login-model.mjs";
 import { establishmentSlug, storeProfile } from "./establishment-model.mjs";
-import { addressMapQuery, cachedMapPoint, geocodeAddress, mapEmbedUrl, validMapPoint } from "./address-map.mjs";
+import { addressMapQuery, cachedMapPoint, geocodeAddress, validMapPoint } from "./address-map.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const SYSTEM_MANAGE_ROUTE = "gerenciar-estabelecimentos";
@@ -720,7 +720,9 @@ function publicMapMarkup(establishment) {
   const point = validMapPoint(savedPoint, query) ? savedPoint : cachedMapPoint(query);
   const choices = addresses.address2 ? `<div class="public-location-choices" role="group" aria-label="Selecionar endereço no mapa"><button type="button" data-map-address="address1" aria-pressed="${selected === "address1"}" ${addresses.address1 ? "" : "disabled"}>Endereço 1</button><button type="button" data-map-address="address2" aria-pressed="${selected === "address2"}">Endereço 2</button></div>` : "";
   const mapLink = point ? `https://www.openstreetmap.org/?mlat=${point.lat}&amp;mlon=${point.lon}#map=17/${point.lat}/${point.lon}` : `https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(query)}`;
-  const map = point ? `<div class="public-map-view"><iframe title="Ponto do ${selected === "address2" ? "Endereço 2" : "Endereço 1"} de ${escapeHTML(establishment.name)}" src="${mapEmbedUrl(point).replaceAll("&", "&amp;")}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe><small>Mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · localização aproximada</small></div>` : `<div class="public-map-empty"><p>O ponto deste endereço ainda não foi localizado.</p><button type="button" class="btn btn-outline btn-sm" data-map-locate="${selected}">Localizar ponto no mapa</button><small data-map-status role="status"></small></div>`;
+  const mapUrl = new URL(`${BASE}/location-map.html`, location.origin);
+  if (point) mapUrl.search = new URLSearchParams({ lat: String(point.lat), lon: String(point.lon), name: establishment.name }).toString();
+  const map = point ? `<div class="public-map-view"><iframe title="Ponto do ${selected === "address2" ? "Endereço 2" : "Endereço 1"} de ${escapeHTML(establishment.name)}" src="${mapUrl.href.replaceAll("&", "&amp;")}" loading="lazy"></iframe><small>Mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · localização aproximada</small></div>` : `<div class="public-map-empty"><p>O ponto deste endereço ainda não foi localizado.</p><button type="button" class="btn btn-outline btn-sm" data-map-locate="${selected}">Localizar ponto no mapa</button><small data-map-status role="status"></small></div>`;
   return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Onde estamos</h2>${choices}<p>${escapeHTML(address)}</p><a href="${mapLink}" target="_blank" rel="noopener noreferrer">Abrir no mapa</a></div>${map}</section>`;
 }
 
