@@ -1180,7 +1180,7 @@ function storeSettingsMarkup(establishment) {
   const ready = establishment.name !== "Estabelecimento em configuração" && establishment.category && establishment.neighborhood && establishment.address && establishment.hours?.length && establishment.professionals?.length && establishment.services?.length && establishment.availableTimes?.length && (!(establishment.services || []).some(item => item.locationType === "address2") || establishment.address2);
   return `<div class="settings-section store-profile-settings"><p class="settings-hint">O endereço da página é <strong>${escapeHTML(establishment.slug)}</strong>. Preencha os dados da loja aqui; depois cadastre funcionários, escalas e serviços nas outras abas.</p>
     <form class="settings-item-form" data-store-profile-form><h3>Dados do estabelecimento</h3><div class="settings-fields"><label>Nome da loja<input name="name" maxlength="100" required value="${escapeHTML(establishment.name === "Estabelecimento em configuração" ? "" : establishment.name)}"></label><label>Categoria<input name="category" required value="${escapeHTML(establishment.category || "")}" placeholder="Ex.: Barbearia"></label></div><h3>Endereços</h3><h4>Endereço 1</h4>${storeAddressFields(establishment)}<h4>Endereço 2 <small>(opcional)</small></h4>${storeAddressFields(establishment, "2")}
-      <h3>Expediente por dia da semana</h3><p class="settings-hint">Marque os dias de atendimento e informe a abertura e o fechamento de cada um. A escala dos profissionais também precisa caber nesses horários.</p><div class="store-weekly-grid">${weeklyRows}</div><button class="btn btn-primary btn-sm" type="submit">Salvar dados da loja</button></form>
+      <h3>Expediente por dia da semana</h3><p class="settings-hint">Marque os dias de atendimento e informe a abertura e o fechamento de cada um. A escala dos profissionais também precisa caber nesses horários.</p><div class="store-weekly-grid">${weeklyRows}</div><p class="store-save-status" data-store-save-status role="alert" hidden></p><button class="btn btn-primary btn-sm" type="submit">Salvar dados da loja</button></form>
     ${establishment.setupComplete === false ? `<div class="store-publish"><strong>Publicação</strong><p>Para aparecer na busca e aceitar agendamentos, salve os dados da loja, adicione pelo menos um funcionário, uma escala e um serviço.</p><button class="btn btn-primary btn-sm" type="button" data-publish-store ${ready ? "" : "disabled"}>Publicar estabelecimento</button></div>` : '<p class="settings-hint">Estabelecimento publicado. Você pode editar os dados acima e salvá-los a qualquer momento.</p>'}</div>`;
 }
 
@@ -2327,7 +2327,11 @@ document.addEventListener("submit", async (event) => {
     const establishment = activeEstablishment();
     if (!establishment || session()?.slug !== establishment.slug || session()?.role !== "admin" || !firebaseApi) return;
     const button = event.target.querySelector('button[type="submit"]');
+    const status = event.target.querySelector("[data-store-save-status]");
     button.disabled = true;
+    status.hidden = false;
+    status.textContent = "Salvando dados da loja…";
+    status.dataset.state = "saving";
     try {
       const profile = storeProfile(Object.fromEntries(new FormData(event.target)));
       for (const [suffix, key] of [["", "mapCoordinates1"], ["2", "mapCoordinates2"]]) {
@@ -2343,7 +2347,11 @@ document.addEventListener("submit", async (event) => {
       toast(profile.mapCoordinates1 && (!profile.address2 || profile.mapCoordinates2) ? "Dados da loja salvos e pontos marcados no mapa." : "Dados da loja salvos. Confira o endereço e use Localizar ponto no mapa para marcar o local.");
     } catch (error) {
       button.disabled = false;
-      toast(firebaseApi.firebaseErrorMessage(error), "!");
+      const message = firebaseApi.firebaseErrorMessage(error);
+      status.textContent = `Não foi possível salvar os dados da loja: ${message}`;
+      status.dataset.state = "error";
+      status.scrollIntoView({ block: "nearest" });
+      toast(status.textContent, "!");
     }
     return;
   }
