@@ -18,9 +18,10 @@ function fields(data) {
 }
 
 function field(value) {
+  if (value === null) return { nullValue: null };
   if (typeof value === "string") return { stringValue: value };
   if (typeof value === "boolean") return { booleanValue: value };
-  if (typeof value === "number") return { integerValue: String(value) };
+  if (typeof value === "number") return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
   if (Array.isArray(value)) return { arrayValue: { values: value.map(field) } };
   return { mapValue: { fields: fields(value) } };
 }
@@ -60,4 +61,13 @@ test("somente o backend cria a loja e a conta; a loja exige configuração para 
   assert.equal(catalog.status, 200, JSON.stringify(catalog.body));
   const published = await request(":commit", { writes: [write("establishments/novaloja", { setupComplete: true }, true)] }, tokenFor("owner"));
   assert.equal(published.status, 200, JSON.stringify(published.body));
+  const addressUpdate = {
+    street: "Avenida Antônio Carlos Magalhães", number: "2671", neighborhood: "Brotas", zipCode: "40280-900", city: "Salvador", state: "BA", complement: "Edifício Bahia Center, sala 1306", address: "Avenida Antônio Carlos Magalhães, 2671 - Salvador, BA",
+    street2: "Rua B", number2: "SN", neighborhood2: "Centro", zipCode2: "40000-000", city2: "Salvador", state2: "BA", complement2: "Edifício B", address2: "Rua B, SN - Salvador, BA",
+    mapCoordinates1: { lat: -13, lon: -38, query: "Edifício Bahia Center, Salvador, BA, Brasil" }, mapCoordinates2: { lat: -13, lon: -38, query: "Edifício B, Salvador, BA, Brasil" },
+  };
+  const edited = await request(":commit", { writes: [write("establishments/novaloja", addressUpdate, true)] }, tokenFor("owner"));
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  const visitorEdit = await request(":commit", { writes: [write("establishments/novaloja", { complement: "Outro edifício" }, true)] }, tokenFor("visitor"));
+  assert.equal(visitorEdit.status, 403, JSON.stringify(visitorEdit.body));
 });

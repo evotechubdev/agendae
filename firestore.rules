@@ -64,7 +64,9 @@ service cloud.firestore {
           'extraWorkingDates', 'staffClosedDates', 'updatedAt'
         ])) || (administers(slug)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'name', 'initials', 'category', 'neighborhood', 'address', 'address2',
+            'name', 'initials', 'category',
+            'street', 'number', 'neighborhood', 'zipCode', 'city', 'state', 'complement', 'address', 'mapCoordinates1',
+            'street2', 'number2', 'neighborhood2', 'zipCode2', 'city2', 'state2', 'complement2', 'address2', 'mapCoordinates2',
             'hours', 'setupComplete', 'updatedAt'
           ])
           && (request.resource.data.get('setupComplete', true) != true || (
