@@ -1604,6 +1604,9 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .service-weekly-grid[hidden], [data-service-meeting-url][hidden] { display: none; }
 .settings-item-actions { display: flex; gap: 8px; }
 .settings-item-form > .btn { justify-self: start; }
+.store-save-status { margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+.store-save-status[data-state="saving"] { color: var(--navy); background: #edf3ff; }
+.store-save-status[data-state="error"] { color: #8a1f1f; background: #fff0f0; }
 .settings-section .panel, .settings-section .schedule-config { margin: 0; }
 .settings-section .work-config-list, .settings-section .lunch-config-list { padding-top: 12px; }
 .settings-section .schedule-config { grid-template-columns: minmax(0,1fr); }

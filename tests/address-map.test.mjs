@@ -21,6 +21,8 @@ test("cada endereço gera sua própria busca e um mapa com marcador", () => {
     { id: "streets", type: "line" },
     { id: "clinic", type: "symbol", "source-layer": "poi" },
     { id: "road-name", type: "symbol", "source-layer": "transportation_name" },
+    { id: "highway-shield-non-us", type: "symbol", "source-layer": "transportation_name" },
+    { id: "road_shield_us", type: "symbol", "source-layer": "transportation_name" },
   ] });
   assert.deepEqual(style.layers.map(layer => layer.id), ["streets", "road-name"]);
   assert.equal(addressMapQuery({ address: "Avenida Antônio Carlos Magalhães, Edifício Bahia Center, sala 1306, Salvador Bahia" }), "Avenida Antônio Carlos Magalhães, Salvador Bahia");

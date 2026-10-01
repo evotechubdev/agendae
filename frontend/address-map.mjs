@@ -44,7 +44,7 @@ export function singleEstablishmentStyle(style) {
   const allowedLabels = new Set(["transportation_name", "place", "water_name"]);
   return {
     ...style,
-    layers: style.layers.filter(layer => layer.type !== "symbol" || allowedLabels.has(layer["source-layer"])),
+    layers: style.layers.filter(layer => layer.type !== "symbol" || allowedLabels.has(layer["source-layer"]) && !/(?:^|[-_])shield(?:[-_]|$)/i.test(layer.id)),
   };
 }
 
