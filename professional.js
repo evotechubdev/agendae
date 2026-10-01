@@ -571,18 +571,23 @@ function monthlyScheduleMarkup(establishment) {
     if (!date) return '<span class="monthly-schedule-empty" aria-hidden="true"></span>';
     const past = date < today;
     const closed = businessDayIsClosed(establishment, date);
+    const weekday = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][new Date(`${date}T12:00:00Z`).getUTCDay()];
+    const reserved = (establishment.reservedServices || []).some(item => item.weekday === weekday);
     const hasSchedule = !closed && scheduleMatrix(establishment, date).professionals.some(professional => professional.availableTimes.some(time =>
       (date !== today || Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) > clock.minutes)
       && (establishment.services || []).some(service => serviceAvailableAt(establishment, service, date, time)
         && serviceFitsSlot(establishment, professional.name, time, service.name, [], date))));
-    const status = past ? "Passou" : closed ? "Fechado" : hasSchedule ? "Expediente" : "Sem horários";
-    return `<button type="button" class="monthly-schedule-day ${closed ? "is-closed" : ""} ${date === today ? "is-today" : ""}" data-monthly-date="${date}" aria-label="${prettyDate(date, true)}: ${status}" ${past ? "disabled" : ""}><strong>${Number(date.slice(-2))}</strong><small>${status}</small></button>`;
+    const status = past ? "Passou" : reserved ? "Serviço reservado" : closed ? "Fechado" : hasSchedule ? "Expediente" : "Sem horários";
+    return `<button type="button" class="monthly-schedule-day ${closed ? "is-closed" : ""} ${reserved ? "has-reserved-service" : ""} ${date === today ? "is-today" : ""}" data-monthly-date="${date}" aria-label="${prettyDate(date, true)}: ${status}" ${past ? "disabled" : ""}><strong>${Number(date.slice(-2))}</strong><small>${status}</small></button>`;
   }).join("");
   return `<section class="monthly-schedule" aria-label="Grade mensal de agendamento"><div class="monthly-schedule-heading"><button type="button" data-monthly-step="-1" aria-label="Mês anterior">‹</button><h3>${escapeHTML(label)}</h3><button type="button" data-monthly-step="1" aria-label="Próximo mês">›</button></div><p>Selecione um dia para ver os horários livres e fazer o agendamento.</p><div class="monthly-schedule-grid">${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map(day => `<span class="monthly-schedule-weekday">${day}</span>`).join("")}${days}</div></section>`;
 }
 
 function publicSchedule(establishment) {
   if (establishment.setupComplete === false) return `<div class="schedule-empty" role="status">A agenda de ${escapeHTML(establishment.name)} está em configuração. Os horários para agendamento aparecerão aqui após a publicação pelo responsável.</div>`;
+  const weekday = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][new Date(`${state.booking.date}T12:00:00Z`).getUTCDay()];
+  const reservedToday = (establishment.reservedServices || []).filter(item => item.weekday === weekday);
+  const reservedNotice = reservedToday.length ? `<section class="reserved-service-notice" aria-label="Serviços reservados nesta data"><strong>Serviço reservado · sem agendamento</strong>${reservedToday.map(item => `<p><b>${escapeHTML(item.professional)}</b> · ${escapeHTML(item.name)} · ${escapeHTML(item.place)} · ${escapeHTML(item.start)} às ${escapeHTML(item.end)}</p>`).join("")}</section>` : "";
   const data = getData(establishment);
   const canManage = typeof session === "function" && session()?.slug === establishment.slug;
   const timeline = scheduleTimeline(establishment, data.slots || [], state.booking.date);
@@ -610,6 +615,10 @@ function publicSchedule(establishment) {
         const label = `Pausado, almoço de ${professional.name}, ${professional.lunchBreak.start} às ${professional.lunchBreak.end}`;
         return `<td colspan="${span}"><button class="matrix-slot ticket-state-paused" type="button" disabled aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">Pausado</strong><small class="matrix-pause-reason">Almoço</small><i class="matrix-status-dot" aria-hidden="true"></i></button></td>`;
       }
+      if (segment.type === "reserved") {
+        const label = `Serviço reservado de ${professional.name}: ${segment.reason}. Sem agendamento.`;
+        return `<td colspan="${span}"><button class="matrix-slot ticket-state-external" type="button" disabled aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><strong class="matrix-ticket-code">Reservado</strong><small class="matrix-pause-reason">${escapeHTML(segment.reason)}</small></button></td>`;
+      }
       const appointment = (data.slots || []).find((slot) => slot.date === state.booking.date && slot.time === time && (slot.id?.endsWith("_establishment") || slot.professional === professional.name));
       const status = closed ? "closed" : ticketState({ date: state.booking.date, time, booked: Boolean(appointment), currentTime, paused, status: appointment?.status }, clock);
       const serviceReady = !(establishment.services || []).length || establishment.services.some(service => serviceAvailableAt(establishment, service, state.booking.date, time) && serviceFitsSlot(establishment, professional.name, time, service.name, data.slots || [], state.booking.date));
@@ -631,8 +640,8 @@ function publicSchedule(establishment) {
   }).join("");
   const toolbar = (turnControls = "") => `<div class="schedule-command-bar"><div class="schedule-date-toolbar"><div class="quick-dates"><button type="button" class="${state.booking.dateMode === "today" ? "active" : ""}" data-date-mode="today"><strong>Hoje</strong><small>${prettyDate(isoDate())}</small></button></div>${renderBookingCalendar({ selectedDate: state.booking.date, dateMode: state.booking.dateMode, today: isoDate(), month: state.calendarMonth, open: state.calendarOpen })}${turnControls}</div><div class="schedule-view-toggle" role="group" aria-label="Visualização da agenda"><button type="button" data-schedule-view="day" aria-pressed="${state.scheduleView !== "month"}">Dia</button><button type="button" data-schedule-view="month" aria-pressed="${state.scheduleView === "month"}">Mês</button></div>${ticketStatusLegend()}</div>`;
   if (state.scheduleView === "month") return `${toolbar()}${monthlyScheduleMarkup(establishment)}`;
-  if (businessDayIsClosed(establishment, state.booking.date)) return `${toolbar()}<div class="schedule-empty" role="status">Sem expediente neste dia. Escolha outra data para agendar.</div>`;
-  if (!professionals.length || !times.length) return `${toolbar()}<div class="schedule-empty">Nenhum horário cadastrado.</div>`;
+  if (businessDayIsClosed(establishment, state.booking.date)) return `${toolbar()}${reservedNotice}<div class="schedule-empty" role="status">Sem expediente neste dia para agendamentos. Escolha outra data para agendar.</div>`;
+  if (!professionals.length || !times.length) return `${toolbar()}${reservedNotice}<div class="schedule-empty">Nenhum horário cadastrado para agendamento.</div>`;
   const periods = scheduleDayPeriods(timeline);
   const key = `${establishment.slug || establishment.id || establishment.name}:${state.booking.date}`;
   if (state.scheduleTurn?.key !== key || !periods.some(period => period.id === state.scheduleTurn.id)) {
@@ -645,7 +654,7 @@ function publicSchedule(establishment) {
   const unitsPerHeading = majorStep / step;
   const bands = [period];
   const columns = Math.max(...bands.map((band) => band.times.length));
-  return `${toolbar(controls)}<div class="schedule-matrix-bands schedule-timeline schedule-period-view" style="--matrix-bands:${bands.length};--timeline-track-width:${108 / unitsPerHeading}px">${bands.map((band) => {
+  return `${toolbar(controls)}${reservedNotice}<div class="schedule-matrix-bands schedule-timeline schedule-period-view" style="--matrix-bands:${bands.length};--timeline-track-width:${108 / unitsPerHeading}px">${bands.map((band) => {
     const headers = band.times.flatMap((time, index) => index % unitsPerHeading ? [] : [`<th scope="col" colspan="${Math.min(unitsPerHeading, band.times.length - index)}" class="timeline-hour"><time datetime="${time}" title="${time}">${time}</time>${index + unitsPerHeading >= band.times.length ? `<span class="timeline-end-label">${band.endTime}</span>` : ""}</th>`]).join("");
     const padding = columns - band.times.length;
     const rows = renderRows(band.start, band.end).replaceAll("</tr>", `${padding ? `<td colspan="${padding}" class="matrix-timeline-padding"></td>` : ""}</tr>`);
@@ -1112,7 +1121,14 @@ function serviceSettingsForm(item = {}) {
 
 function serviceSettingsMarkup(establishment) {
   const items = (establishment.services || []).map(serviceSettingsForm).join("");
-  return `<div class="settings-section"><p class="settings-hint">Defina o local e, se desejar, os dias e horários próprios de cada serviço. O horário também precisa caber no expediente da loja e na escala do profissional.</p>${items || '<p class="empty">Nenhum serviço cadastrado.</p>'}${serviceSettingsForm()}</div>`;
+  const reserved = (establishment.reservedServices || []).map(item => reservedServiceSettingsForm(establishment, item)).join("");
+  return `<div class="settings-section"><p class="settings-hint">Defina o local e, se desejar, os dias e horários próprios de cada serviço. O horário também precisa caber no expediente da loja e na escala do profissional.</p>${items || '<p class="empty">Nenhum serviço cadastrado.</p>'}${serviceSettingsForm()}<h3>Serviços reservados</h3><p class="settings-hint">Divulgue compromissos semanais de um profissional em outro local. Eles aparecem na agenda, mas não aceitam agendamento de pacientes.</p>${reserved}${reservedServiceSettingsForm(establishment)}</div>`;
+}
+
+function reservedServiceSettingsForm(establishment, item = {}) {
+  const days = [["seg", "Segunda-feira"], ["ter", "Terça-feira"], ["qua", "Quarta-feira"], ["qui", "Quinta-feira"], ["sex", "Sexta-feira"], ["sab", "Sábado"], ["dom", "Domingo"]];
+  const professionals = (establishment.professionals || []).map(value => typeof value === "string" ? value : value.name);
+  return `<form class="settings-item-form" data-reserved-service-form ${item.id ? `data-reserved-service-id="${escapeHTML(item.id)}"` : ""}><h3>${item.id ? "Editar serviço reservado" : "Adicionar serviço reservado"}</h3><div class="settings-fields"><label>Descrição do serviço<input name="name" maxlength="80" required placeholder="Ex.: Atendimento no hospital" value="${escapeHTML(item.name || "")}"></label><label>Profissional<select name="professional" required><option value="">Selecione</option>${professionals.map(name => `<option value="${escapeHTML(name)}" ${item.professional === name ? "selected" : ""}>${escapeHTML(name)}</option>`).join("")}</select></label><label>Local (hospital, clínica ou unidade)<input name="place" maxlength="160" required placeholder="Ex.: Hospital Santa Maria" value="${escapeHTML(item.place || "")}"></label><label>Dia da semana<select name="weekday" required>${days.map(([day, label]) => `<option value="${day}" ${item.weekday === day ? "selected" : ""}>${label}</option>`).join("")}</select></label><label>Início<input type="time" name="start" required value="${escapeHTML(item.start || "08:00")}"></label><label>Fim<input type="time" name="end" required value="${escapeHTML(item.end || "18:00")}"></label></div><div class="settings-item-actions"><button class="btn btn-primary btn-sm" type="submit">${item.id ? "Salvar serviço reservado" : "Adicionar serviço reservado"}</button>${item.id ? `<button class="btn btn-outline btn-sm" type="button" data-remove-reserved-service="${escapeHTML(item.id)}">Remover</button>` : ""}</div></form>`;
 }
 
 function hoursSettingsMarkup(establishment) {
@@ -1301,7 +1317,9 @@ function renderEstablishmentPublic(establishment) {
   const pending = establishment.setupComplete === false;
   const mapMarkup = publicMapMarkup(establishment);
   const hoursCard = (type, label) => `<button class="workplace-hours-card" type="button" data-map-address="${type}" aria-pressed="${state.mapAddressType === type}" aria-label="Mostrar ${label} no mapa"><strong>${label}</strong><span class="compact-business-hours">${compactBusinessHours(establishment, type)}</span></button>`;
-  const servicesMarkup = `<section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="workplace-business-hours">${hoursCard("address1", "Endereço 1")}${establishment.address2 ? hoursCard("address2", "Endereço 2") : ""}</div></div></div>${publicServiceCards(establishment)}</section>`;
+  const reservedDayNames = { seg: "Segunda-feira", ter: "Terça-feira", qua: "Quarta-feira", qui: "Quinta-feira", sex: "Sexta-feira", sab: "Sábado", dom: "Domingo" };
+  const reservedPublic = (establishment.reservedServices || []).length ? `<div class="public-reserved-services"><h3>Atendimentos em outros locais</h3>${establishment.reservedServices.map(item => `<article><strong>${escapeHTML(item.name)}</strong><span>${escapeHTML(item.professional)} · ${escapeHTML(reservedDayNames[item.weekday] || item.weekday)} · ${escapeHTML(item.start)} às ${escapeHTML(item.end)}</span><span>${escapeHTML(item.place)}</span><small>Serviço reservado · sem agendamento</small></article>`).join("")}</div>` : "";
+  const servicesMarkup = `<section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="workplace-business-hours">${hoursCard("address1", "Endereço 1")}${establishment.address2 ? hoursCard("address2", "Endereço 2") : ""}</div></div></div>${publicServiceCards(establishment)}${reservedPublic}</section>`;
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href(`/${establishment.slug}`)}" data-agenda-logo aria-label="Voltar à agenda de ${escapeHTML(establishment.name)}">${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong></div></div></div></header>
     <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${publicCurrentAttendance(establishment, data)}</article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin ${pending ? 'disabled title="Disponível após a publicação"' : ""}>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
@@ -1856,6 +1874,24 @@ document.addEventListener("click", async (event) => {
     }
     return;
   }
+  const removeReservedButton = event.target.closest("[data-remove-reserved-service]");
+  if (removeReservedButton && canManage()) {
+    const establishment = activeEstablishment();
+    const id = removeReservedButton.dataset.removeReservedService;
+    const item = (establishment?.reservedServices || []).find(value => value.id === id);
+    if (!establishment || !window.confirm(`Remover o serviço reservado ${item?.name || ""}?`)) return;
+    removeReservedButton.disabled = true;
+    try {
+      establishment.reservedServices = await firebaseApi.removeReservedService(establishment.slug, id);
+      invalidatePublicCache(establishment.slug);
+      render();
+      toast("Serviço reservado removido.");
+    } catch (error) {
+      removeReservedButton.disabled = false;
+      toast(error.message || firebaseApi.firebaseErrorMessage(error), "!");
+    }
+    return;
+  }
   if (event.target.closest("[data-close-selected-booking]") || event.target.matches("[data-selected-booking-backdrop]")) {
     closeSelectedBooking();
     return;
@@ -2259,7 +2295,7 @@ document.addEventListener("input", (event) => {
     if (preview) preview.textContent = slug ? `URL: ${slug} · Login: admin · E-mail: ${slug}-admin@agendae.com.br` : "O endereço e o e-mail serão gerados a partir do nome.";
     return;
   }
-  const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form], [data-extra-working-form], [data-professional-form], [data-service-form], [data-store-profile-form]");
+  const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form], [data-extra-working-form], [data-professional-form], [data-service-form], [data-reserved-service-form], [data-store-profile-form]");
   if (scheduleForm) {
     scheduleForm.dataset.dirty = "true";
     if (event.target.matches('input[name="zipCode"], input[name="zipCode2"]') && postalDigits(event.target.value).length === 8) void fillAddressFromPostalCode(scheduleForm, event.target.name.endsWith("2") ? "2" : "");
@@ -2367,6 +2403,26 @@ document.addEventListener("submit", async (event) => {
       status.dataset.state = "error";
       status.scrollIntoView({ block: "nearest" });
       toast(status.textContent, "!");
+    }
+    return;
+  }
+  if (event.target.matches("[data-reserved-service-form]")) {
+    const establishment = activeEstablishment();
+    if (!establishment || session()?.slug !== establishment.slug || !firebaseApi) return;
+    const form = new FormData(event.target);
+    const button = event.target.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      establishment.reservedServices = await firebaseApi.saveReservedService(establishment.slug, event.target.dataset.reservedServiceId || "", {
+        name: form.get("name"), professional: form.get("professional"), place: form.get("place"),
+        weekday: form.get("weekday"), start: form.get("start"), end: form.get("end"),
+      });
+      invalidatePublicCache(establishment.slug);
+      render();
+      toast("Serviço reservado salvo. Ele aparece na agenda sem liberar agendamentos.");
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message || firebaseApi.firebaseErrorMessage(error), "!");
     }
     return;
   }

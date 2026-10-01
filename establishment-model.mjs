@@ -16,7 +16,7 @@ export function newEstablishment(input) {
       initials: name.split(" ").map(part => part[0]).slice(0, 2).join("").toLocaleUpperCase("pt-BR"),
       category: "", neighborhood: "", street: "", number: "", zipCode: "", city: "", state: "", complement: "", address: "", street2: "", number2: "", neighborhood2: "", zipCode2: "", city2: "", state2: "", complement2: "", address2: "", mapCoordinates1: null, mapCoordinates2: null, type: "business",
       openNow: false, averageWaitMinutes: 20, scheduleMode: "employee",
-      hours: [], hours2: [], availableTimes: [], professionals: [], services: [], serviceDurations: {},
+      hours: [], hours2: [], availableTimes: [], professionals: [], services: [], reservedServices: [], serviceDurations: {},
       professionalLunchBreaks: {}, extraWorkingDates: {}, staffClosedDates: {},
     },
   };
@@ -93,4 +93,18 @@ export function normalizeWeeklyAvailability(value) {
   }
   if (!Object.keys(normalized).length) throw new Error("Selecione pelo menos um dia e horário para o serviço.");
   return normalized;
+}
+
+export function normalizeReservedService(input) {
+  const name = String(input.name || "").trim().replace(/\s+/g, " ");
+  const professional = String(input.professional || "").trim();
+  const place = String(input.place || "").trim().replace(/\s+/g, " ");
+  const weekday = String(input.weekday || "");
+  const start = String(input.start || "");
+  const end = String(input.end || "");
+  const validTime = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+  const minutes = value => Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
+  if (!name || name.length > 80 || !professional || !place || place.length > 160) throw new Error("Informe serviço, profissional e local do compromisso reservado.");
+  if (!["seg", "ter", "qua", "qui", "sex", "sab", "dom"].includes(weekday) || !validTime(start) || !validTime(end) || minutes(end) <= minutes(start)) throw new Error("Informe dia e horário válidos para o serviço reservado.");
+  return { name, professional, place, weekday, start, end };
 }

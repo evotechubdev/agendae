@@ -1,4 +1,4 @@
-import { lunchBreakFor, isLunchTime, pauseIntervalFor, scheduleMatrix, serviceFitsSlot, businessDayIsClosed, businessHoursRangeForDate, serviceAvailableAt } from "./schedule-model.mjs";
+import { lunchBreakFor, isLunchTime, pauseIntervalFor, scheduleMatrix, serviceFitsSlot, businessDayIsClosed, businessHoursRangeForDate, serviceAvailableAt, reservedServicesForDate } from "./schedule-model.mjs";
 
 function timeMinutes(time) {
   const [hours, minutes] = String(time || "").split(":").map(Number);
@@ -93,8 +93,9 @@ export function queueView(establishment, data, clock) {
     const time = status?.currentTime || ongoing?.time || (onShift ? times.filter((slot) => timeMinutes(slot) <= clock.minutes).at(-1) : null);
     const onLunch = isLunchTime(lunchBreakFor(establishment, professional, clock.date), clock.minutes);
     const interval = pauseIntervalFor(establishment, professional, clock.minutes);
-    if (!onShift || paused.has(professional) || onLunch || interval || !time) {
-      current.push({ ...inactivePosition(professional, onShift ? time : null), ...(onLunch ? { pauseReason: "Almoço" } : interval ? { pauseReason: interval.reason } : {}) });
+    const reserved = reservedServicesForDate(establishment, clock.date).find(item => item.professional === professional && clock.minutes >= timeMinutes(item.start) && clock.minutes < timeMinutes(item.end));
+    if (!onShift || paused.has(professional) || onLunch || interval || reserved || !time) {
+      current.push({ ...inactivePosition(professional, onShift ? time : null), ...(reserved ? { pauseReason: `Serviço reservado: ${reserved.place}` } : onLunch ? { pauseReason: "Almoço" } : interval ? { pauseReason: interval.reason } : {}) });
       continue;
     }
     const appointment = entries.find((item) => item.date === clock.date && item.time === time && item.professional === professional)
