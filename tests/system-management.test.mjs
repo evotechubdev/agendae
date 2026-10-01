@@ -93,6 +93,10 @@ test("loja recém-criada abre a página padrão de agendamento", () => {
   pageContext.renderEstablishmentPublic({ ...store, address2: "Rua B" });
   assert.match(app.innerHTML, /class="workplace-hours-card"[^>]*data-map-address="address2"/);
   assert.equal((app.innerHTML.match(/class="workplace-hours-card"/g) || []).length, 2);
+  pageContext.renderEstablishmentPublic({ ...store, reservedServices: [{ name: "Plantão", professional: "Ana", place: "Hospital Central", weekday: "qua", start: "09:00", end: "12:00" }] });
+  assert.match(app.innerHTML, /Atendimentos em outros locais/);
+  assert.match(app.innerHTML, /Hospital Central/);
+  assert.match(app.innerHTML, /sem agendamento/);
   assert.match(app.innerHTML, /public-details-layout/);
   assert.match(app.innerHTML, /<div class="est-header-business"><strong>Grazielle Matos<\/strong><\/div>/);
   assert.ok(app.innerHTML.indexOf("public-schedule-panel") < app.innerHTML.indexOf("public-services-panel"));

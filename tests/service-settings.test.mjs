@@ -49,3 +49,12 @@ test("serviço oferece local online e intervalos por dia", () => {
   assert.match(html, /value="14:00"/);
   assert.match(html, /data-add-service-interval/);
 });
+
+test("serviço reservado pede profissional, hospital e horário semanal", () => {
+  const html = context.serviceSettingsMarkup({ professionals: [{ name: "Ana" }], services: [], reservedServices: [{ id: "hospital", name: "Atendimento hospitalar", professional: "Ana", place: "Hospital Central", weekday: "qua", start: "09:00", end: "12:00" }] });
+  assert.match(html, /data-reserved-service-form data-reserved-service-id="hospital"/);
+  assert.match(html, /Hospital Central/);
+  assert.match(html, /value="qua" selected/);
+  assert.match(html, /data-remove-reserved-service="hospital"/);
+  assert.match(html, /sem agendamento|não aceitam agendamento/);
+});

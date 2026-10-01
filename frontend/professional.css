@@ -480,6 +480,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .monthly-schedule-day small { font-size: 10px; }
 .monthly-schedule-day.is-today { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
 .monthly-schedule-day.is-closed { background: #f4f5f7; color: var(--muted); }
+.monthly-schedule-day.has-reserved-service { border-color: #b7894a; background: #fff8eb; color: #6d4c20; }
 .monthly-schedule-day:disabled { opacity: .45; cursor: default; }
 .monthly-schedule-day:not(:disabled):hover,.monthly-schedule-day:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 @media (max-width: 640px) { .monthly-schedule { padding: 10px; } .monthly-schedule-grid { gap: 3px; } .monthly-schedule-day { min-height: 55px; padding: 5px 3px; } .monthly-schedule-day small { font-size: 8px; overflow-wrap: anywhere; } }
@@ -997,6 +998,12 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .workplace-hours-card > strong { display: block; color: var(--navy); font-size: 12px; }
 .workplace-hours-card .compact-business-hours { margin-top: 3px; }
 .public-services-panel .public-services { padding: 12px; flex: 1; background: #fbfcff; }
+.public-reserved-services { display: grid; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: #fffaf0; }
+.public-reserved-services h3 { margin: 0; color: var(--navy); font: 800 13px "Manrope",sans-serif; }
+.public-reserved-services article { display: grid; gap: 3px; padding: 10px; border: 1px solid #dfc69b; border-radius: 9px; background: #fff; font-size: 11px; }
+.public-reserved-services article strong { color: var(--navy); font-size: 12px; }
+.public-reserved-services article span { color: var(--muted); }
+.public-reserved-services article small { color: #79562b; font-weight: 800; }
 .service-list { display: grid; gap: 8px; }
 .public-services-panel .service-card-display { min-height: 58px; padding: 9px; grid-template-columns: 36px minmax(0,1fr) auto; gap: 8px; }
 .public-services-panel .service-icon { width: 36px; height: 36px; }
@@ -1129,6 +1136,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .ticket-state-reserved { --ticket-color: #64707e; --ticket-soft: #f0f2f5; }
 .ticket-state-in-service { --ticket-color: #185ac7; --ticket-soft: #edf4ff; }
 .ticket-state-paused { --ticket-color: #c92525; --ticket-soft: #fff0f0; }
+.ticket-state-external { --ticket-color: #8b5f2b; --ticket-soft: #fff6e7; }
 .ticket-state-closed { --ticket-color: #171717; --ticket-soft: #ededed; }
 .ticket-status-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 10px 0; font-size: 10px; font-weight: 700; }
 .ticket-status-legend > span { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid var(--ticket-color); border-radius: 7px; color: var(--ticket-color); background: var(--ticket-soft); white-space: nowrap; }
@@ -1337,6 +1345,10 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .schedule-timeline .schedule-matrix-wrap { position: relative; }
 .timeline-end-label { position: absolute; top: 9px; right: 3px; z-index: 1; color: var(--navy); font-size: 9px; font-weight: 700; }
 .matrix-pause-reason { color: inherit; font-size: 9px; font-weight: 500; line-height: 1; }
+.ticket-state-external .matrix-pause-reason { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reserved-service-notice { display: grid; gap: 5px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid #dfc69b; border-radius: 9px; background: #fffaf0; color: #65491e; font-size: 12px; }
+.reserved-service-notice > strong { font: 800 12px "Manrope",sans-serif; }
+.reserved-service-notice p { margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
 .current-ticket-card .current-ticket-reason { color: var(--ticket-color); font-size: 10px; line-height: 1.1; }
 .schedule-timeline .matrix-slot-tight { padding: 1px 0; }
 .schedule-timeline .matrix-slot-tight { height: 54px; gap: 2px; }

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { serviceAvailableAt, scheduleTimeline, businessDayIsClosed } from "../frontend/schedule-model.mjs";
+import { serviceAvailableAt, scheduleTimeline, businessDayIsClosed, serviceFitsSlot, reservedServicesForDate } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
 const start = source.indexOf("function compactBusinessHours(");
@@ -71,4 +71,19 @@ test("linha do tempo mostra somente o expediente do dia selecionado", () => {
   assert.equal(wednesday.startTime, "13:00");
   assert.equal(wednesday.endTime, "19:00");
   assert.deepEqual(wednesday.professionals[0].availableTimes, ["13:00", "14:00"]);
+});
+
+test("compromisso semanal marca a agenda sem criar vaga para o profissional", () => {
+  const store = {
+    professionals: [{ name: "Ana", availableTimes: ["09:00", "09:20", "09:40"] }, { name: "Bia", availableTimes: ["09:20"] }],
+    services: [{ name: "Consulta", duration: 20 }],
+    reservedServices: [{ name: "Atendimento hospitalar", professional: "Ana", place: "Hospital Central", weekday: "qua", start: "09:20", end: "09:40" }],
+  };
+  assert.equal(reservedServicesForDate(store, "2026-09-30").length, 1);
+  assert.equal(reservedServicesForDate(store, "2026-10-01").length, 0);
+  assert.equal(serviceFitsSlot(store, "Ana", "09:20", "Consulta", [], "2026-09-30"), false);
+  assert.equal(serviceFitsSlot(store, "Bia", "09:20", "Consulta", [], "2026-09-30"), true);
+  assert.equal(serviceFitsSlot(store, "Ana", "09:20", "Consulta", [], "2026-10-01"), true);
+  const timeline = scheduleTimeline(store, [], "2026-09-30");
+  assert.ok(timeline.professionals[0].segments.some(item => item.type === "reserved" && item.reason.includes("Hospital Central")));
 });

@@ -115,7 +115,7 @@ function apiContext() {
   const context = vm.createContext({
     db: {}, doc: (_db, ...parts) => parts.join("/"), collection: () => "appointments",
     documentKey: (value) => value, appointmentLookupKey: async () => "name", appointmentCodeLookupKey: async () => "code",
-    scheduleMatrix, lunchBreakFor, isLunchTime, businessDayIsClosed, serviceAvailableAt, appointmentDurationMinutes, serverTimestamp: () => "timestamp",
+    scheduleMatrix, lunchBreakFor, isLunchTime, businessDayIsClosed, serviceAvailableAt, serviceFitsSlot, appointmentDurationMinutes, serverTimestamp: () => "timestamp",
     runTransaction: async (_db, callback) => callback({
       get: async (ref) => ref === "establishments/demo" ? { exists: () => true, data: () => saved } : { exists: () => false },
       update: (ref, value) => { writes.push({ ref, value }); saved = { ...saved, ...value }; },

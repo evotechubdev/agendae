@@ -201,9 +201,20 @@ export function appointmentPresenceWindow(establishment, appointment, now = new 
   return { allowed, opens, end };
 }
 
+export function reservedServicesForDate(establishment, date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) return [];
+  const weekday = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][new Date(`${date}T12:00:00Z`).getUTCDay()];
+  return (establishment.reservedServices || []).filter(item => item.weekday === weekday);
+}
+
+export function reservedServiceOverlaps(establishment, professionalName, date, start, end) {
+  return reservedServicesForDate(establishment, date).some(item => item.professional === professionalName && start < minutes(item.end) && end > minutes(item.start));
+}
+
 export function serviceFitsSlot(establishment, professionalName, time, service, bookings = [], date = null) {
   const start = minutes(time);
   const end = start + serviceDurationFor(establishment, professionalName, service);
+  if (date && reservedServiceOverlaps(establishment, professionalName, date, start, end)) return false;
   const lunch = lunchBreakFor(establishment, professionalName, date);
   if (lunch && start < minutes(lunch.end) && end > minutes(lunch.start)) return false;
   const professional = (establishment.professionals || []).find((item) => item.name === professionalName);
@@ -249,16 +260,19 @@ export function scheduleTimeline(establishment, bookings = [], date = null) {
   });
   const professionals = matrix.professionals.map((professional, professionalIndex) => {
     const segments = [];
+    const reservedServices = date ? reservedServicesForDate(establishment, date).filter(item => item.professional === professional.name) : [];
     times.forEach((time, index) => {
       const onLunch = isLunchTime(professional.lunchBreak, time);
       const pause = pauseIntervalFor(establishment, professional.name, time);
+      const reserved = reservedServices.find(item => minutes(time) >= minutes(item.start) && minutes(time) < minutes(item.end));
       const active = jobs[professionalIndex].filter((job) => job.valid && job.start <= minutes(time) && job.end > minutes(time) && !isLunchTime(professional.lunchBreak, job.time));
       const job = active.find((item) => item.booked) || active[0];
-      const type = onLunch ? "lunch" : pause ? "pause" : job ? "slot" : "unavailable";
+      const type = job?.booked ? "slot" : onLunch ? "lunch" : pause ? "pause" : reserved ? "reserved" : job ? "slot" : "unavailable";
       const slot = type === "slot" ? job.time : null;
+      const reason = reserved ? `${reserved.name} · ${reserved.place}` : pause?.reason;
       const previous = segments.at(-1);
-      if (previous && previous.type === type && previous.time === slot) previous.end = index + 1;
-      else segments.push({ type, time: slot, start: index, end: index + 1, ...(pause ? { reason: pause.reason } : {}) });
+      if (previous && previous.type === type && previous.time === slot && previous.reason === reason) previous.end = index + 1;
+      else segments.push({ type, time: slot, start: index, end: index + 1, ...(reason ? { reason } : {}) });
     });
     return { ...professional, segments };
   });

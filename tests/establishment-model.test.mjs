@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { establishmentSlug, newEstablishment, storeProfile, normalizeWeeklyAvailability } from "../frontend/establishment-model.mjs";
+import { establishmentSlug, newEstablishment, storeProfile, normalizeWeeklyAvailability, normalizeReservedService } from "../frontend/establishment-model.mjs";
 
 test("o nome gera o endereço e o login exclusivos da loja", () => {
   const result = newEstablishment({ name: "Salão Bela", ownerPassword: "senha123" });
@@ -63,4 +63,11 @@ test("serviço aceita intervalos por dia e rejeita sobreposição", () => {
   assert.deepEqual(weekly.seg, [{ start: "08:00", end: "10:00" }, { start: "14:00", end: "16:00" }]);
   assert.throws(() => normalizeWeeklyAvailability({ seg: [{ start: "08:00", end: "11:00" }, { start: "10:00", end: "12:00" }] }), /sobrepor/);
   assert.throws(() => normalizeWeeklyAvailability({}), /Selecione pelo menos um dia/);
+});
+
+test("serviço reservado exige local e intervalo semanal válidos", () => {
+  const valid = { name: "Plantão", professional: "Ana", place: "Hospital Central", weekday: "qua", start: "09:00", end: "12:00" };
+  assert.equal(normalizeReservedService(valid).place, "Hospital Central");
+  assert.throws(() => normalizeReservedService({ ...valid, place: "" }), /local/);
+  assert.throws(() => normalizeReservedService({ ...valid, end: "08:00" }), /horário/);
 });

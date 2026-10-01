@@ -60,7 +60,7 @@ service cloud.firestore {
       allow update: if (manages(slug)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'scheduleMode', 'professionalLunchBreaks', 'professionals',
-          'availableTimes', 'services', 'serviceDurations',
+          'availableTimes', 'services', 'reservedServices', 'serviceDurations',
           'extraWorkingDates', 'staffClosedDates', 'updatedAt'
         ])) || (administers(slug)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([

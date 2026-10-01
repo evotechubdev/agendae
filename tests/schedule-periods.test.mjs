@@ -33,6 +33,16 @@ function renderFixture(minutes = 8 * 60) {
   return { context, state };
 }
 
+test("compromisso externo aparece na linha do profissional sem botão de agendamento", () => {
+  const { context } = renderFixture();
+  const store = { ...establishment, reservedServices: [{ id: "hospital", name: "Plantão", professional: "Renam", place: "Hospital Central", weekday: "sab", start: "09:00", end: "10:00" }] };
+  const html = context.publicSchedule(store);
+  assert.match(html, /Hospital Central/);
+  assert.match(html, /ticket-state-external/);
+  assert.doesNotMatch(html, /data-slot-time="09:00"/);
+  assert.match(html, /data-slot-time="08:20"/);
+});
+
 test("cada visualização mostra apenas seu turno e conserva a numeração do dia", () => {
   const { context, state } = renderFixture();
   let html = context.publicSchedule(establishment);

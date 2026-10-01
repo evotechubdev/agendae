@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { lunchBreakFor, isLunchTime, scheduleFromPeriods, scheduleMatrix, workPeriodsFor, serviceFitsSlot, serviceAvailableAt, businessDayIsClosed, appointmentDurationMinutes, appointmentPresenceWindow } from "./schedule-model.mjs";
-import { normalizeWeeklyAvailability } from "./establishment-model.mjs";
+import { normalizeWeeklyAvailability, normalizeReservedService } from "./establishment-model.mjs";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
@@ -358,8 +358,9 @@ export async function saveProfessional(slug, originalName, details) {
       professionalLunchBreaks[name] = professionalLunchBreaks[originalName];
       delete professionalLunchBreaks[originalName];
     }
-    transaction.update(reference, { professionals, professionalLunchBreaks, updatedAt: serverTimestamp() });
-    return { professionals, professionalLunchBreaks };
+    const reservedServices = (establishment.reservedServices || []).map(item => current && item.professional === originalName ? { ...item, professional: name } : item);
+    transaction.update(reference, { professionals, professionalLunchBreaks, reservedServices, updatedAt: serverTimestamp() });
+    return { professionals, professionalLunchBreaks, reservedServices };
   });
 }
 
@@ -370,6 +371,7 @@ export async function removeProfessional(slug, name) {
     const establishment = snapshot.data();
     const professionals = (establishment?.professionals || []).filter(item => (typeof item === "string" ? item : item.name) !== name);
     if (!establishment || professionals.length === (establishment.professionals || []).length) throw new Error("Funcionário não encontrado.");
+    if ((establishment.reservedServices || []).some(item => item.professional === name)) throw new Error("Este profissional tem serviços reservados. Remova-os antes de excluir o profissional.");
     const slots = await getDocs(query(collection(db, "establishments", slug, "slots"), where("professional", "==", name)));
     const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
     if (slots.docs.some(item => item.data().date >= today)) throw new Error("Este funcionário possui reservas futuras. Remova após os atendimentos terminarem.");
@@ -444,6 +446,42 @@ export async function removeService(slug, serviceId) {
   });
 }
 
+export async function saveReservedService(slug, reservedId, details) {
+  const item = normalizeReservedService(details);
+  const reference = doc(db, "establishments", slug);
+  const snapshot = await getDoc(reference);
+  if (!snapshot.exists()) throw new Error("Estabelecimento não encontrado.");
+  const establishment = snapshot.data();
+  if (!(establishment.professionals || []).some(professional => (typeof professional === "string" ? professional : professional.name) === item.professional)) throw new Error("Selecione um profissional cadastrado.");
+  const current = establishment.reservedServices || [];
+  if (reservedId && !current.some(value => value.id === reservedId)) throw new Error("Serviço reservado não encontrado.");
+  const toMinutes = value => Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
+  if (current.some(value => value.id !== reservedId && value.professional === item.professional && value.weekday === item.weekday && toMinutes(item.start) < toMinutes(value.end) && toMinutes(item.end) > toMinutes(value.start))) throw new Error("Este profissional já tem um serviço reservado nesse horário.");
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const slots = await getDocs(query(collection(db, "establishments", slug, "slots"), where("date", ">=", today)));
+  if (slots.docs.some(snapshot => {
+    const booking = snapshot.data();
+    const weekday = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][new Date(`${booking.date}T12:00:00Z`).getUTCDay()];
+    const start = toMinutes(booking.time || "00:00");
+    const end = start + appointmentDurationMinutes(establishment, booking);
+    return booking.professional === item.professional && weekday === item.weekday && start < toMinutes(item.end) && end > toMinutes(item.start) && !["cancelado", "concluido"].includes(booking.status);
+  })) throw new Error("Há agendamentos futuros nesse horário. Reagende-os antes de reservar o serviço.");
+  const next = reservedId ? current.map(value => value.id === reservedId ? { ...value, ...item } : value) : [...current, { ...item, id: crypto.randomUUID() }];
+  await updateDoc(reference, { reservedServices: next, updatedAt: serverTimestamp() });
+  return next;
+}
+
+export async function removeReservedService(slug, reservedId) {
+  const reference = doc(db, "establishments", slug);
+  const snapshot = await getDoc(reference);
+  if (!snapshot.exists()) throw new Error("Estabelecimento não encontrado.");
+  const current = snapshot.data().reservedServices || [];
+  if (!current.some(item => item.id === reservedId)) throw new Error("Serviço reservado não encontrado.");
+  const next = current.filter(item => item.id !== reservedId);
+  await updateDoc(reference, { reservedServices: next, updatedAt: serverTimestamp() });
+  return next;
+}
+
 export async function loadPublicData(slug, date) {
   const stateRef = doc(db, "establishments", slug, "public", "state");
   const slotsQuery = query(collection(db, "establishments", slug, "slots"), where("date", "==", date));
@@ -506,7 +544,7 @@ export function observePublicState(slug, callback) {
   const unsubscribeEstablishment = onSnapshot(doc(db, "establishments", slug), (snapshot) => {
     const establishment = snapshot.data() || {};
     establishmentHours = establishment.hours || [];
-    establishmentSchedule = { name: establishment.name || "", address: establishment.address || "", address2: establishment.address2 || "", hours2: establishment.hours2 || [], professionals: establishment.professionals || [], services: establishment.services || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee", extraWorkingDates: establishment.extraWorkingDates || {} };
+    establishmentSchedule = { name: establishment.name || "", address: establishment.address || "", address2: establishment.address2 || "", hours2: establishment.hours2 || [], professionals: establishment.professionals || [], services: establishment.services || [], reservedServices: establishment.reservedServices || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee", extraWorkingDates: establishment.extraWorkingDates || {} };
     professionalLunchBreaks = { ...Object.fromEntries((establishment.professionals || []).filter((item) => item.lunchBreak).map((item) => [item.name, item.lunchBreak])), ...establishment.professionalLunchBreaks };
     emit();
   }, () => emit());
@@ -605,6 +643,11 @@ export async function createAppointment(slug, appointment, scheduleMode = "emplo
     const service = (establishment.services || []).find(item => item.name === appointment.service);
     if (!serviceAvailableAt(establishment, service, appointment.date, appointment.time)) {
       const error = new Error("Este serviço não está disponível neste dia e horário.");
+      error.code = "agendae/slot-unavailable";
+      throw error;
+    }
+    if (!serviceFitsSlot(establishment, appointment.professional, appointment.time, service.name, [], appointment.date)) {
+      const error = new Error("Este profissional tem um compromisso reservado ou está indisponível neste horário.");
       error.code = "agendae/slot-unavailable";
       throw error;
     }

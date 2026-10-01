@@ -38,6 +38,10 @@ test("domingo às dez não mostra horários nem formulário e permite escolher s
   assert.match(html, /Sem expediente neste dia/);
   assert.match(html, /data-booking-date/);
   assert.doesNotMatch(html, /data-public-slot|matrix-slot|data-schedule-turn-step|data-schedule-turn-auto/);
+  const reservedHtml = context.publicSchedule({ ...establishment, reservedServices: [{ name: "Plantão", professional: "Renam", place: "Hospital Central", weekday: "dom", start: "09:00", end: "12:00" }] });
+  assert.match(reservedHtml, /Hospital Central/);
+  assert.match(reservedHtml, /Servi.o reservado .* sem agendamento/);
+  assert.doesNotMatch(reservedHtml, /data-public-slot/);
   assert.equal(context.selectedBookingPopup(establishment), "");
   assert.equal(context.bookingContent(establishment), "");
   vm.runInContext(source.slice(source.indexOf("function professionalAvailability("), source.indexOf("function staffSchedulesMarkup(")), context);
@@ -71,4 +75,22 @@ test("validação da reserva consulta o expediente salvo e rejeita domingo antes
   assert.equal(writes.length, 0);
   await context.createAppointment("demo", { ...appointment, date: "2026-09-28" });
   assert.ok(writes.length > 0);
+});
+
+test("reserva direta rejeita serviço reservado mesmo sem escala por períodos", async () => {
+  const date = "2026-10-07";
+  const reserved = { ...establishment, reservedServices: [{ name: "Plantão", professional: "Renam", place: "Hospital Central", weekday: "qua", start: "10:00", end: "11:00" }] };
+  const apiSource = readFileSync(new URL("../frontend/firebase-service.js", import.meta.url), "utf8");
+  const writes = [];
+  const context = vm.createContext({ ...schedule, db: {},
+    collection: () => "appointments", doc: (_db, ...parts) => parts.join("/"), documentKey: value => value,
+    appointmentLookupKey: async () => "name", appointmentCodeLookupKey: async () => "code", serverTimestamp: () => "now",
+    runTransaction: async (_db, callback) => callback({
+      get: async ref => ref === "establishments/demo" ? { data: () => reserved } : { exists: () => false },
+      set: (ref, value) => writes.push({ ref, value }),
+    }),
+  });
+  vm.runInContext(apiSource.slice(apiSource.indexOf("export async function createAppointment("), apiSource.indexOf("export async function getOrCreateCheckInConfig(")).replace("export ", ""), context);
+  await assert.rejects(context.createAppointment("demo", { date, time: "10:20", professional: "Renam", service: "Corte", client: "Cliente", checkInCode: "ABC123" }), error => error.code === "agendae/slot-unavailable" && /compromisso reservado/.test(error.message));
+  assert.equal(writes.length, 0);
 });
