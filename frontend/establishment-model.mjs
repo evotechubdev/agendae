@@ -14,7 +14,7 @@ export function newEstablishment(input) {
     establishment: {
       slug, name, active: true, setupComplete: false,
       initials: name.split(" ").map(part => part[0]).slice(0, 2).join("").toLocaleUpperCase("pt-BR"),
-      category: "", neighborhood: "", address: "", address2: "", type: "business",
+      category: "", neighborhood: "", street: "", number: "", zipCode: "", city: "", state: "", complement: "", address: "", address2: "", type: "business",
       openNow: false, averageWaitMinutes: 20, scheduleMode: "employee",
       hours: [], availableTimes: [], professionals: [], services: [], serviceDurations: {},
       professionalLunchBreaks: {}, extraWorkingDates: {}, staffClosedDates: {},
@@ -26,12 +26,20 @@ export function storeProfile(input) {
   const name = String(input.name || "").trim().replace(/\s+/g, " ");
   const category = String(input.category || "").trim();
   const neighborhood = String(input.neighborhood || "").trim();
-  const address = String(input.address || "").trim();
+  const street = String(input.street || "").trim();
+  const number = String(input.number || "").trim();
+  const zipCode = String(input.zipCode || "").trim();
+  const city = String(input.city || "").trim();
+  const state = String(input.state || "").trim().toUpperCase();
+  const complement = String(input.complement || "").trim();
+  if (!street || !number || !neighborhood || !/^\d{5}-?\d{3}$/.test(zipCode) || !city || !/^[A-Z]{2}$/.test(state)) throw new Error("Preencha rua, número, bairro, CEP, cidade e estado válidos.");
+  const formattedZipCode = `${zipCode.replace(/\D/g, "").slice(0, 5)}-${zipCode.replace(/\D/g, "").slice(5)}`;
+  const address = `${street}, ${number}${complement ? `, ${complement}` : ""} - ${neighborhood}, ${city} - ${state}, ${formattedZipCode}`;
   const address2 = String(input.address2 || "").trim();
   const opening = String(input.opening || "");
   const closing = String(input.closing || "");
   const minutes = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value) ? Number(value.slice(0, 2)) * 60 + Number(value.slice(3)) : NaN;
-  if (!name || name.length > 100 || !category || !neighborhood || !address) throw new Error("Preencha nome, categoria, bairro e endereço da loja.");
+  if (!name || name.length > 100 || !category) throw new Error("Preencha nome e categoria da loja.");
   const days = [["seg", "Segunda"], ["ter", "Terça"], ["qua", "Quarta"], ["qui", "Quinta"], ["sex", "Sexta"], ["sab", "Sábado"], ["dom", "Domingo"]];
   const weekly = days.some(([day]) => Object.hasOwn(input, `day_${day}_start`));
   let hours;
@@ -53,7 +61,7 @@ export function storeProfile(input) {
     ];
   }
   return {
-    name, category, neighborhood, address, address2,
+    name, category, street, number, neighborhood, zipCode: formattedZipCode, city, state, complement, address, address2,
     initials: name.split(" ").map(part => part[0]).slice(0, 2).join("").toLocaleUpperCase("pt-BR"),
     hours,
   };

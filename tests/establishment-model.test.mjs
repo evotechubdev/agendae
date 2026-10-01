@@ -15,8 +15,10 @@ test("o nome gera o endereço e o login exclusivos da loja", () => {
 });
 
 test("os dados públicos são configurados pelo administrador da loja", () => {
-  const profile = storeProfile({ name: "Salão Bela", category: "Salão", neighborhood: "Centro", address: "Rua A, 10", opening: "08:00", closing: "18:00", saturdayOpen: "on" });
+  const profile = storeProfile({ name: "Salão Bela", category: "Salão", street: "Rua A", number: "10", neighborhood: "Centro", zipCode: "01001000", city: "São Paulo", state: "sp", complement: "Sala 2", opening: "08:00", closing: "18:00", saturdayOpen: "on" });
   assert.equal(profile.initials, "SB");
+  assert.equal(profile.address, "Rua A, 10, Sala 2 - Centro, São Paulo - SP, 01001-000");
+  assert.equal(profile.zipCode, "01001-000");
   assert.deepEqual(profile.hours, [
     { label: "Seg a sex", value: "08:00 - 18:00" },
     { label: "Sábado", value: "08:00 - 18:00" },
@@ -27,7 +29,7 @@ test("os dados públicos são configurados pelo administrador da loja", () => {
 
 test("expediente varia por dia e inclui segundo endereço opcional", () => {
   const profile = storeProfile({
-    name: "Clínica Viva", category: "Clínica", neighborhood: "Centro", address: "Rua A, 10", address2: "Rua B, 20",
+    name: "Clínica Viva", category: "Clínica", street: "Rua A", number: "10", neighborhood: "Centro", zipCode: "01001-000", city: "São Paulo", state: "SP", address2: "Rua B, 20",
     day_seg_open: "on", day_seg_start: "08:00", day_seg_end: "12:00",
     day_ter_start: "08:00", day_ter_end: "18:00",
     day_qua_open: "on", day_qua_start: "13:00", day_qua_end: "19:00",
@@ -38,7 +40,8 @@ test("expediente varia por dia e inclui segundo endereço opcional", () => {
   });
   assert.equal(profile.address2, "Rua B, 20");
   assert.deepEqual(profile.hours.map(item => item.value), ["08:00 - 12:00", "Fechado", "13:00 - 19:00", "Fechado", "Fechado", "Fechado", "Fechado"]);
-  assert.throws(() => storeProfile({ ...Object.fromEntries(profile.hours.map((_, index) => [`day_${["seg", "ter", "qua", "qui", "sex", "sab", "dom"][index]}_start`, "08:00"])), name: "Loja", category: "Loja", neighborhood: "Centro", address: "Rua A" }), /pelo menos um dia/);
+  assert.throws(() => storeProfile({ ...profile, ...Object.fromEntries(profile.hours.map((_, index) => [`day_${["seg", "ter", "qua", "qui", "sex", "sab", "dom"][index]}_start`, "08:00"])), name: "Loja", category: "Loja" }), /pelo menos um dia/);
+  assert.throws(() => storeProfile({ ...profile, zipCode: "123" }), /CEP/);
 });
 
 test("serviço aceita intervalos por dia e rejeita sobreposição", () => {
