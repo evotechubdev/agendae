@@ -31,6 +31,8 @@ let establishments = {};
 
 const state = {
   booking: freshBooking(),
+  mapAddressType: "address1",
+  mapSlug: "",
   appointmentQuery: "",
   scheduleScrollLeft: 0,
   scheduleTurn: null,
@@ -706,6 +708,31 @@ function serviceLocationLabel(establishment, service) {
   return `Endereço 1: ${establishment.address || "a definir"}`;
 }
 
+function publicMapMarkup(establishment) {
+  const addresses = { address1: String(establishment.address || "").trim(), address2: String(establishment.address2 || "").trim() };
+  const selected = addresses[state.mapAddressType] ? state.mapAddressType : addresses.address1 ? "address1" : "address2";
+  const address = addresses[selected];
+  if (!address) return "";
+  const query = encodeURIComponent(address);
+  const choices = addresses.address2 ? `<div class="public-location-choices" role="group" aria-label="Selecionar endereço no mapa"><button type="button" data-map-address="address1" aria-pressed="${selected === "address1"}" ${addresses.address1 ? "" : "disabled"}>Endereço 1</button><button type="button" data-map-address="address2" aria-pressed="${selected === "address2"}">Endereço 2</button></div>` : "";
+  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Onde estamos</h2>${choices}<p data-map-address-text>${escapeHTML(address)}</p><a data-map-address-link href="https://www.google.com/maps/search/?api=1&amp;query=${query}" target="_blank" rel="noopener noreferrer">Abrir no mapa</a></div><iframe data-map-frame title="Mapa do ${selected === "address2" ? "Endereço 2" : "Endereço 1"} de ${escapeHTML(establishment.name)}" src="https://maps.google.com/maps?q=${query}&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></section>`;
+}
+
+function selectPublicMapAddress(establishment, type) {
+  const address = String(type === "address2" ? establishment.address2 || "" : establishment.address || "").trim();
+  if (!address || !["address1", "address2"].includes(type)) return;
+  state.mapAddressType = type;
+  const panel = document.querySelector(".public-location-panel");
+  if (!panel) return;
+  const query = encodeURIComponent(address);
+  panel.querySelector("[data-map-address-text]").textContent = address;
+  panel.querySelector("[data-map-address-link]").href = `https://www.google.com/maps/search/?api=1&query=${query}`;
+  const frame = panel.querySelector("[data-map-frame]");
+  frame.title = `Mapa do ${type === "address2" ? "Endereço 2" : "Endereço 1"} de ${establishment.name}`;
+  frame.src = `https://maps.google.com/maps?q=${query}&output=embed`;
+  panel.querySelectorAll("[data-map-address]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.mapAddress === type)));
+}
+
 function serviceWeeklyLabel(service) {
   if (service.weeklyAvailability == null) return "Todo o expediente";
   return [["seg", "Seg"], ["ter", "Ter"], ["qua", "Qua"], ["qui", "Qui"], ["sex", "Sex"], ["sab", "Sáb"], ["dom", "Dom"]]
@@ -1151,13 +1178,15 @@ function nextCallModal(establishment) {
 
 function renderEstablishmentPublic(establishment) {
   document.title = `${establishment.name} — Agendae`;
+  if (state.mapSlug !== establishment.slug) {
+    state.mapSlug = establishment.slug;
+    state.mapAddressType = "address1";
+  }
   if (establishment.setupComplete !== false && new URLSearchParams(location.search).has("checkin")) state.publicLookup.open = true;
   const data = getData(establishment);
   const authenticated = session()?.slug === establishment.slug;
   const pending = establishment.setupComplete === false;
-  const mapAddress = String(establishment.address || "").trim();
-  const mapQuery = encodeURIComponent(mapAddress);
-  const mapMarkup = mapAddress ? `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Onde estamos</h2><p>${escapeHTML(mapAddress)}</p><a href="https://www.google.com/maps/search/?api=1&amp;query=${mapQuery}" target="_blank" rel="noopener noreferrer">Abrir no mapa</a></div><iframe title="Mapa de ${escapeHTML(establishment.name)}" src="https://maps.google.com/maps?q=${mapQuery}&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></section>` : "";
+  const mapMarkup = publicMapMarkup(establishment);
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href(`/${establishment.slug}`)}" data-agenda-logo aria-label="Voltar à agenda de ${escapeHTML(establishment.name)}">${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.address)}</small></div></div></div></header>
     <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${publicCurrentAttendance(establishment, data)}</article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin ${pending ? 'disabled title="Disponível após a publicação"' : ""}>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
@@ -1783,6 +1812,12 @@ document.addEventListener("click", async (event) => {
   }
   const open = event.target.closest("[data-open-establishment]");
   if (open) return navigate(`/${open.dataset.openEstablishment}`);
+  const mapChoice = event.target.closest("[data-map-address]");
+  if (mapChoice) {
+    const establishment = activeEstablishment();
+    if (establishment) selectPublicMapAddress(establishment, mapChoice.dataset.mapAddress);
+    return;
+  }
   if (event.target.closest("[data-service-carousel-prev]")) { moveServiceCarousel(-1); return; }
   if (event.target.closest("[data-service-carousel-next]")) { moveServiceCarousel(1); return; }
   const publicSlot = event.target.closest("[data-public-slot]");
@@ -2058,7 +2093,12 @@ document.addEventListener("change", (event) => {
     selectBookingDate(event.target.value);
   }
   if (event.target.matches("[data-professional]")) { state.booking.professional = event.target.value; state.booking.time = null; render(); }
-  if (event.target.matches("[data-booking-service]")) state.booking.serviceId = event.target.value;
+  if (event.target.matches("[data-booking-service]")) {
+    state.booking.serviceId = event.target.value;
+    const establishment = activeEstablishment();
+    const service = establishment?.services?.find(item => item.id === event.target.value);
+    if (service && service.locationType !== "online") selectPublicMapAddress(establishment, service.locationType === "address2" ? "address2" : "address1");
+  }
   if (event.target.matches("[data-qr-image]")) {
     const file = event.target.files?.[0];
     if (!file) return;
