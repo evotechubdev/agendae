@@ -916,6 +916,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-location-choices button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #fff; font: 700 12px "DM Sans",sans-serif; cursor: pointer; }
 .public-location-choices button[aria-pressed="true"] { border-color: var(--blue); color: #fff; background: var(--blue); }
 .public-location-choices button:disabled { opacity: .5; cursor: default; }
+.public-location-selected { display: block; margin: 0 0 5px; color: var(--navy); font: 800 13px "Manrope",sans-serif; }
 .public-location-panel p { margin: 0 0 12px; color: var(--muted); line-height: 1.5; }
 .public-location-panel iframe { width: 100%; height: 180px; border: 0; border-radius: 10px; }
 .public-map-view { min-width: 0; }
@@ -990,8 +991,11 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .compact-business-hours strong { color: #43516a; font-weight: 800; }
 .compact-business-hours i { display: none; }
 .workplace-business-hours { display: grid; gap: 8px; }
-.workplace-business-hours > div > strong { color: var(--navy); font-size: 12px; }
-.workplace-business-hours .compact-business-hours { margin-top: 2px; }
+.workplace-hours-card { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; transition: border-color .15s; }
+.workplace-hours-card:hover,.workplace-hours-card[aria-pressed="true"] { border-color: var(--blue); }
+.workplace-hours-card:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.workplace-hours-card > strong { display: block; color: var(--navy); font-size: 12px; }
+.workplace-hours-card .compact-business-hours { margin-top: 3px; }
 .public-services-panel .public-services { padding: 12px; flex: 1; background: #fbfcff; }
 .service-list { display: grid; gap: 8px; }
 .public-services-panel .service-card-display { min-height: 58px; padding: 9px; grid-template-columns: 36px minmax(0,1fr) auto; gap: 8px; }

@@ -6,12 +6,13 @@ import { addressMapLabel, googleMapsPlaceQuery } from "../frontend/address-map.m
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
 const panel = { outerHTML: "" };
+const cards = ["address1", "address2"].map(mapAddress => ({ dataset: { mapAddress }, pressed: "", setAttribute(name, value) { if (name === "aria-pressed") this.pressed = value; } }));
 const context = vm.createContext({
   state: { mapAddressType: "address1" },
   firebaseApi: { googleMapsEmbedKey: "test-key" },
   URL,
   URLSearchParams,
-  document: { querySelector: () => panel },
+  document: { querySelector: () => panel, querySelectorAll: () => cards },
   escapeHTML: value => String(value),
   addressMapLabel, googleMapsPlaceQuery,
 });
@@ -30,8 +31,11 @@ test("o Google Maps mostra o local físico do endereço selecionado sem botão e
   assert.match(first, /Localização de Edifício Bahia Center, sala 1306/);
   assert.doesNotMatch(first, /Abrir no Google Maps|location-map\.html|maplibre/i);
   assert.match(first, /data-map-address="address2"/);
+  assert.match(first, /class="public-location-selected">Endere.o 1<\/strong>/);
   context.selectPublicMapAddress(establishment, "address2");
   assert.equal(context.state.mapAddressType, "address2");
+  assert.deepEqual(cards.map(card => card.pressed), ["false", "true"]);
+  assert.match(panel.outerHTML, /class="public-location-selected">Endere.o 2<\/strong>/);
   assert.match(decodeURIComponent(panel.outerHTML.match(/&amp;q=([^"&]+)/)[1].replaceAll("+", " ")), /Edifício B, Rua B, 20, Salvador, BA, Brasil/);
   assert.doesNotMatch(panel.outerHTML, /Edifício Bahia Center/);
 });

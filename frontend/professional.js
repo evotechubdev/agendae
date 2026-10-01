@@ -735,7 +735,7 @@ function publicMapMarkup(establishment) {
   const mapUrl = key ? new URL("https://www.google.com/maps/embed/v1/place") : null;
   if (mapUrl) mapUrl.search = new URLSearchParams({ key, q: query, language: "pt-BR", region: "BR" }).toString();
   const map = mapUrl ? `<div class="public-map-view"><iframe title="Localização de ${escapeHTML(mapLabel)} no ${selected === "address2" ? "Endereço 2" : "Endereço 1"}" src="${mapUrl.href.replaceAll("&", "&amp;")}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>` : `<div class="public-map-empty"><p>Mapa indisponível no momento.</p></div>`;
-  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Localização</h2>${choices}<p>${escapeHTML(address)}</p></div>${map}</section>`;
+  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Localização</h2>${choices}<strong class="public-location-selected">${selected === "address2" ? "Endereço 2" : "Endereço 1"}</strong><p>${escapeHTML(address)}</p></div>${map}</section>`;
 }
 
 function selectPublicMapAddress(establishment, type) {
@@ -744,6 +744,7 @@ function selectPublicMapAddress(establishment, type) {
   state.mapAddressType = type;
   const panel = document.querySelector(".public-location-panel");
   if (panel) panel.outerHTML = publicMapMarkup(establishment);
+  document.querySelectorAll?.(".workplace-business-hours [data-map-address]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.mapAddress === type)));
 }
 
 function serviceWeeklyLabel(service) {
@@ -1299,7 +1300,8 @@ function renderEstablishmentPublic(establishment) {
   const authenticated = session()?.slug === establishment.slug;
   const pending = establishment.setupComplete === false;
   const mapMarkup = publicMapMarkup(establishment);
-  const servicesMarkup = `<section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="workplace-business-hours"><div><strong>Endereço 1</strong><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div>${establishment.address2 ? `<div><strong>Endereço 2</strong><div class="compact-business-hours">${compactBusinessHours(establishment, "address2")}</div></div>` : ""}</div></div></div>${publicServiceCards(establishment)}</section>`;
+  const hoursCard = (type, label) => `<button class="workplace-hours-card" type="button" data-map-address="${type}" aria-pressed="${state.mapAddressType === type}" aria-label="Mostrar ${label} no mapa"><strong>${label}</strong><span class="compact-business-hours">${compactBusinessHours(establishment, type)}</span></button>`;
+  const servicesMarkup = `<section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="workplace-business-hours">${hoursCard("address1", "Endereço 1")}${establishment.address2 ? hoursCard("address2", "Endereço 2") : ""}</div></div></div>${publicServiceCards(establishment)}</section>`;
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href(`/${establishment.slug}`)}" data-agenda-logo aria-label="Voltar à agenda de ${escapeHTML(establishment.name)}">${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong></div></div></div></header>
     <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${publicCurrentAttendance(establishment, data)}</article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin ${pending ? 'disabled title="Disponível após a publicação"' : ""}>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
