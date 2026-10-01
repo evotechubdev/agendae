@@ -922,6 +922,9 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-map-empty small { color: var(--muted); }
 .store-profile-settings h4 { margin: 12px 0 8px; color: var(--navy); font: 800 14px "Manrope",sans-serif; }
 .store-profile-settings h4 small { color: var(--muted); font: 500 11px "DM Sans",sans-serif; }
+.address-lookup-status { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.address-postal-options { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font: 500 12px "DM Sans",sans-serif; }
+.address-postal-options[hidden] { display: none; }
 @media (max-width: 650px) { .public-location-panel { grid-template-columns: 1fr; } }
 .public-live-strip { color: #fff; background: linear-gradient(116deg,#071b42,#0d3c88); box-shadow: 0 8px 24px rgba(8,35,84,.12); }
 .public-live-inner { width: min(1180px,calc(100% - 36px)); min-height: 96px; margin: auto; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 16px; }

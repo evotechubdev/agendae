@@ -27,7 +27,8 @@ export function storeProfile(input) {
   const category = String(input.category || "").trim();
   const readAddress = (suffix, required) => {
     const values = Object.fromEntries(["street", "number", "neighborhood", "zipCode", "city", "state", "complement"].map(key => [key, String(input[`${key}${suffix}`] || "").trim()]));
-    const { street, number, neighborhood, zipCode, city, complement } = values;
+    const { street, neighborhood, zipCode, city, complement } = values;
+    const number = /^s\/?n$/i.test(values.number) ? "SN" : values.number;
     const state = values.state.toUpperCase();
     if (!required && !Object.values(values).some(Boolean)) return { ...values, state, address: "" };
     if (!street || !number || !neighborhood || !/^\d{5}-?\d{3}$/.test(zipCode) || !city || !/^[A-Z]{2}$/.test(state)) throw new Error(`Preencha rua, número, bairro, CEP, cidade e estado válidos do Endereço ${suffix ? "2" : "1"}.`);

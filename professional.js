@@ -3,7 +3,8 @@ import { scheduleTimeline, scheduleMatrix, scheduleDayPeriods, lunchBreakFor, is
 import { renderBookingCalendar, shiftCalendarMonth, calendarMonthDays } from "./calendar-model.mjs";
 import { loginCredentials } from "./login-model.mjs";
 import { establishmentSlug, storeProfile } from "./establishment-model.mjs";
-import { addressMapQuery, cachedMapPoint, geocodeAddress, validMapPoint } from "./address-map.mjs";
+import { addressFallbackQuery, addressMapQuery, cachedMapPoint, geocodeAddress, validMapPoint } from "./address-map.mjs";
+import { formatPostalCode, lookupPostalCode, matchingPostalCode, postalDigits, searchPostalCodes } from "./postal-code.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const SYSTEM_MANAGE_ROUTE = "gerenciar-estabelecimentos";
@@ -1092,7 +1093,79 @@ function storeAddressFields(establishment, suffix = "") {
   const value = key => escapeHTML(establishment[`${key}${suffix}`] || (key === "street" && !establishment[`city${suffix}`] ? establishment[suffix ? "address2" : "address"] : "") || "");
   const required = suffix ? "" : "required";
   const section = suffix ? "section-address2" : "section-address1";
-  return `<div class="settings-fields"><label>Rua<input name="street${suffix}" ${required} value="${value("street")}" autocomplete="${section} address-line1"></label><label>Número<input name="number${suffix}" ${required} value="${value("number")}"></label><label>Bairro<input name="neighborhood${suffix}" ${required} value="${value("neighborhood")}"></label><label>CEP<input name="zipCode${suffix}" ${required} inputmode="numeric" pattern="[0-9]{5}-?[0-9]{3}" maxlength="9" placeholder="00000-000" value="${value("zipCode")}" autocomplete="${section} postal-code"></label><label>Cidade<input name="city${suffix}" ${required} value="${value("city")}" autocomplete="${section} address-level2"></label><label>Estado (UF)<input name="state${suffix}" ${required} minlength="2" maxlength="2" pattern="[A-Za-z]{2}" value="${value("state")}" autocomplete="${section} address-level1" placeholder="BA"></label><label>Complemento <small>(opcional)</small><input name="complement${suffix}" value="${value("complement")}"></label></div>`;
+  return `<div class="settings-fields"><label>Rua<input name="street${suffix}" ${required} value="${value("street")}" autocomplete="${section} address-line1"></label><label>Número<input name="number${suffix}" ${required} value="${value("number")}" placeholder="Ex.: 123 ou SN"></label><label>Bairro<input name="neighborhood${suffix}" ${required} value="${value("neighborhood")}"></label><label>CEP<input name="zipCode${suffix}" ${required} inputmode="numeric" pattern="[0-9]{5}-?[0-9]{3}" maxlength="9" placeholder="00000-000" value="${value("zipCode")}" autocomplete="${section} postal-code"></label><label>Cidade<input name="city${suffix}" ${required} value="${value("city")}" autocomplete="${section} address-level2"></label><label>Estado (UF)<input name="state${suffix}" ${required} minlength="2" maxlength="2" pattern="[A-Za-z]{2}" value="${value("state")}" autocomplete="${section} address-level1" placeholder="BA"></label><label>Complemento <small>(nome do edifício, se houver)</small><input name="complement${suffix}" value="${value("complement")}" placeholder="Ex.: Edifício Bahia Center, sala 1306"></label></div><small class="address-lookup-status" data-postal-status="${suffix || "1"}" role="status">CEP completo preenche rua, bairro, cidade e UF; número e edifício entram quando disponíveis. Com rua, cidade e UF, buscamos o CEP.</small><select class="address-postal-options" data-postal-options="${suffix || "1"}" aria-label="Escolha o CEP do Endereço ${suffix || "1"}" hidden></select>`;
+}
+
+function postalField(form, name, suffix) {
+  return form.elements.namedItem(`${name}${suffix}`);
+}
+
+function postalStatus(form, suffix, message) {
+  const status = form.querySelector(`[data-postal-status="${suffix || "1"}"]`);
+  if (status) status.textContent = message;
+}
+
+function applyPostalResult(form, suffix, result, overwrite = false) {
+  const values = { street: result.logradouro, neighborhood: result.bairro, city: result.localidade, state: result.uf, zipCode: formatPostalCode(result.cep) };
+  for (const [name, value] of Object.entries(values)) {
+    const input = postalField(form, name, suffix);
+    if (input && value && (overwrite || !input.value.trim() || name === "zipCode" && postalDigits(input.value).length !== 8)) input.value = value;
+  }
+  const number = postalField(form, "number", suffix);
+  const numberHint = String(result.complemento || "").trim();
+  if (number && !number.value.trim() && /^\d+[A-Za-z]?$/.test(numberHint)) number.value = numberHint;
+  const complement = postalField(form, "complement", suffix);
+  const building = String(result.unidade || "").trim();
+  if (complement && !complement.value.trim() && building) complement.value = building;
+  form.dataset.dirty = "true";
+}
+
+async function fillAddressFromPostalCode(form, suffix) {
+  const input = postalField(form, "zipCode", suffix);
+  const digits = postalDigits(input?.value);
+  if (digits.length !== 8 || input.dataset.lastPostalLookup === digits) return;
+  input.dataset.lastPostalLookup = digits;
+  postalStatus(form, suffix, "Consultando CEP…");
+  try {
+    const result = await lookupPostalCode(digits);
+    if (!form.isConnected || postalDigits(input.value) !== digits) return;
+    applyPostalResult(form, suffix, result, true);
+    form.querySelector(`[data-postal-options="${suffix || "1"}"]`).hidden = true;
+    postalStatus(form, suffix, "Rua, bairro, cidade e estado preenchidos pelo CEP.");
+  } catch (error) {
+    if (form.isConnected && postalDigits(input.value) === digits) {
+      delete input.dataset.lastPostalLookup;
+      postalStatus(form, suffix, error.message);
+    }
+  }
+}
+
+async function fillPostalCodeFromAddress(form, suffix) {
+  const zip = postalField(form, "zipCode", suffix);
+  if (postalDigits(zip.value).length === 8) return;
+  const details = Object.fromEntries(["street", "neighborhood", "city", "state"].map(name => [name, postalField(form, name, suffix)?.value.trim() || ""]));
+  if (details.street.length < 3 || details.city.length < 3 || details.state.length !== 2) return;
+  const signature = `${details.street}|${details.neighborhood}|${details.city}|${details.state}`;
+  postalStatus(form, suffix, "Buscando CEP pela rua…");
+  try {
+    const matches = await searchPostalCodes(details);
+    if (!form.isConnected || signature !== `${postalField(form, "street", suffix).value.trim()}|${postalField(form, "neighborhood", suffix).value.trim()}|${postalField(form, "city", suffix).value.trim()}|${postalField(form, "state", suffix).value.trim()}` || postalDigits(zip.value).length === 8) return;
+    const chosen = matchingPostalCode(matches, details);
+    const select = form.querySelector(`[data-postal-options="${suffix || "1"}"]`);
+    select.hidden = true;
+    if (chosen) {
+      applyPostalResult(form, suffix, chosen);
+      postalStatus(form, suffix, "CEP encontrado e preenchido automaticamente.");
+    } else if (matches.length) {
+      select.replaceChildren(new Option("Escolha o CEP desta rua", ""), ...matches.map(item => new Option(`${item.cep} · ${item.logradouro} · ${item.bairro}`, item.cep)));
+      select.hidden = false;
+      postalStatus(form, suffix, "Encontramos mais de um CEP. Escolha o correto.");
+    } else {
+      postalStatus(form, suffix, "CEP não encontrado para esta rua. Informe o CEP manualmente.");
+    }
+  } catch (error) {
+    if (form.isConnected) postalStatus(form, suffix, error.message);
+  }
 }
 
 function storeSettingsMarkup(establishment) {
@@ -1837,7 +1910,7 @@ document.addEventListener("click", async (event) => {
     const status = locateButton.parentElement.querySelector("[data-map-status]");
     status.textContent = "Localizando o endereço…";
     try {
-      const point = await geocodeAddress(query);
+      const point = await geocodeAddress(query, addressFallbackQuery(establishment, suffix));
       if (!point) throw new Error("Não encontramos esse endereço. Confira rua, número, cidade e CEP no cadastro.");
       establishment[type === "address2" ? "mapCoordinates2" : "mapCoordinates1"] = point;
       if (state.mapAddressType === type) selectPublicMapAddress(establishment, type);
@@ -2098,6 +2171,20 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  const addressForm = event.target.closest("[data-store-profile-form]");
+  if (addressForm) {
+    const suffix = event.target.name?.endsWith("2") || event.target.dataset.postalOptions === "2" ? "2" : "";
+    if (event.target.matches("[data-postal-options]")) {
+      if (event.target.value) {
+        postalField(addressForm, "zipCode", suffix).value = event.target.value;
+        event.target.hidden = true;
+        void fillAddressFromPostalCode(addressForm, suffix);
+      }
+      return;
+    }
+    if (["zipCode", "zipCode2"].includes(event.target.name)) { void fillAddressFromPostalCode(addressForm, suffix); return; }
+    if (/^(street|neighborhood|city|state)(2)?$/.test(event.target.name || "")) { void fillPostalCodeFromAddress(addressForm, suffix); return; }
+  }
   if (event.target.matches("[data-lunch-day-mode]")) {
     event.target.closest("[data-lunch-form]").querySelector("[data-lunch-days]").hidden = event.target.value !== "custom";
     return;
@@ -2154,7 +2241,11 @@ document.addEventListener("input", (event) => {
     return;
   }
   const scheduleForm = event.target.closest("[data-work-form], [data-lunch-form], [data-extra-working-form], [data-professional-form], [data-service-form], [data-store-profile-form]");
-  if (scheduleForm) { scheduleForm.dataset.dirty = "true"; return; }
+  if (scheduleForm) {
+    scheduleForm.dataset.dirty = "true";
+    if (event.target.matches('input[name="zipCode"], input[name="zipCode2"]') && postalDigits(event.target.value).length === 8) void fillAddressFromPostalCode(scheduleForm, event.target.name.endsWith("2") ? "2" : "");
+    return;
+  }
   if (!event.target.matches("[data-appointment-search]")) return;
   state.appointmentQuery = event.target.value;
   const establishment = activeEstablishment();
@@ -2241,7 +2332,7 @@ document.addEventListener("submit", async (event) => {
       const profile = storeProfile(Object.fromEntries(new FormData(event.target)));
       for (const [suffix, key] of [["", "mapCoordinates1"], ["2", "mapCoordinates2"]]) {
         const query = addressMapQuery(profile, suffix);
-        profile[key] = query ? validMapPoint(establishment[key], query) ? establishment[key] : await geocodeAddress(query).catch(() => null) : null;
+        profile[key] = query ? validMapPoint(establishment[key], query) ? establishment[key] : await geocodeAddress(query, addressFallbackQuery(profile, suffix)).catch(() => null) : null;
       }
       await firebaseApi.saveStoreProfile(establishment.slug, profile);
       Object.assign(establishment, profile);
