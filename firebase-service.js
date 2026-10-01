@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { lunchBreakFor, isLunchTime, scheduleFromPeriods, scheduleMatrix, workPeriodsFor, serviceFitsSlot, serviceAvailableAt, businessDayIsClosed, appointmentDurationMinutes, appointmentPresenceWindow } from "./schedule-model.mjs";
 import { normalizeWeeklyAvailability } from "./establishment-model.mjs";
-import { mapsEmbedKey as bundledMapsEmbedKey } from "./maps-embed-key.mjs";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
@@ -37,7 +36,7 @@ try {
 }
 if (!firebaseConfigResponse.ok) throw new Error("Configuração do Firebase indisponível no Render.");
 const { mapsEmbedKey, ...firebaseConfig } = await firebaseConfigResponse.json();
-export const googleMapsEmbedKey = String(mapsEmbedKey || bundledMapsEmbedKey || "").trim();
+export const googleMapsEmbedKey = String(mapsEmbedKey || "").trim();
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
