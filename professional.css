@@ -989,6 +989,9 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .compact-business-hours span { display: block; }
 .compact-business-hours strong { color: #43516a; font-weight: 800; }
 .compact-business-hours i { display: none; }
+.workplace-business-hours { display: grid; gap: 8px; }
+.workplace-business-hours > div > strong { color: var(--navy); font-size: 12px; }
+.workplace-business-hours .compact-business-hours { margin-top: 2px; }
 .public-services-panel .public-services { padding: 12px; flex: 1; background: #fbfcff; }
 .service-list { display: grid; gap: 8px; }
 .public-services-panel .service-card-display { min-height: 58px; padding: 9px; grid-template-columns: 36px minmax(0,1fr) auto; gap: 8px; }
@@ -1662,9 +1665,18 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .public-direct-content .public-details-layout .public-services-panel { display: flex; height: auto; }
 .public-direct-content .public-details-layout .public-services-panel .compact-panel-head { padding: 20px; border-right: 0; border-bottom: 1px solid var(--line); }
 .public-direct-content .public-details-layout .public-services-panel h2,.public-direct-content .public-details-layout .public-location-panel h2 { margin: 0 0 8px; color: var(--navy); font: 800 21px "Manrope",sans-serif; }
-.public-direct-content .public-details-layout .service-list { height: auto; grid-template-columns: minmax(0,1fr); grid-template-rows: auto; grid-auto-rows: auto; }
+.public-direct-content .public-details-layout .service-list { height: auto; grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: repeat(3,auto); grid-auto-flow: column; grid-auto-rows: auto; }
+.public-direct-content .public-details-layout .service-list[hidden] { display: none; }
+.service-page-controls { margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--muted); font-size: 11px; }
+.service-page-controls button { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 8px; color: var(--blue); background: #fff; font-size: 17px; }
+.service-page-controls button:disabled { opacity: .45; cursor: default; }
 .public-direct-content .public-details-layout .public-location-panel { margin: 0; grid-template-columns: minmax(0,1fr); }
 .public-direct-content .public-details-layout .public-location-panel p { font-size: 14px; overflow-wrap: anywhere; }
 @media (max-width: 850px) {
   .public-direct-content .public-details-layout { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 520px) {
+  .public-direct-content .public-details-layout .service-card-display { grid-template-columns: 24px minmax(0,1fr); align-items: start; }
+  .public-direct-content .public-details-layout .service-icon { width: 24px; height: 24px; }
+  .public-direct-content .public-details-layout .service-price { grid-column: 2; justify-self: start; }
 }

@@ -754,7 +754,25 @@ function serviceWeeklyLabel(service) {
 }
 
 function publicServiceCards(establishment) {
-  return `<section class="public-services" id="servicos-agendamento"><div class="service-list">${establishment.services.map((item) => `<article class="service-card-display" title="${escapeHTML(`${serviceLocationLabel(item)} · ${serviceWeeklyLabel(item)}`)}"><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos · ${escapeHTML(serviceLocationLabel(item))}</small><small>${escapeHTML(serviceWeeklyLabel(item))}</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("") || (establishment.setupComplete === false ? '<p class="empty">Os serviços aparecerão após o cadastro.</p>' : "")}</div></section>`;
+  const services = establishment.services || [];
+  const card = item => `<article class="service-card-display" title="${escapeHTML(`${serviceLocationLabel(item)} · ${serviceWeeklyLabel(item)}`)}"><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos · ${escapeHTML(serviceLocationLabel(item))}</small><small>${escapeHTML(serviceWeeklyLabel(item))}</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`;
+  const pages = Array.from({ length: Math.ceil(services.length / 6) }, (_, index) => services.slice(index * 6, index * 6 + 6));
+  const lists = pages.length
+    ? pages.map((items, index) => `<div class="service-list" data-service-page="${index}" ${index ? "hidden" : ""}>${items.map(card).join("")}</div>`).join("")
+    : `<div class="service-list">${establishment.setupComplete === false ? '<p class="empty">Os serviços aparecerão após o cadastro.</p>' : ""}</div>`;
+  const controls = pages.length > 1 ? `<div class="service-page-controls" data-service-pagination><button type="button" data-service-page-prev aria-label="Página anterior de serviços" disabled>←</button><span data-service-page-status aria-live="polite">1 de ${pages.length}</span><button type="button" data-service-page-next aria-label="Próxima página de serviços">→</button></div>` : "";
+  return `<section class="public-services" id="servicos-agendamento">${lists}${controls}</section>`;
+}
+
+function moveServicePage(direction, container) {
+  const pages = [...(container?.querySelectorAll("[data-service-page]") || [])];
+  if (pages.length < 2) return;
+  const current = Math.max(0, pages.findIndex(page => !page.hidden));
+  const next = Math.max(0, Math.min(pages.length - 1, current + direction));
+  pages.forEach((page, index) => { page.hidden = index !== next; });
+  container.querySelector("[data-service-page-prev]").disabled = next === 0;
+  container.querySelector("[data-service-page-next]").disabled = next === pages.length - 1;
+  container.querySelector("[data-service-page-status]").textContent = `${next + 1} de ${pages.length}`;
 }
 
 function moveServiceCarousel(direction = 1) {
@@ -1022,8 +1040,8 @@ function staffSchedulesMarkup(establishment, data, selectedProfessional = "") {
   }).join("");
 }
 
-function compactBusinessHours(establishment) {
-  const hours = establishment.hours || [];
+function compactBusinessHours(establishment, locationType = "address1") {
+  const hours = locationType === "address2" ? establishment.hours2?.length ? establishment.hours2 : establishment.hours || [] : establishment.hours || [];
   const labelKey = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
   const range = (value) => {
     const clean = String(value || "").trim();
@@ -1088,7 +1106,7 @@ function serviceSettingsForm(item = {}) {
     const intervals = item.weeklyAvailability?.[day] || [];
     return `<div class="service-day-row" data-service-day="${day}"><label><input type="checkbox" data-service-day-enabled ${intervals.length ? "checked" : ""}>${label}</label><div class="service-intervals" data-service-intervals>${(intervals.length ? intervals : [{}]).map(serviceIntervalMarkup).join("")}</div><button class="btn btn-outline btn-sm" type="button" data-add-service-interval>+ Intervalo</button></div>`;
   }).join("");
-  return `<form class="settings-item-form" data-service-form ${item.id ? `data-service-id="${escapeHTML(item.id)}"` : ""}>${item.id ? "" : "<h3>Adicionar serviço</h3>"}<div class="settings-fields settings-service-fields"><label>Serviço<input name="name" value="${escapeHTML(item.name || "")}" maxlength="80" required></label><label>Duração (min)<input name="duration" type="number" min="1" max="1440" step="1" value="${Number(item.duration) || 20}" required></label><label>Preço (R$)<input name="price" type="number" min="0" step="0.01" value="${Number(item.price) || 0}" required></label><label>Ícone<input name="icon" value="${escapeHTML(item.icon || "✦")}" maxlength="8" aria-label="Ícone do serviço"></label><label>Local do atendimento<select name="locationType" data-service-location><option value="address1" ${!item.locationType || item.locationType === "address1" ? "selected" : ""}>Endereço 1</option><option value="address2" ${item.locationType === "address2" ? "selected" : ""}>Endereço 2</option><option value="online" ${online ? "selected" : ""}>Atendimento On line</option></select></label><label data-service-meeting-url ${online ? "" : "hidden"}>Link da reunião <small>(opcional)</small><input name="meetingUrl" type="url" value="${escapeHTML(item.meetingUrl || "")}" placeholder="https://..."></label></div><label class="service-availability-mode">Disponibilidade do serviço<select name="availabilityMode" data-service-availability-mode><option value="all" ${custom ? "" : "selected"}>Todo o expediente da loja</option><option value="custom" ${custom ? "selected" : ""}>Dias e horários específicos</option></select></label><div class="service-weekly-grid" data-service-weekly ${custom ? "" : "hidden"}>${weeklyRows}</div><div class="settings-item-actions"><button class="btn btn-primary btn-sm" type="submit">${item.id ? "Salvar" : "Adicionar serviço"}</button>${item.id ? `<button class="btn btn-outline btn-sm" type="button" data-remove-service="${escapeHTML(item.id)}">Remover</button>` : ""}</div></form>`;
+  return `<form class="settings-item-form" data-service-form ${item.id ? `data-service-id="${escapeHTML(item.id)}"` : ""}>${item.id ? "" : "<h3>Adicionar serviço</h3>"}<div class="settings-fields settings-service-fields"><label>Serviço<input name="name" value="${escapeHTML(item.name || "")}" maxlength="80" required></label><label>Duração (min)<input name="duration" type="number" min="1" max="1440" step="1" value="${Number(item.duration) || 20}" required></label><label>Preço (R$)<input name="price" type="number" min="0" step="0.01" value="${Number(item.price) || 0}" required></label><label>Ícone<input name="icon" value="${escapeHTML(item.icon || "✦")}" maxlength="8" aria-label="Ícone do serviço"></label><label>Local do atendimento<select name="locationType" data-service-location><option value="address1" ${!item.locationType || item.locationType === "address1" ? "selected" : ""}>Endereço 1</option><option value="address2" ${item.locationType === "address2" ? "selected" : ""}>Endereço 2</option><option value="online" ${online ? "selected" : ""}>Atendimento On line</option></select></label><label data-service-meeting-url ${online ? "" : "hidden"}>Link da reunião <small>(opcional)</small><input name="meetingUrl" type="url" value="${escapeHTML(item.meetingUrl || "")}" placeholder="https://..."></label></div><label class="service-availability-mode">Disponibilidade do serviço<select name="availabilityMode" data-service-availability-mode><option value="all" ${custom ? "" : "selected"}>Todo o expediente do local selecionado</option><option value="custom" ${custom ? "selected" : ""}>Dias e horários específicos</option></select></label><div class="service-weekly-grid" data-service-weekly ${custom ? "" : "hidden"}>${weeklyRows}</div><div class="settings-item-actions"><button class="btn btn-primary btn-sm" type="submit">${item.id ? "Salvar" : "Adicionar serviço"}</button>${item.id ? `<button class="btn btn-outline btn-sm" type="button" data-remove-service="${escapeHTML(item.id)}">Remover</button>` : ""}</div></form>`;
 }
 
 function serviceSettingsMarkup(establishment) {
@@ -1182,16 +1200,18 @@ async function fillPostalCodeFromAddress(form, suffix) {
 function storeSettingsMarkup(establishment) {
   if (session()?.role !== "admin") return '<div class="settings-section"><p class="settings-hint">Somente o administrador da loja pode alterar os dados do estabelecimento.</p></div>';
   const days = [["seg", "Segunda", "2026-09-28"], ["ter", "Terça", "2026-09-29"], ["qua", "Quarta", "2026-09-30"], ["qui", "Quinta", "2026-10-01"], ["sex", "Sexta", "2026-10-02"], ["sab", "Sábado", "2026-10-03"], ["dom", "Domingo", "2026-10-04"]];
-  const weeklyRows = days.map(([day, label, date]) => {
-    const entry = businessHoursForDate(establishment, date);
-    const open = entry ? !/fechado/i.test(entry.value || "") : (establishment.hours || []).length ? false : !["sab", "dom"].includes(day);
+  const weeklyRows = (suffix = "") => days.map(([day, label, date]) => {
+    const locationType = suffix ? "address2" : "address1";
+    const hours = suffix ? establishment.hours2?.length ? establishment.hours2 : establishment.hours || [] : establishment.hours || [];
+    const entry = businessHoursForDate(establishment, date, locationType);
+    const open = entry ? !/fechado/i.test(entry.value || "") : hours.length ? false : !["sab", "dom"].includes(day);
     const times = String(entry?.value || "").match(/(\d{2}:\d{2}).*?(\d{2}:\d{2})/);
-    return `<div class="store-day-row"><label><input type="checkbox" name="day_${day}_open" ${open ? "checked" : ""}>${label}</label><input type="time" name="day_${day}_start" value="${times?.[1] || "08:00"}" aria-label="Abertura na ${label}"><span>até</span><input type="time" name="day_${day}_end" value="${times?.[2] || "18:00"}" aria-label="Fechamento na ${label}"></div>`;
+    return `<div class="store-day-row"><label><input type="checkbox" name="day${suffix}_${day}_open" ${open ? "checked" : ""}>${label}</label><input type="time" name="day${suffix}_${day}_start" value="${times?.[1] || "08:00"}" aria-label="Abertura na ${label} do Endereço ${suffix || "1"}"><span>até</span><input type="time" name="day${suffix}_${day}_end" value="${times?.[2] || "18:00"}" aria-label="Fechamento na ${label} do Endereço ${suffix || "1"}"></div>`;
   }).join("");
   const ready = establishment.name !== "Estabelecimento em configuração" && establishment.category && establishment.neighborhood && establishment.address && establishment.hours?.length && establishment.professionals?.length && establishment.services?.length && establishment.availableTimes?.length && (!(establishment.services || []).some(item => item.locationType === "address2") || establishment.address2);
   return `<div class="settings-section store-profile-settings"><p class="settings-hint">O endereço da página é <strong>${escapeHTML(establishment.slug)}</strong>. Preencha os dados da loja aqui; depois cadastre funcionários, escalas e serviços nas outras abas.</p>
     <form class="settings-item-form" data-store-profile-form><h3>Dados do estabelecimento</h3><div class="settings-fields"><label>Nome da loja<input name="name" maxlength="100" required value="${escapeHTML(establishment.name === "Estabelecimento em configuração" ? "" : establishment.name)}"></label><label>Categoria<input name="category" required value="${escapeHTML(establishment.category || "")}" placeholder="Ex.: Barbearia"></label></div><h3>Endereços</h3><h4>Endereço 1</h4>${storeAddressFields(establishment)}<h4>Endereço 2 <small>(opcional)</small></h4>${storeAddressFields(establishment, "2")}
-      <h3>Expediente por dia da semana</h3><p class="settings-hint">Marque os dias de atendimento e informe a abertura e o fechamento de cada um. A escala dos profissionais também precisa caber nesses horários.</p><div class="store-weekly-grid">${weeklyRows}</div><p class="store-save-status" data-store-save-status role="alert" hidden></p><button class="btn btn-primary btn-sm" type="submit">Salvar dados da loja</button></form>
+      <h3>Expediente por posto de trabalho</h3><p class="settings-hint">Cada endereço tem seus próprios dias e horários. Os serviços seguem o expediente do endereço selecionado.</p><h4>Endereço 1</h4><div class="store-weekly-grid">${weeklyRows()}</div><h4>Endereço 2 <small>(preencha se cadastrar o segundo endereço)</small></h4><div class="store-weekly-grid">${weeklyRows("2")}</div><p class="store-save-status" data-store-save-status role="alert" hidden></p><button class="btn btn-primary btn-sm" type="submit">Salvar dados da loja</button></form>
     ${establishment.setupComplete === false ? `<div class="store-publish"><strong>Publicação</strong><p>Para aparecer na busca e aceitar agendamentos, salve os dados da loja, adicione pelo menos um funcionário, uma escala e um serviço.</p><button class="btn btn-primary btn-sm" type="button" data-publish-store ${ready ? "" : "disabled"}>Publicar estabelecimento</button></div>` : '<p class="settings-hint">Estabelecimento publicado. Você pode editar os dados acima e salvá-los a qualquer momento.</p>'}</div>`;
 }
 
@@ -1279,7 +1299,7 @@ function renderEstablishmentPublic(establishment) {
   const authenticated = session()?.slug === establishment.slug;
   const pending = establishment.setupComplete === false;
   const mapMarkup = publicMapMarkup(establishment);
-  const servicesMarkup = `<section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div></div>${publicServiceCards(establishment)}</section>`;
+  const servicesMarkup = `<section class="panel public-services-panel"><div class="panel-head compact-panel-head"><div><h2>Serviços</h2><div class="workplace-business-hours"><div><strong>Endereço 1</strong><div class="compact-business-hours">${compactBusinessHours(establishment)}</div></div>${establishment.address2 ? `<div><strong>Endereço 2</strong><div class="compact-business-hours">${compactBusinessHours(establishment, "address2")}</div></div>` : ""}</div></div></div>${publicServiceCards(establishment)}</section>`;
   app.innerHTML = `<div class="est-page">
     <header class="est-topbar"><div class="est-topbar-inner"><div class="est-topbar-identity"><a href="${href(`/${establishment.slug}`)}" data-agenda-logo aria-label="Voltar à agenda de ${escapeHTML(establishment.name)}">${logo()}</a><span class="est-header-divider"></span><div class="est-header-business"><strong>${escapeHTML(establishment.name)}</strong></div></div></div></header>
     <section class="public-live-strip"><div class="public-live-inner"><article class="public-live-card public-live-current">${publicCurrentAttendance(establishment, data)}</article><div class="public-live-actions"><button class="btn btn-yellow btn-sm" type="button" data-open-checkin ${pending ? 'disabled title="Disponível após a publicação"' : ""}>✓ Confirmar presença</button>${publicAccessMenu(establishment, authenticated)}</div></div></section>
@@ -1911,6 +1931,11 @@ document.addEventListener("click", async (event) => {
     if (establishment) selectPublicMapAddress(establishment, mapChoice.dataset.mapAddress);
     return;
   }
+  const servicePageButton = event.target.closest("[data-service-page-prev],[data-service-page-next]");
+  if (servicePageButton) {
+    moveServicePage(servicePageButton.hasAttribute("data-service-page-next") ? 1 : -1, servicePageButton.closest(".public-services"));
+    return;
+  }
   if (event.target.closest("[data-service-carousel-prev]")) { moveServiceCarousel(-1); return; }
   if (event.target.closest("[data-service-carousel-next]")) { moveServiceCarousel(1); return; }
   const publicSlot = event.target.closest("[data-public-slot]");
@@ -2162,7 +2187,7 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("change", (event) => {
-  const addressForm = event.target.closest("[data-store-profile-form]");
+  const addressForm = event.target.closest?.("[data-store-profile-form]");
   if (addressForm) {
     const suffix = event.target.name?.endsWith("2") || event.target.dataset.postalOptions === "2" ? "2" : "";
     if (event.target.matches("[data-postal-options]")) {
