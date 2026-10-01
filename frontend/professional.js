@@ -2336,7 +2336,10 @@ document.addEventListener("submit", async (event) => {
       }
       await firebaseApi.saveStoreProfile(establishment.slug, profile);
       Object.assign(establishment, profile);
+      event.target.dataset.dirty = "false";
+      state.settingsOpen = false;
       render();
+      document.querySelector("[data-internal-menu] summary")?.focus();
       toast(profile.mapCoordinates1 && (!profile.address2 || profile.mapCoordinates2) ? "Dados da loja salvos e pontos marcados no mapa." : "Dados da loja salvos. Confira o endereço e use Localizar ponto no mapa para marcar o local.");
     } catch (error) {
       button.disabled = false;
