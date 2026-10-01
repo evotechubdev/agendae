@@ -3,7 +3,7 @@ import { scheduleTimeline, scheduleMatrix, scheduleDayPeriods, lunchBreakFor, is
 import { renderBookingCalendar, shiftCalendarMonth, calendarMonthDays } from "./calendar-model.mjs";
 import { loginCredentials } from "./login-model.mjs";
 import { establishmentSlug, storeProfile } from "./establishment-model.mjs";
-import { addressFallbackQuery, addressMapLabel, addressMapQuery, cachedMapPoint, geocodeAddress, googleMapsPlaceQuery, validMapPoint } from "./address-map.mjs";
+import { addressMapLabel, googleMapsPlaceQuery } from "./address-map.mjs";
 import { formatPostalCode, lookupPostalCode, matchingPostalCode, postalDigits, searchPostalCodes } from "./postal-code.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
@@ -717,15 +717,13 @@ function publicMapMarkup(establishment) {
   if (!address) return "";
   const suffix = selected === "address2" ? "2" : "";
   const mapLabel = addressMapLabel(establishment, suffix);
-  const query = addressMapQuery(establishment, suffix);
-  const savedPoint = establishment[selected === "address2" ? "mapCoordinates2" : "mapCoordinates1"];
-  const point = validMapPoint(savedPoint, query) ? savedPoint : cachedMapPoint(query);
+  const query = googleMapsPlaceQuery(establishment, suffix);
   const choices = addresses.address2 ? `<div class="public-location-choices" role="group" aria-label="Selecionar endereço no mapa"><button type="button" data-map-address="address1" aria-pressed="${selected === "address1"}" ${addresses.address1 ? "" : "disabled"}>Endereço 1</button><button type="button" data-map-address="address2" aria-pressed="${selected === "address2"}">Endereço 2</button></div>` : "";
-  const mapLink = `https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(googleMapsPlaceQuery(establishment, suffix))}`;
-  const mapUrl = new URL(`${BASE}/location-map.html`, location.origin);
-  if (point) mapUrl.search = new URLSearchParams({ lat: String(point.lat), lon: String(point.lon), name: mapLabel }).toString();
-  const map = point ? `<div class="public-map-view"><iframe title="Localização de ${escapeHTML(mapLabel)} no ${selected === "address2" ? "Endereço 2" : "Endereço 1"}" src="${mapUrl.href.replaceAll("&", "&amp;")}" loading="lazy"></iframe><small>Mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · localização aproximada</small></div>` : `<div class="public-map-empty"><p>O ponto deste endereço ainda não foi localizado.</p><button type="button" class="btn btn-outline btn-sm" data-map-locate="${selected}">Localizar ponto no mapa</button><small data-map-status role="status"></small></div>`;
-  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Onde estamos</h2>${choices}<p>${escapeHTML(address)}</p><a href="${mapLink}" target="_blank" rel="noopener noreferrer">Abrir no Google Maps</a></div>${map}</section>`;
+  const key = firebaseApi?.googleMapsEmbedKey;
+  const mapUrl = key ? new URL("https://www.google.com/maps/embed/v1/place") : null;
+  if (mapUrl) mapUrl.search = new URLSearchParams({ key, q: query, language: "pt-BR", region: "BR" }).toString();
+  const map = mapUrl ? `<div class="public-map-view"><iframe title="Localização de ${escapeHTML(mapLabel)} no ${selected === "address2" ? "Endereço 2" : "Endereço 1"}" src="${mapUrl.href.replaceAll("&", "&amp;")}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>` : `<div class="public-map-empty"><p>Mapa indisponível no momento.</p></div>`;
+  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Onde estamos</h2>${choices}<p>${escapeHTML(address)}</p></div>${map}</section>`;
 }
 
 function selectPublicMapAddress(establishment, type) {
@@ -1900,27 +1898,6 @@ document.addEventListener("click", async (event) => {
     if (establishment) selectPublicMapAddress(establishment, mapChoice.dataset.mapAddress);
     return;
   }
-  const locateButton = event.target.closest("[data-map-locate]");
-  if (locateButton) {
-    const establishment = activeEstablishment();
-    if (!establishment) return;
-    const type = locateButton.dataset.mapLocate;
-    const suffix = type === "address2" ? "2" : "";
-    const query = addressMapQuery(establishment, suffix);
-    locateButton.disabled = true;
-    const status = locateButton.parentElement.querySelector("[data-map-status]");
-    status.textContent = "Localizando o endereço…";
-    try {
-      const point = await geocodeAddress(query, addressFallbackQuery(establishment, suffix));
-      if (!point) throw new Error("Não encontramos esse endereço. Confira rua, número, cidade e CEP no cadastro.");
-      establishment[type === "address2" ? "mapCoordinates2" : "mapCoordinates1"] = point;
-      if (state.mapAddressType === type) selectPublicMapAddress(establishment, type);
-    } catch (error) {
-      locateButton.disabled = false;
-      status.textContent = error.message || "Não foi possível localizar o endereço agora.";
-    }
-    return;
-  }
   if (event.target.closest("[data-service-carousel-prev]")) { moveServiceCarousel(-1); return; }
   if (event.target.closest("[data-service-carousel-next]")) { moveServiceCarousel(1); return; }
   const publicSlot = event.target.closest("[data-public-slot]");
@@ -2335,17 +2312,13 @@ document.addEventListener("submit", async (event) => {
     status.dataset.state = "saving";
     try {
       const profile = storeProfile(Object.fromEntries(new FormData(event.target)));
-      for (const [suffix, key] of [["", "mapCoordinates1"], ["2", "mapCoordinates2"]]) {
-        const query = addressMapQuery(profile, suffix);
-        profile[key] = query ? validMapPoint(establishment[key], query) ? establishment[key] : await geocodeAddress(query, addressFallbackQuery(profile, suffix)).catch(() => null) : null;
-      }
       await firebaseApi.saveStoreProfile(establishment.slug, profile);
       Object.assign(establishment, profile);
       event.target.dataset.dirty = "false";
       state.settingsOpen = false;
       render();
       document.querySelector("[data-internal-menu] summary")?.focus();
-      toast(profile.mapCoordinates1 && (!profile.address2 || profile.mapCoordinates2) ? "Dados da loja salvos e pontos marcados no mapa." : "Dados da loja salvos. Confira o endereço e use Localizar ponto no mapa para marcar o local.");
+      toast("Dados da loja salvos.");
     } catch (error) {
       button.disabled = false;
       const message = firebaseApi.firebaseErrorMessage(error);
