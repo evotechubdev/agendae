@@ -42,7 +42,7 @@ No repositório do GitHub, abra **Settings → Pages** e selecione **GitHub Acti
 
 O frontend está conectado ao projeto `agendae-prod` usando Firebase Authentication e Cloud Firestore.
 
-O mapa público usa automaticamente a Google Maps Embed API para localizar o endereço escolhido. O campo Complemento fornece o nome do edifício; rua, número, cidade e estado ajudam a localizar o lugar. Ative a Maps Embed API no projeto Google Cloud. A chave web já entregue em `GET /v1/config/firebase` é usada por padrão; `GOOGLE_MAPS_EMBED_KEY` no backend Render permite usar uma chave separada e restrita ao site.
+O mapa público usa automaticamente a Google Maps Embed API para localizar o endereço escolhido. O campo Complemento fornece o nome do edifício; rua, número, cidade e estado ajudam a localizar o lugar. A chave pública em `frontend/maps-embed-key.mjs` é restrita à Maps Embed API e ao domínio do site. `GOOGLE_MAPS_EMBED_KEY` no backend Render pode substituí-la se necessário.
 
 Antes do primeiro acesso:
 
