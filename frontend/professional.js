@@ -542,13 +542,15 @@ function bookingContent(establishment) {
   const booking = state.booking;
   if (booking.step < 3 && businessDayIsClosed(establishment, booking.date)) return "";
   const availableServices = (establishment.services || []).filter(item => serviceAvailableAt(establishment, item, booking.date, booking.time) && serviceFitsSlot(establishment, booking.professional, booking.time, item.name, getData(establishment).slots || [], booking.date));
+  const selectedService = availableServices.find(item => item.id === booking.serviceId);
 
   if (booking.step === 2) return `<div class="booking-modal-backdrop" data-booking-modal-backdrop>
     <section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
       <div class="booking-modal-head"><div><small>FINALIZAR AGENDAMENTO</small><h2 id="booking-modal-title">Escolha o serviço e confirme</h2></div><button class="booking-modal-close" type="button" data-close-selected-booking aria-label="Fechar janela">×</button></div>
       <form id="booking-form" class="booking-modal-form">
         <p class="booking-modal-lead">Selecione o serviço desejado. A duração e o valor variam conforme a opção escolhida.</p>
-        <fieldset class="booking-service-picker"><legend>Serviço <span>Obrigatório</span></legend><div class="booking-service-options">${availableServices.map((item) => `<label class="booking-service-option"><input type="radio" name="service" value="${escapeHTML(item.id)}" data-booking-service required ${booking.serviceId === item.id ? "checked" : ""}><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span class="booking-service-info"><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos · ${escapeHTML(serviceLocationLabel(establishment, item))}</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span><i aria-hidden="true">✓</i></label>`).join("") || '<p class="empty">Nenhum serviço disponível neste horário. Escolha outro.</p>'}</div></fieldset>
+        <fieldset class="booking-service-picker"><legend>Serviço <span>Obrigatório</span></legend><div class="booking-service-options">${availableServices.map((item) => `<label class="booking-service-option"><input type="radio" name="service" value="${escapeHTML(item.id)}" data-booking-service required ${booking.serviceId === item.id ? "checked" : ""}><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span class="booking-service-info"><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos · ${escapeHTML(serviceLocationLabel(item))}</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span><i aria-hidden="true">✓</i></label>`).join("") || '<p class="empty">Nenhum serviço disponível neste horário. Escolha outro.</p>'}</div></fieldset>
+        <div class="booking-service-location" data-booking-service-location role="status" ${selectedService ? "" : "hidden"}><strong>Local do atendimento</strong><span>${selectedService ? escapeHTML(bookingServiceLocation(establishment, selectedService)) : ""}</span></div>
         <div class="mini-field-grid"><div class="field full"><label for="customer-name">Nome completo</label><input id="customer-name" name="name" type="text" autocomplete="name" required placeholder="Digite seu nome"></div><div class="field full"><label for="customer-phone">Telefone <span class="optional-label">(opcional)</span></label><input id="customer-phone" name="phone" type="tel" autocomplete="tel" placeholder="(00) 00000-0000"></div></div>
         <div class="confirmation-data booking-review"><div class="confirmation-row"><span>Data</span><strong>${prettyDate(booking.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(booking.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(booking.professional)}</strong></div></div>
         <div class="booking-actions"><button class="btn btn-outline" type="button" data-booking-back>Voltar</button><button class="btn btn-yellow" type="submit">Confirmar agendamento</button></div>
@@ -557,7 +559,7 @@ function bookingContent(establishment) {
   </div>`;
 
   const item = booking.confirmation;
-  return `<div class="booking-modal-backdrop"><section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-confirmation-title"><div class="booking-modal-head"><div><small>AGENDAMENTO CONCLUÍDO</small><h2 id="booking-confirmation-title">Agendamento confirmado</h2></div><button class="booking-modal-close" type="button" data-new-booking aria-label="Fechar confirmação">×</button></div><div class="booking-modal-form"><div class="confirmation"><div class="confirmation-icon">✓</div><p class="booking-lead">Seu horário na ${escapeHTML(establishment.name)} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(item.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div><div class="confirmation-row"><span>Local</span><strong>${escapeHTML(item.locationType === "online" ? "Atendimento On line" : item.serviceAddress || establishment.address)}</strong></div></div>${item.locationType === "online" && item.meetingUrl ? `<p><a href="${escapeHTML(item.meetingUrl)}" target="_blank" rel="noopener noreferrer">Abrir link da reunião</a></p>` : ""}<div class="call-ticket"><span>Senha no painel</span><strong>${escapeHTML(scheduledTicket(establishment, item.time, item.professional, item.service, item.date))}</strong><p>Esta senha identifica seu horário quando ele for chamado.</p></div><div class="checkin-password"><span>Sua senha de presença</span><strong>${escapeHTML(item.checkInCode)}</strong><p>Guarde esta senha para confirmar sua chegada. Ela não aparece no painel público.</p></div><div class="booking-actions"><span></span><button class="btn btn-primary" type="button" data-new-booking>Fazer outro agendamento</button></div></div></div></section></div>`;
+  return `<div class="booking-modal-backdrop"><section class="booking-modal booking-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="booking-confirmation-title"><div class="booking-modal-head"><div><small>AGENDAMENTO CONCLUÍDO</small><h2 id="booking-confirmation-title">Agendamento confirmado</h2></div><button class="booking-modal-close" type="button" data-new-booking aria-label="Fechar confirmação">×</button></div><div class="booking-modal-form"><div class="confirmation"><div class="confirmation-icon">✓</div><p class="booking-lead">Seu horário na ${escapeHTML(establishment.name)} está reservado.</p><div class="confirmation-data"><div class="confirmation-row"><span>Serviço</span><strong>${escapeHTML(item.service)}</strong></div><div class="confirmation-row"><span>Data</span><strong>${prettyDate(item.date, true)}</strong></div><div class="confirmation-row"><span>Horário</span><strong>${escapeHTML(item.time)}</strong></div><div class="confirmation-row"><span>Profissional</span><strong>${escapeHTML(item.professional)}</strong></div><div class="confirmation-row"><span>Local</span><strong>${escapeHTML(item.locationType === "online" ? "Online" : item.serviceAddress || (item.locationType === "address2" ? establishment.address2 : establishment.address) || "Endereço a confirmar")}</strong></div></div>${item.locationType === "online" && item.meetingUrl ? `<p><a href="${escapeHTML(item.meetingUrl)}" target="_blank" rel="noopener noreferrer">Abrir link da reunião</a></p>` : ""}<div class="call-ticket"><span>Senha no painel</span><strong>${escapeHTML(scheduledTicket(establishment, item.time, item.professional, item.service, item.date))}</strong><p>Esta senha identifica seu horário quando ele for chamado.</p></div><div class="checkin-password"><span>Sua senha de presença</span><strong>${escapeHTML(item.checkInCode)}</strong><p>Guarde esta senha para confirmar sua chegada. Ela não aparece no painel público.</p></div><div class="booking-actions"><span></span><button class="btn btn-primary" type="button" data-new-booking>Fazer outro agendamento</button></div></div></div></section></div>`;
 }
 
 function monthlyScheduleMarkup(establishment) {
@@ -704,10 +706,20 @@ function restoreScheduleScroll() {
   matrix.addEventListener("scroll", () => { state.scheduleScrollLeft = matrix.scrollLeft; }, { passive: true });
 }
 
-function serviceLocationLabel(establishment, service) {
-  if (service.locationType === "online") return "Atendimento On line";
-  if (service.locationType === "address2") return `Endereço 2: ${establishment.address2 || "a definir"}`;
-  return `Endereço 1: ${establishment.address || "a definir"}`;
+function serviceLocationLabel(service) {
+  return service.locationType === "online" ? "Online" : "Presencial";
+}
+
+function bookingServiceLocation(establishment, service) {
+  if (service.locationType === "online") return "Online";
+  return (service.locationType === "address2" ? establishment.address2 : establishment.address) || "Endereço a confirmar";
+}
+
+function updateBookingServiceLocation(establishment, service) {
+  const location = document.querySelector("[data-booking-service-location]");
+  if (!location) return;
+  location.hidden = !service;
+  location.querySelector("span").textContent = service ? bookingServiceLocation(establishment, service) : "";
 }
 
 function publicMapMarkup(establishment) {
@@ -723,7 +735,7 @@ function publicMapMarkup(establishment) {
   const mapUrl = key ? new URL("https://www.google.com/maps/embed/v1/place") : null;
   if (mapUrl) mapUrl.search = new URLSearchParams({ key, q: query, language: "pt-BR", region: "BR" }).toString();
   const map = mapUrl ? `<div class="public-map-view"><iframe title="Localização de ${escapeHTML(mapLabel)} no ${selected === "address2" ? "Endereço 2" : "Endereço 1"}" src="${mapUrl.href.replaceAll("&", "&amp;")}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>` : `<div class="public-map-empty"><p>Mapa indisponível no momento.</p></div>`;
-  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Onde estamos</h2>${choices}<p>${escapeHTML(address)}</p></div>${map}</section>`;
+  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Localização</h2>${choices}<p>${escapeHTML(address)}</p></div>${map}</section>`;
 }
 
 function selectPublicMapAddress(establishment, type) {
@@ -742,7 +754,7 @@ function serviceWeeklyLabel(service) {
 }
 
 function publicServiceCards(establishment) {
-  return `<section class="public-services" id="servicos-agendamento"><div class="service-list">${establishment.services.map((item) => `<article class="service-card-display" title="${escapeHTML(`${serviceLocationLabel(establishment, item)} · ${serviceWeeklyLabel(item)}`)}"><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos · ${escapeHTML(serviceLocationLabel(establishment, item))}</small><small>${escapeHTML(serviceWeeklyLabel(item))}</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("") || (establishment.setupComplete === false ? '<p class="empty">Os serviços aparecerão após o cadastro.</p>' : "")}</div></section>`;
+  return `<section class="public-services" id="servicos-agendamento"><div class="service-list">${establishment.services.map((item) => `<article class="service-card-display" title="${escapeHTML(`${serviceLocationLabel(item)} · ${serviceWeeklyLabel(item)}`)}"><span class="service-icon">${escapeHTML(item.icon || "✦")}</span><span><strong>${escapeHTML(item.name)}</strong><small>${item.duration} minutos · ${escapeHTML(serviceLocationLabel(item))}</small><small>${escapeHTML(serviceWeeklyLabel(item))}</small></span><span class="service-price">${item.price ? currency.format(item.price) : "Incluso"}</span></article>`).join("") || (establishment.setupComplete === false ? '<p class="empty">Os serviços aparecerão após o cadastro.</p>' : "")}</div></section>`;
 }
 
 function moveServiceCarousel(direction = 1) {
@@ -2192,6 +2204,7 @@ document.addEventListener("change", (event) => {
     state.booking.serviceId = event.target.value;
     const establishment = activeEstablishment();
     const service = establishment?.services?.find(item => item.id === event.target.value);
+    updateBookingServiceLocation(establishment, service);
     if (service && service.locationType !== "online") selectPublicMapAddress(establishment, service.locationType === "address2" ? "address2" : "address1");
   }
   if (event.target.matches("[data-qr-image]")) {

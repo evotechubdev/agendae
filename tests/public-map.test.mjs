@@ -24,6 +24,7 @@ test("o Google Maps mostra o local físico do endereço selecionado sem botão e
     street2: "Rua B", number2: "20", city2: "Salvador", state2: "BA", complement2: "Edifício B, sala 2",
   };
   const first = context.publicMapMarkup(establishment);
+  assert.match(first, /<h2 id="public-location-title">Localização<\/h2>/);
   assert.match(first, /google\.com\/maps\/embed\/v1\/place\?key=test-key&amp;q=/);
   assert.match(decodeURIComponent(first.match(/&amp;q=([^"&]+)/)[1].replaceAll("+", " ")), /Edifício Bahia Center, Rua A, 10, Salvador, BA, Brasil/);
   assert.match(first, /Localização de Edifício Bahia Center, sala 1306/);
