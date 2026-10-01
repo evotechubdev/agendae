@@ -78,6 +78,7 @@ test("loja recém-criada abre a página padrão de agendamento", () => {
     state: { booking: { step: 1, date: "2026-09-30" }, publicLookup: { scanning: false }, attendanceOpen: false },
     session: () => null, getData: () => ({}), href: path => path, logo: () => "Agendae", escapeHTML: value => String(value),
     publicCurrentAttendance: () => "Atendendo agora", publicAccessMenu: () => "Entrar", publicSchedule: () => "Agenda",
+    publicMapMarkup: () => '<section class="panel public-location-panel">Mapa</section>',
     compactBusinessHours: () => "Funcionamento", publicServiceCards: () => "Serviços",
     employeeAccessModal: () => "", requestAnimationFrame() {},
   });
@@ -87,6 +88,10 @@ test("loja recém-criada abre a página padrão de agendamento", () => {
   assert.match(app.innerHTML, /Grazielle Matos/);
   assert.match(app.innerHTML, /public-schedule-panel/);
   assert.match(app.innerHTML, /public-services-panel/);
+  assert.match(app.innerHTML, /public-details-layout/);
+  assert.match(app.innerHTML, /<div class="est-header-business"><strong>Grazielle Matos<\/strong><\/div>/);
+  assert.ok(app.innerHTML.indexOf("public-schedule-panel") < app.innerHTML.indexOf("public-services-panel"));
+  assert.ok(app.innerHTML.indexOf("public-services-panel") < app.innerHTML.indexOf("public-location-panel"));
   assert.match(app.innerHTML, /Agenda em configuração/);
   assert.match(app.innerHTML, /data-open-checkin disabled/);
   assert.doesNotMatch(app.innerHTML, /Estabelecimento não encontrado/);
