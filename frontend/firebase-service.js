@@ -506,7 +506,7 @@ export function observePublicState(slug, callback) {
   const unsubscribeEstablishment = onSnapshot(doc(db, "establishments", slug), (snapshot) => {
     const establishment = snapshot.data() || {};
     establishmentHours = establishment.hours || [];
-    establishmentSchedule = { name: establishment.name || "", address: establishment.address || "", address2: establishment.address2 || "", professionals: establishment.professionals || [], services: establishment.services || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee", extraWorkingDates: establishment.extraWorkingDates || {} };
+    establishmentSchedule = { name: establishment.name || "", address: establishment.address || "", address2: establishment.address2 || "", hours2: establishment.hours2 || [], professionals: establishment.professionals || [], services: establishment.services || [], availableTimes: establishment.availableTimes || [], scheduleMode: establishment.scheduleMode || "employee", extraWorkingDates: establishment.extraWorkingDates || {} };
     professionalLunchBreaks = { ...Object.fromEntries((establishment.professionals || []).filter((item) => item.lunchBreak).map((item) => [item.name, item.lunchBreak])), ...establishment.professionalLunchBreaks };
     emit();
   }, () => emit());

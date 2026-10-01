@@ -16,7 +16,7 @@ export function newEstablishment(input) {
       initials: name.split(" ").map(part => part[0]).slice(0, 2).join("").toLocaleUpperCase("pt-BR"),
       category: "", neighborhood: "", street: "", number: "", zipCode: "", city: "", state: "", complement: "", address: "", street2: "", number2: "", neighborhood2: "", zipCode2: "", city2: "", state2: "", complement2: "", address2: "", mapCoordinates1: null, mapCoordinates2: null, type: "business",
       openNow: false, averageWaitMinutes: 20, scheduleMode: "employee",
-      hours: [], availableTimes: [], professionals: [], services: [], serviceDurations: {},
+      hours: [], hours2: [], availableTimes: [], professionals: [], services: [], serviceDurations: {},
       professionalLunchBreaks: {}, extraWorkingDates: {}, staffClosedDates: {},
     },
   };
@@ -44,15 +44,19 @@ export function storeProfile(input) {
   const days = [["seg", "Segunda"], ["ter", "Terça"], ["qua", "Quarta"], ["qui", "Quinta"], ["sex", "Sexta"], ["sab", "Sábado"], ["dom", "Domingo"]];
   const weekly = days.some(([day]) => Object.hasOwn(input, `day_${day}_start`));
   let hours;
-  if (weekly) {
-    hours = days.map(([day, label]) => {
-      if (!input[`day_${day}_open`]) return { label, value: "Fechado" };
-      const start = String(input[`day_${day}_start`] || "");
-      const end = String(input[`day_${day}_end`] || "");
-      if (!Number.isFinite(minutes(start)) || !Number.isFinite(minutes(end)) || minutes(end) <= minutes(start)) throw new Error(`Informe um horário válido para ${label}.`);
+  const weeklyHours = (suffix, addressLabel) => {
+    const result = days.map(([day, label]) => {
+      if (!input[`day${suffix}_${day}_open`]) return { label, value: "Fechado" };
+      const start = String(input[`day${suffix}_${day}_start`] || "");
+      const end = String(input[`day${suffix}_${day}_end`] || "");
+      if (!Number.isFinite(minutes(start)) || !Number.isFinite(minutes(end)) || minutes(end) <= minutes(start)) throw new Error(`Informe um horário válido para ${label} do ${addressLabel}.`);
       return { label, value: `${start} - ${end}` };
     });
-    if (hours.every(item => item.value === "Fechado")) throw new Error("Abra pelo menos um dia da semana.");
+    if (result.every(item => item.value === "Fechado")) throw new Error(`Abra pelo menos um dia da semana no ${addressLabel}.`);
+    return result;
+  };
+  if (weekly) {
+    hours = weeklyHours("", "Endereço 1");
   } else {
     if (!Number.isFinite(minutes(opening)) || !Number.isFinite(minutes(closing)) || minutes(closing) <= minutes(opening)) throw new Error("Informe um horário de abertura e fechamento válido.");
     hours = [
@@ -61,11 +65,12 @@ export function storeProfile(input) {
       { label: "Domingo", value: input.sundayOpen ? `${opening} - ${closing}` : "Fechado" },
     ];
   }
+  const hours2 = second.address ? (days.some(([day]) => Object.hasOwn(input, `day2_${day}_start`)) ? weeklyHours("2", "Endereço 2") : hours) : [];
   return {
     name, category, ...first,
     street2: second.street, number2: second.number, neighborhood2: second.neighborhood, zipCode2: second.zipCode, city2: second.city, state2: second.state, complement2: second.complement, address2: second.address,
     initials: name.split(" ").map(part => part[0]).slice(0, 2).join("").toLocaleUpperCase("pt-BR"),
-    hours,
+    hours, hours2,
   };
 }
 

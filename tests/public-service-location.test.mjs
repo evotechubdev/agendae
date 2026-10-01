@@ -33,6 +33,31 @@ test("cartões de serviços mostram só Presencial ou Online", () => {
   assert.doesNotMatch(html, /Avenida A|Rua B|Endereço 1:|Endereço 2:/);
 });
 
+test("serviços acima de seis ficam em páginas de até três por coluna", () => {
+  const many = Array.from({ length: 7 }, (_, index) => ({ ...services[0], id: `service-${index}`, name: `Serviço ${index + 1}` }));
+  const html = context.publicServiceCards({ ...establishment, services: many });
+  const firstPage = html.match(/<div class="service-list" data-service-page="0"[^>]*>(.*?)<\/div>/s)?.[1];
+  const secondPage = html.match(/<div class="service-list" data-service-page="1" hidden>(.*?)<\/div>/s)?.[1];
+  assert.equal((firstPage?.match(/class="service-card-display"/g) || []).length, 6);
+  assert.equal((secondPage?.match(/class="service-card-display"/g) || []).length, 1);
+  assert.match(html, /data-service-page-prev/);
+  assert.match(html, /data-service-page-next/);
+
+  const pages = [{ hidden: false }, { hidden: true }];
+  const previous = { disabled: true };
+  const next = { disabled: false };
+  const status = { textContent: "1 de 2" };
+  const container = {
+    querySelectorAll: () => pages,
+    querySelector: selector => selector.includes("prev") ? previous : selector.includes("next") ? next : status,
+  };
+  context.moveServicePage(1, container);
+  assert.deepEqual(pages.map(page => page.hidden), [true, false]);
+  assert.equal(previous.disabled, false);
+  assert.equal(next.disabled, true);
+  assert.equal(status.textContent, "2 de 2");
+});
+
 test("formulário mostra o endereço completo apenas após escolher o serviço", () => {
   const initial = context.bookingContent(establishment);
   assert.match(initial, /data-booking-service-location[^>]*hidden/);

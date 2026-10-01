@@ -32,6 +32,9 @@ test("loja oferece expediente independente em cada dia e segundo endereço", () 
   assert.match(html, /name="day_ter_open" /);
   assert.doesNotMatch(html, /name="day_ter_open" checked/);
   assert.match(html, /name="day_dom_start"/);
+  assert.match(html, /name="day2_seg_open" checked/);
+  assert.match(html, /name="day2_seg_start"/);
+  assert.match(html, /Expediente por posto de trabalho/);
 });
 
 test("serviço oferece local online e intervalos por dia", () => {

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { serviceAvailableAt, scheduleTimeline } from "../frontend/schedule-model.mjs";
+import { serviceAvailableAt, scheduleTimeline, businessDayIsClosed } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
 const start = source.indexOf("function compactBusinessHours(");
@@ -39,6 +39,26 @@ test("serviço só cabe no intervalo do dia e no expediente da loja", () => {
   assert.equal(serviceAvailableAt(store, service, "2026-09-29", "09:00"), false);
   assert.equal(serviceAvailableAt(store, service, "2026-09-30", "14:00"), true);
   assert.equal(serviceAvailableAt(store, { duration: 40 }, "2026-09-28", "11:30"), false);
+});
+
+test("cada endereço atende somente no seu expediente e a agenda reúne os turnos", () => {
+  const store = {
+    address2: "Clínica B", hours: [{ label: "Segunda", value: "08:00 - 12:00" }, { label: "Terça", value: "Fechado" }],
+    hours2: [{ label: "Segunda", value: "14:00 - 18:00" }, { label: "Terça", value: "09:00 - 13:00" }],
+    professionals: [{ name: "Ana", availableTimes: ["08:00", "09:00", "11:40", "14:00", "17:40"] }],
+  };
+  const first = { locationType: "address1", duration: 40 };
+  const second = { locationType: "address2", duration: 40 };
+  assert.equal(serviceAvailableAt(store, first, "2026-09-28", "09:00"), true);
+  assert.equal(serviceAvailableAt(store, first, "2026-09-28", "14:00"), false);
+  assert.equal(serviceAvailableAt(store, second, "2026-09-28", "09:00"), false);
+  assert.equal(serviceAvailableAt(store, second, "2026-09-28", "14:00"), true);
+  assert.equal(serviceAvailableAt(store, second, "2026-09-28", "17:40"), false);
+  assert.equal(serviceAvailableAt(store, first, "2026-09-28", "11:40"), false);
+  assert.equal(businessDayIsClosed(store, "2026-09-29"), false);
+  assert.equal(businessDayIsClosed(store, "2026-09-29", "address1"), true);
+  assert.deepEqual(scheduleTimeline(store, [], "2026-09-28").professionals[0].availableTimes, ["08:00", "09:00", "11:40", "14:00", "17:40"]);
+  assert.equal(serviceAvailableAt({ ...store, address2: "" }, second, "2026-09-28", "14:00"), false);
 });
 
 test("linha do tempo mostra somente o expediente do dia selecionado", () => {

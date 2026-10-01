@@ -34,36 +34,44 @@ export function isLunchTime(interval, time) {
   return Boolean(interval && value >= minutes(interval.start) && value < minutes(interval.end));
 }
 
-export function businessHoursForDate(establishment, date) {
+export function workplaceHours(establishment, locationType = "address1") {
+  if (locationType === "address2") return establishment.hours2?.length ? establishment.hours2 : establishment.hours || [];
+  return establishment.hours || [];
+}
+
+export function businessHoursForDate(establishment, date, locationType = "address1") {
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   const day = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][weekday];
   const key = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
   const weekdayGroup = label => label.includes("diasuteis") || label === "uteis" || label.includes("seg") && label.includes("sex");
-  const hours = establishment.hours || [];
+  const hours = workplaceHours(establishment, locationType);
   return hours.find(item => key(item.label).startsWith(day) && !weekdayGroup(key(item.label)))
     || (weekday >= 1 && weekday <= 5 ? hours.find(item => weekdayGroup(key(item.label))) : null)
     || hours.find(item => ["todososdias", "diariamente"].includes(key(item.label)));
 }
 
-export function businessDayIsClosed(establishment, date) {
+export function businessDayIsClosed(establishment, date, locationType = null) {
   if (establishment.extraWorkingDates?.[date] === true) return false;
-  const entry = businessHoursForDate(establishment, date);
-  return entry ? /fechado/i.test(entry.value || "") : Boolean(establishment.hours?.length);
+  if (!locationType && establishment.address2 && !businessDayIsClosed(establishment, date, "address2")) return false;
+  const hours = workplaceHours(establishment, locationType || "address1");
+  const entry = businessHoursForDate(establishment, date, locationType || "address1");
+  return entry ? /fechado/i.test(entry.value || "") : Boolean(hours.length);
 }
 
-export function businessHoursRangeForDate(establishment, date) {
-  if (businessDayIsClosed(establishment, date) || establishment.extraWorkingDates?.[date] === true) return null;
-  const value = String(businessHoursForDate(establishment, date)?.value || "");
+export function businessHoursRangeForDate(establishment, date, locationType = "address1") {
+  if (businessDayIsClosed(establishment, date, locationType) || establishment.extraWorkingDates?.[date] === true) return null;
+  const value = String(businessHoursForDate(establishment, date, locationType)?.value || "");
   const times = [...value.matchAll(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g)].map(match => minutes(match[0]));
   return times.length >= 2 && times[1] > times[0] ? { start: times[0], end: times[1] } : null;
 }
 
 export function serviceAvailableAt(establishment, service, date, time) {
-  if (!service || businessDayIsClosed(establishment, date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || ""))) return false;
+  const locationType = service?.locationType || "address1";
+  if (!service || locationType === "address2" && !establishment.address2 || businessDayIsClosed(establishment, date, locationType) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || ""))) return false;
   const start = minutes(time);
   const duration = Number(service.duration) || 20;
   const end = start + duration;
-  const business = businessHoursRangeForDate(establishment, date);
+  const business = businessHoursRangeForDate(establishment, date, locationType);
   if (business && (start < business.start || end > business.end)) return false;
   if (service.weeklyAvailability == null) return true;
   const day = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][new Date(`${date}T12:00:00Z`).getUTCDay()];
@@ -75,6 +83,10 @@ export function businessOpeningMinutes(establishment, date) {
   if (establishment.extraWorkingDates?.[date] === true) {
     const first = scheduleMatrix(establishment).times[0];
     return first ? minutes(first) : null;
+  }
+  if (establishment.address2) {
+    const ranges = ["address1", "address2"].map(location => businessHoursRangeForDate(establishment, date, location)).filter(Boolean);
+    if (ranges.length) return Math.min(...ranges.map(range => range.start));
   }
   const entry = businessHoursForDate(establishment, date);
   if (entry) {
@@ -210,14 +222,15 @@ export function serviceFitsSlot(establishment, professionalName, time, service, 
 }
 
 export function scheduleTimeline(establishment, bookings = [], date = null) {
-  const dailyHours = date ? businessHoursRangeForDate(establishment, date) : null;
+  const locations = establishment.address2 ? ["address1", "address2"] : ["address1"];
+  const dailyHours = date ? locations.map(location => businessHoursRangeForDate(establishment, date, location)).filter(Boolean) : [];
   const fullMatrix = scheduleMatrix(establishment, date);
-  const withinDay = time => !dailyHours || minutes(time) >= dailyHours.start && minutes(time) < dailyHours.end;
-  const matrix = dailyHours ? { times: fullMatrix.times.filter(withinDay), professionals: fullMatrix.professionals.map(item => ({ ...item, availableTimes: item.availableTimes.filter(withinDay) })) } : fullMatrix;
+  const withinDay = time => !date || establishment.extraWorkingDates?.[date] === true || dailyHours.some(range => minutes(time) >= range.start && minutes(time) < range.end);
+  const matrix = date && (establishment.hours || []).length ? { times: fullMatrix.times.filter(withinDay), professionals: fullMatrix.professionals.map(item => ({ ...item, availableTimes: item.availableTimes.filter(withinDay) })) } : fullMatrix;
   if (!matrix.times.length) return { ...matrix, step: 60, majorStep: 60 };
   // Hourly headings share exact internal tracks for each professional's start times.
   const gcd = (a, b) => b ? gcd(b, a % b) : a;
-  const openingHours = dailyHours ? [dailyHours] : (establishment.hours || []).flatMap((item) => {
+  const openingHours = dailyHours.length ? dailyHours : [...(establishment.hours || []), ...(establishment.address2 ? establishment.hours2 || [] : [])].flatMap((item) => {
     const matches = [...String(item.value || "").matchAll(/\b(\d{1,2}):(\d{2})\b/g)].map((match) => Number(match[1]) * 60 + Number(match[2])).filter((value) => value >= 0 && value <= 1440);
     return matches.length >= 2 && matches[1] > matches[0] ? [{ start: matches[0], end: matches[1] }] : [];
   });
