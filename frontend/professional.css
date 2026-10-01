@@ -1653,10 +1653,11 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .public-direct-content:has(.public-location-panel) .public-agenda-layout { height: auto; }
 }
 
+.public-direct-content { row-gap: 0; }
 .public-direct-content .booking-zone { width: 100%; flex: none; min-height: auto; }
 .public-direct-content .public-agenda-layout.public-schedule-only { display: block; width: 100%; height: auto; }
 .public-direct-content .public-schedule-only .public-schedule-panel { height: auto; }
-.public-direct-content .public-details-layout { width: 100%; display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,.9fr); gap: 16px; align-items: stretch; margin-top: 16px; }
+.public-direct-content .public-details-layout { width: 100%; display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,.9fr); gap: 16px; align-items: stretch; margin-top: 8px; }
 .public-direct-content .public-details-layout > * { min-width: 0; }
 .public-direct-content .public-details-layout .public-services-panel { display: flex; height: auto; }
 .public-direct-content .public-details-layout .public-services-panel .compact-panel-head { padding: 20px; border-right: 0; border-bottom: 1px solid var(--line); }
