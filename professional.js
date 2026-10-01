@@ -3,6 +3,7 @@ import { scheduleTimeline, scheduleMatrix, scheduleDayPeriods, lunchBreakFor, is
 import { renderBookingCalendar, shiftCalendarMonth, calendarMonthDays } from "./calendar-model.mjs";
 import { loginCredentials } from "./login-model.mjs";
 import { establishmentSlug, storeProfile } from "./establishment-model.mjs";
+import { addressMapQuery, cachedMapPoint, geocodeAddress, mapEmbedUrl, validMapPoint } from "./address-map.mjs";
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const SYSTEM_MANAGE_ROUTE = "gerenciar-estabelecimentos";
@@ -713,9 +714,14 @@ function publicMapMarkup(establishment) {
   const selected = addresses[state.mapAddressType] ? state.mapAddressType : addresses.address1 ? "address1" : "address2";
   const address = addresses[selected];
   if (!address) return "";
-  const query = encodeURIComponent(address);
+  const suffix = selected === "address2" ? "2" : "";
+  const query = addressMapQuery(establishment, suffix);
+  const savedPoint = establishment[selected === "address2" ? "mapCoordinates2" : "mapCoordinates1"];
+  const point = validMapPoint(savedPoint, query) ? savedPoint : cachedMapPoint(query);
   const choices = addresses.address2 ? `<div class="public-location-choices" role="group" aria-label="Selecionar endereço no mapa"><button type="button" data-map-address="address1" aria-pressed="${selected === "address1"}" ${addresses.address1 ? "" : "disabled"}>Endereço 1</button><button type="button" data-map-address="address2" aria-pressed="${selected === "address2"}">Endereço 2</button></div>` : "";
-  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Onde estamos</h2>${choices}<p data-map-address-text>${escapeHTML(address)}</p><a data-map-address-link href="https://www.google.com/maps/search/?api=1&amp;query=${query}" target="_blank" rel="noopener noreferrer">Abrir no mapa</a></div><iframe data-map-frame title="Mapa do ${selected === "address2" ? "Endereço 2" : "Endereço 1"} de ${escapeHTML(establishment.name)}" src="https://maps.google.com/maps?q=${query}&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></section>`;
+  const mapLink = point ? `https://www.openstreetmap.org/?mlat=${point.lat}&amp;mlon=${point.lon}#map=17/${point.lat}/${point.lon}` : `https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(query)}`;
+  const map = point ? `<div class="public-map-view"><iframe title="Ponto do ${selected === "address2" ? "Endereço 2" : "Endereço 1"} de ${escapeHTML(establishment.name)}" src="${mapEmbedUrl(point).replaceAll("&", "&amp;")}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe><small>Mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · localização aproximada</small></div>` : `<div class="public-map-empty"><p>O ponto deste endereço ainda não foi localizado.</p><button type="button" class="btn btn-outline btn-sm" data-map-locate="${selected}">Localizar ponto no mapa</button><small data-map-status role="status"></small></div>`;
+  return `<section class="panel public-location-panel" aria-labelledby="public-location-title"><div><h2 id="public-location-title">Onde estamos</h2>${choices}<p>${escapeHTML(address)}</p><a href="${mapLink}" target="_blank" rel="noopener noreferrer">Abrir no mapa</a></div>${map}</section>`;
 }
 
 function selectPublicMapAddress(establishment, type) {
@@ -723,14 +729,7 @@ function selectPublicMapAddress(establishment, type) {
   if (!address || !["address1", "address2"].includes(type)) return;
   state.mapAddressType = type;
   const panel = document.querySelector(".public-location-panel");
-  if (!panel) return;
-  const query = encodeURIComponent(address);
-  panel.querySelector("[data-map-address-text]").textContent = address;
-  panel.querySelector("[data-map-address-link]").href = `https://www.google.com/maps/search/?api=1&query=${query}`;
-  const frame = panel.querySelector("[data-map-frame]");
-  frame.title = `Mapa do ${type === "address2" ? "Endereço 2" : "Endereço 1"} de ${establishment.name}`;
-  frame.src = `https://maps.google.com/maps?q=${query}&output=embed`;
-  panel.querySelectorAll("[data-map-address]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.mapAddress === type)));
+  if (panel) panel.outerHTML = publicMapMarkup(establishment);
 }
 
 function serviceWeeklyLabel(service) {
@@ -1087,6 +1086,13 @@ function hoursSettingsMarkup(establishment) {
   return `<div class="settings-section">${workSchedulesMarkup(establishment)}${lunchSchedulesMarkup(establishment)}${extraWorkingDatesMarkup(establishment)}<section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Esta configuração vale para novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" type="button" data-schedule-mode="employee"><span>♙</span><strong>Por funcionário</strong><small>Cada profissional tem seus horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" type="button" data-schedule-mode="establishment"><span>▣</span><strong>Grade compartilhada</strong><small>Uma agenda para a equipe.</small></button></div></section></div>`;
 }
 
+function storeAddressFields(establishment, suffix = "") {
+  const value = key => escapeHTML(establishment[`${key}${suffix}`] || (key === "street" && !establishment[`city${suffix}`] ? establishment[suffix ? "address2" : "address"] : "") || "");
+  const required = suffix ? "" : "required";
+  const section = suffix ? "section-address2" : "section-address1";
+  return `<div class="settings-fields"><label>Rua<input name="street${suffix}" ${required} value="${value("street")}" autocomplete="${section} address-line1"></label><label>Número<input name="number${suffix}" ${required} value="${value("number")}"></label><label>Bairro<input name="neighborhood${suffix}" ${required} value="${value("neighborhood")}"></label><label>CEP<input name="zipCode${suffix}" ${required} inputmode="numeric" pattern="[0-9]{5}-?[0-9]{3}" maxlength="9" placeholder="00000-000" value="${value("zipCode")}" autocomplete="${section} postal-code"></label><label>Cidade<input name="city${suffix}" ${required} value="${value("city")}" autocomplete="${section} address-level2"></label><label>Estado (UF)<input name="state${suffix}" ${required} minlength="2" maxlength="2" pattern="[A-Za-z]{2}" value="${value("state")}" autocomplete="${section} address-level1" placeholder="BA"></label><label>Complemento <small>(opcional)</small><input name="complement${suffix}" value="${value("complement")}"></label></div>`;
+}
+
 function storeSettingsMarkup(establishment) {
   if (session()?.role !== "admin") return '<div class="settings-section"><p class="settings-hint">Somente o administrador da loja pode alterar os dados do estabelecimento.</p></div>';
   const days = [["seg", "Segunda", "2026-09-28"], ["ter", "Terça", "2026-09-29"], ["qua", "Quarta", "2026-09-30"], ["qui", "Quinta", "2026-10-01"], ["sex", "Sexta", "2026-10-02"], ["sab", "Sábado", "2026-10-03"], ["dom", "Domingo", "2026-10-04"]];
@@ -1098,7 +1104,7 @@ function storeSettingsMarkup(establishment) {
   }).join("");
   const ready = establishment.name !== "Estabelecimento em configuração" && establishment.category && establishment.neighborhood && establishment.address && establishment.hours?.length && establishment.professionals?.length && establishment.services?.length && establishment.availableTimes?.length && (!(establishment.services || []).some(item => item.locationType === "address2") || establishment.address2);
   return `<div class="settings-section store-profile-settings"><p class="settings-hint">O endereço da página é <strong>${escapeHTML(establishment.slug)}</strong>. Preencha os dados da loja aqui; depois cadastre funcionários, escalas e serviços nas outras abas.</p>
-    <form class="settings-item-form" data-store-profile-form><h3>Dados do estabelecimento</h3><div class="settings-fields"><label>Nome da loja<input name="name" maxlength="100" required value="${escapeHTML(establishment.name === "Estabelecimento em configuração" ? "" : establishment.name)}"></label><label>Categoria<input name="category" required value="${escapeHTML(establishment.category || "")}" placeholder="Ex.: Barbearia"></label><label>Rua<input name="street" required value="${escapeHTML(establishment.street || (!establishment.city ? establishment.address : "") || "")}" autocomplete="address-line1"></label><label>Número<input name="number" required value="${escapeHTML(establishment.number || "")}" autocomplete="address-line2"></label><label>Bairro<input name="neighborhood" required value="${escapeHTML(establishment.neighborhood || "")}"></label><label>CEP<input name="zipCode" required inputmode="numeric" pattern="[0-9]{5}-?[0-9]{3}" maxlength="9" placeholder="00000-000" value="${escapeHTML(establishment.zipCode || "")}" autocomplete="postal-code"></label><label>Cidade<input name="city" required value="${escapeHTML(establishment.city || "")}" autocomplete="address-level2"></label><label>Estado (UF)<input name="state" required minlength="2" maxlength="2" pattern="[A-Za-z]{2}" value="${escapeHTML(establishment.state || "")}" autocomplete="address-level1" placeholder="SP"></label><label>Complemento <small>(opcional)</small><input name="complement" value="${escapeHTML(establishment.complement || "")}" autocomplete="address-line3"></label><label>Endereço 2 <small>(opcional)</small><input name="address2" value="${escapeHTML(establishment.address2 || "")}" placeholder="Local de atendimento de serviços específicos"></label></div>
+    <form class="settings-item-form" data-store-profile-form><h3>Dados do estabelecimento</h3><div class="settings-fields"><label>Nome da loja<input name="name" maxlength="100" required value="${escapeHTML(establishment.name === "Estabelecimento em configuração" ? "" : establishment.name)}"></label><label>Categoria<input name="category" required value="${escapeHTML(establishment.category || "")}" placeholder="Ex.: Barbearia"></label></div><h3>Endereços</h3><h4>Endereço 1</h4>${storeAddressFields(establishment)}<h4>Endereço 2 <small>(opcional)</small></h4>${storeAddressFields(establishment, "2")}
       <h3>Expediente por dia da semana</h3><p class="settings-hint">Marque os dias de atendimento e informe a abertura e o fechamento de cada um. A escala dos profissionais também precisa caber nesses horários.</p><div class="store-weekly-grid">${weeklyRows}</div><button class="btn btn-primary btn-sm" type="submit">Salvar dados da loja</button></form>
     ${establishment.setupComplete === false ? `<div class="store-publish"><strong>Publicação</strong><p>Para aparecer na busca e aceitar agendamentos, salve os dados da loja, adicione pelo menos um funcionário, uma escala e um serviço.</p><button class="btn btn-primary btn-sm" type="button" data-publish-store ${ready ? "" : "disabled"}>Publicar estabelecimento</button></div>` : '<p class="settings-hint">Este estabelecimento já está publicado.</p>'}</div>`;
 }
@@ -1818,6 +1824,27 @@ document.addEventListener("click", async (event) => {
     if (establishment) selectPublicMapAddress(establishment, mapChoice.dataset.mapAddress);
     return;
   }
+  const locateButton = event.target.closest("[data-map-locate]");
+  if (locateButton) {
+    const establishment = activeEstablishment();
+    if (!establishment) return;
+    const type = locateButton.dataset.mapLocate;
+    const suffix = type === "address2" ? "2" : "";
+    const query = addressMapQuery(establishment, suffix);
+    locateButton.disabled = true;
+    const status = locateButton.parentElement.querySelector("[data-map-status]");
+    status.textContent = "Localizando o endereço…";
+    try {
+      const point = await geocodeAddress(query);
+      if (!point) throw new Error("Não encontramos esse endereço. Confira rua, número, cidade e CEP no cadastro.");
+      establishment[type === "address2" ? "mapCoordinates2" : "mapCoordinates1"] = point;
+      if (state.mapAddressType === type) selectPublicMapAddress(establishment, type);
+    } catch (error) {
+      locateButton.disabled = false;
+      status.textContent = error.message || "Não foi possível localizar o endereço agora.";
+    }
+    return;
+  }
   if (event.target.closest("[data-service-carousel-prev]")) { moveServiceCarousel(-1); return; }
   if (event.target.closest("[data-service-carousel-next]")) { moveServiceCarousel(1); return; }
   const publicSlot = event.target.closest("[data-public-slot]");
@@ -2210,10 +2237,14 @@ document.addEventListener("submit", async (event) => {
     button.disabled = true;
     try {
       const profile = storeProfile(Object.fromEntries(new FormData(event.target)));
+      for (const [suffix, key] of [["", "mapCoordinates1"], ["2", "mapCoordinates2"]]) {
+        const query = addressMapQuery(profile, suffix);
+        profile[key] = query ? validMapPoint(establishment[key], query) ? establishment[key] : await geocodeAddress(query).catch(() => null) : null;
+      }
       await firebaseApi.saveStoreProfile(establishment.slug, profile);
       Object.assign(establishment, profile);
       render();
-      toast("Dados da loja salvos.");
+      toast(profile.mapCoordinates1 && (!profile.address2 || profile.mapCoordinates2) ? "Dados da loja salvos e pontos marcados no mapa." : "Dados da loja salvos. Confira o endereço e use Localizar ponto no mapa para marcar o local.");
     } catch (error) {
       button.disabled = false;
       toast(firebaseApi.firebaseErrorMessage(error), "!");
