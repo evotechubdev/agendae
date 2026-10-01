@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Localização do estabelecimento</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.9.1/dist/maplibre-gl.css" />
+    <style>
+      html, body, #map { width: 100%; height: 100%; margin: 0; }
+      body { font: 13px Arial, sans-serif; background: #eef1f5; }
+      #message { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; color: #435062; text-align: center; }
+      #message[hidden] { display: none; }
+      .store-marker { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: default; }
+      .store-marker span { max-width: 180px; overflow: hidden; padding: 7px 10px; border: 2px solid #fff; border-radius: 8px; color: #fff; background: #0b2f78; box-shadow: 0 2px 8px #1b2e4266; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .store-marker::after { content: ""; width: 14px; height: 14px; border: 3px solid #fff; border-radius: 50%; background: #0b2f78; box-shadow: 0 2px 8px #1b2e4266; }
+    </style>
+  </head>
+  <body>
+    <div id="map" role="img" aria-label="Mapa com um marcador para o estabelecimento"></div>
+    <div id="message">Carregando mapa…</div>
+    <script type="module" src="./location-map.mjs"></script>
+  </body>
+</html>

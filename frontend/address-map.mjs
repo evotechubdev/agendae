@@ -28,11 +28,12 @@ export function cachedMapPoint(query) {
   } catch { return null; }
 }
 
-export function mapEmbedUrl(point) {
-  const lat = Number(point.lat);
-  const lon = Number(point.lon);
-  const box = [lon - 0.004, lat - 0.0025, lon + 0.004, lat + 0.0025].join(",");
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(box)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lon}`)}`;
+export function singleEstablishmentStyle(style) {
+  const allowedLabels = new Set(["transportation_name", "place", "water_name"]);
+  return {
+    ...style,
+    layers: style.layers.filter(layer => layer.type !== "symbol" || allowedLabels.has(layer["source-layer"])),
+  };
 }
 
 export async function geocodeAddress(query) {

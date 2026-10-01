@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addressMapQuery, geocodeAddress, mapEmbedUrl, validMapPoint } from "../frontend/address-map.mjs";
+import { addressMapQuery, geocodeAddress, singleEstablishmentStyle, validMapPoint } from "../frontend/address-map.mjs";
 
 test("cada endereço gera sua própria busca e um mapa com marcador", () => {
   const establishment = {
@@ -16,7 +16,12 @@ test("cada endereço gera sua própria busca e um mapa com marcador", () => {
   const point = { lat: -12.98, lon: -38.47, query: second };
   assert.equal(validMapPoint(point, second), true);
   assert.equal(validMapPoint(point, first), false);
-  assert.match(mapEmbedUrl(point), /marker=-12\.98%2C-38\.47/);
+  const style = singleEstablishmentStyle({ layers: [
+    { id: "streets", type: "line" },
+    { id: "clinic", type: "symbol", "source-layer": "poi" },
+    { id: "road-name", type: "symbol", "source-layer": "transportation_name" },
+  ] });
+  assert.deepEqual(style.layers.map(layer => layer.id), ["streets", "road-name"]);
   assert.equal(addressMapQuery({ address: "Avenida Antônio Carlos Magalhães, Edifício Bahia Center, sala 1306, Salvador Bahia" }), "Avenida Antônio Carlos Magalhães, Salvador Bahia");
 });
 
