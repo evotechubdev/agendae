@@ -1647,3 +1647,17 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .public-direct-content:has(.public-location-panel) { flex: none; }
   .public-direct-content:has(.public-location-panel) .public-agenda-layout { height: auto; }
 }
+
+.public-direct-content .booking-zone { width: 100%; flex: none; min-height: auto; }
+.public-direct-content .public-agenda-layout.public-schedule-only { display: block; width: 100%; height: auto; }
+.public-direct-content .public-schedule-only .public-schedule-panel { height: auto; }
+.public-direct-content .public-details-layout { width: 100%; display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); gap: 16px; align-items: stretch; margin-top: 16px; }
+.public-direct-content .public-details-layout > * { min-width: 0; }
+.public-direct-content .public-details-layout .public-services-panel { display: flex; height: auto; }
+.public-direct-content .public-details-layout .public-services-panel .compact-panel-head { border-right: 0; border-bottom: 1px solid var(--line); }
+.public-direct-content .public-details-layout .service-list { height: auto; grid-template-columns: minmax(0,1fr); grid-template-rows: auto; grid-auto-rows: auto; }
+.public-direct-content .public-details-layout .public-location-panel { margin: 0; grid-template-columns: minmax(0,1fr); }
+.public-direct-content .public-details-layout .public-location-panel p { overflow-wrap: anywhere; }
+@media (max-width: 850px) {
+  .public-direct-content .public-details-layout { grid-template-columns: minmax(0,1fr); }
+}
