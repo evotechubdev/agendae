@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { addressMapLabel, googleMapsEmbedUrl, googleMapsPlaceQuery } from "../frontend/address-map.mjs";
+import { addressMapLabel, googleMapsPlaceQuery } from "../frontend/address-map.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
 const panel = { outerHTML: "" };
@@ -13,7 +13,7 @@ const context = vm.createContext({
   URLSearchParams,
   document: { querySelector: () => panel },
   escapeHTML: value => String(value),
-  addressMapLabel, googleMapsEmbedUrl, googleMapsPlaceQuery,
+  addressMapLabel, googleMapsPlaceQuery,
 });
 vm.runInContext(source.slice(source.indexOf("function publicMapMarkup("), source.indexOf("function serviceWeeklyLabel(")), context);
 
@@ -35,19 +35,11 @@ test("o Google Maps mostra o local físico do endereço selecionado sem botão e
   assert.doesNotMatch(panel.outerHTML, /Edifício Bahia Center/);
 });
 
-test("mapa fixo funciona sem chave e acompanha o endereço selecionado", () => {
+test("sem chave não carrega um mapa incorreto", () => {
   context.firebaseApi = null;
   context.state.mapAddressType = "address1";
-  const establishment = { address: "Rua A, 10", address2: "Rua B, 20", mapEmbedUrl: "https://www.google.com/maps/embed?pb=local1", mapEmbedUrl2: "https://www.google.com/maps/embed?pb=local2" };
-  const html = context.publicMapMarkup(establishment);
-  assert.match(html, /google\.com\/maps\/embed\?pb=local1/);
-  assert.doesNotMatch(html, /embed\/v1\/place|Abrir no Google Maps/);
-  context.selectPublicMapAddress(establishment, "address2");
-  assert.match(panel.outerHTML, /google\.com\/maps\/embed\?pb=local2/);
-  assert.doesNotMatch(panel.outerHTML, /pb=local1/);
-  const missing = context.publicMapMarkup({ address: "Rua A, 10" });
-  assert.match(missing, /Mapa deste endereço ainda não cadastrado/);
-  assert.doesNotMatch(missing, /<iframe|Abrir no Google Maps/);
-  context.state.mapAddressType = "address1";
+  const html = context.publicMapMarkup({ address: "Rua A, 10" });
+  assert.match(html, /Mapa indisponível no momento/);
+  assert.doesNotMatch(html, /<iframe|Abrir no Google Maps/);
   context.firebaseApi = { googleMapsEmbedKey: "test-key" };
 });

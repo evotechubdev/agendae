@@ -65,7 +65,6 @@ test("somente o backend cria a loja e a conta; a loja exige configuração para 
     street: "Avenida Antônio Carlos Magalhães", number: "2671", neighborhood: "Brotas", zipCode: "40280-900", city: "Salvador", state: "BA", complement: "Edifício Bahia Center, sala 1306", address: "Avenida Antônio Carlos Magalhães, 2671 - Salvador, BA",
     street2: "Rua B", number2: "SN", neighborhood2: "Centro", zipCode2: "40000-000", city2: "Salvador", state2: "BA", complement2: "Edifício B", address2: "Rua B, SN - Salvador, BA",
     mapCoordinates1: { lat: -13, lon: -38, query: "Edifício Bahia Center, Salvador, BA, Brasil" }, mapCoordinates2: { lat: -13, lon: -38, query: "Edifício B, Salvador, BA, Brasil" },
-    mapEmbedUrl: "https://www.google.com/maps/embed?pb=local1", mapEmbedUrl2: "https://www.google.com/maps/embed?pb=local2",
   };
   const edited = await request(":commit", { writes: [write("establishments/novaloja", addressUpdate, true)] }, tokenFor("owner"));
   assert.equal(edited.status, 200, JSON.stringify(edited.body));

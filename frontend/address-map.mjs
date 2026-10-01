@@ -17,15 +17,3 @@ export function googleMapsPlaceQuery(establishment, suffix = "") {
   if (!place && !street && !city) return String(establishment[suffix ? "address2" : "address"] || "").trim();
   return [place, [street, number].filter(Boolean).join(", "), city, state, "Brasil"].filter(Boolean).join(", ");
 }
-
-export function googleMapsEmbedUrl(value) {
-  const input = String(value || "").trim();
-  if (!input) return "";
-  const iframeSource = input.match(/<iframe\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1/i)?.[2];
-  if (input.startsWith("<") && !iframeSource) return "";
-  try {
-    const url = new URL((iframeSource || input).replaceAll("&amp;", "&"));
-    if (url.protocol !== "https:" || !["www.google.com", "google.com"].includes(url.hostname) || url.pathname !== "/maps/embed" || !url.searchParams.get("pb")) return "";
-    return url.href;
-  } catch { return ""; }
-}
