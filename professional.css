@@ -218,6 +218,12 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .system-store-status { padding: 6px 9px; border-radius: 999px; font-size: 10px; font-weight: 800; white-space: nowrap; }
 .system-store-status.published { color: var(--green); background: var(--green-soft); }
 .system-store-status.pending { color: #9a6500; background: #fff3d4; }
+.system-store-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.system-store-delete { color: #a52d35; border-color: #e7b9bd; }
+.system-store-delete:hover { background: #fff0f1; }
+.system-delete-modal { width: min(100%, 520px); }
+.system-delete-warning { margin: 0 0 20px; padding: 14px; border-radius: 12px; background: #fff0f1; color: #8e2630; line-height: 1.5; }
+.system-delete-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .system-list-message { padding: 30px 12px; color: var(--muted); text-align: center; }
 .system-list-message .btn { margin-left: 10px; }
 .system-create-panel .field { margin-bottom: 18px; }
@@ -534,7 +540,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .system-store-row .est-avatar { grid-row: 1 / span 2; }
   .system-store-info { grid-column: 2 / -1; }
   .system-store-status { grid-column: 2; justify-self: start; }
-  .system-store-row .btn { grid-column: 3; }
+  .system-store-actions { grid-column: 2 / -1; justify-content: flex-start; }
   .home-hero { min-height: auto; }
   .home-hero-inner { width: calc(100% - 30px); padding: 52px 0 60px; gap: 45px; }
   .home-copy h1 { font-size: 40px; letter-spacing: -2px; }

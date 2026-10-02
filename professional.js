@@ -54,6 +54,8 @@ const state = {
   systemListLoading: false,
   systemListLoaded: false,
   systemListError: "",
+  systemActionSlug: "",
+  systemDeleteSlug: "",
   settingsOpen: false,
   settingsTab: "professionals",
   apiKeyStatus: { slug: "", loading: false, loaded: false, active: false, lastFour: null, variable: "", automationReady: false, pending: "", deployRequested: false, error: "" },
@@ -457,6 +459,7 @@ function renderSystemManagement() {
   document.title = "Gerenciar Estabelecimentos — Agendae";
   const stores = [...state.systemEstablishments].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
   const draftSlug = establishmentSlug(state.systemCreateName).replace(/-/g, "");
+  const deletingStore = state.systemEstablishments.find(item => (item.slug || item.id) === state.systemDeleteSlug);
   const list = state.systemListError
     ? `<div class="system-list-message" role="alert">${escapeHTML(state.systemListError)} <button class="btn btn-outline btn-sm" type="button" data-refresh-system-list>Tentar novamente</button></div>`
     : state.systemListLoading && !state.systemListLoaded
@@ -464,19 +467,20 @@ function renderSystemManagement() {
       : stores.length
         ? stores.map(item => {
           const slug = item.slug || item.id;
-          const status = item.active === false ? "Inativo" : item.setupComplete === false ? "Em configuração" : "Publicado";
+          const status = item.deletionPending === true ? "Exclusão pendente" : item.active === false ? "Inativo" : item.setupComplete === false ? "Em configuração" : "Publicado";
           const published = item.active !== false && item.setupComplete !== false;
-          return `<article class="system-store-row"><span class="est-avatar ${item.type === "clinic" ? "green" : ""}">${escapeHTML(item.initials || initials(item.name || "L"))}</span><div class="system-store-info"><strong>${escapeHTML(item.name || slug)}</strong><span>/${escapeHTML(slug)}</span></div><span class="system-store-status ${published ? "published" : "pending"}">${status}</span>${item.active !== false ? `<a class="btn btn-outline btn-sm" href="${href(`/${slug}`)}" data-link>Abrir página</a>` : ""}</article>`;
+          const busy = Boolean(state.systemActionSlug);
+          return `<article class="system-store-row"><span class="est-avatar ${item.type === "clinic" ? "green" : ""}">${escapeHTML(item.initials || initials(item.name || "L"))}</span><div class="system-store-info"><strong>${escapeHTML(item.name || slug)}</strong><span>/${escapeHTML(slug)}</span></div><span class="system-store-status ${published ? "published" : "pending"}">${status}</span><div class="system-store-actions">${item.active !== false ? `<a class="btn btn-outline btn-sm" href="${href(`/${slug}`)}" data-link>Abrir página</a>` : ""}${item.deletionPending === true ? "" : `<button class="btn btn-outline btn-sm" type="button" data-system-toggle-store="${escapeHTML(slug)}" ${busy ? "disabled" : ""}>${item.active === false ? "Reativar" : "Inativar"}</button>`}<button class="btn btn-outline btn-sm system-store-delete" type="button" data-system-delete-store="${escapeHTML(slug)}" ${busy ? "disabled" : ""}>Excluir</button></div></article>`;
         }).join("")
         : '<div class="system-list-message">Nenhum estabelecimento cadastrado.</div>';
   app.innerHTML = `${homeHeader("manage")}<main class="system-page"><div class="system-page-inner">
-    <div class="system-page-heading"><div><span class="system-eyebrow">ADMINISTRAÇÃO DO SISTEMA</span><h1>Gerenciar Estabelecimentos</h1><p>Consulte as lojas cadastradas e crie o acesso para um novo responsável.</p></div><button class="btn btn-primary" type="button" data-focus-system-create>+ Novo estabelecimento</button></div>
+    <div class="system-page-heading"><div><span class="system-eyebrow">ADMINISTRAÇÃO DO SISTEMA</span><h1>Gerenciar Estabelecimentos</h1><p>Crie, inative, reative ou exclua estabelecimentos cadastrados.</p></div><button class="btn btn-primary" type="button" data-focus-system-create>+ Novo estabelecimento</button></div>
     <div class="system-page-grid"><section class="system-panel" aria-labelledby="system-list-title"><div class="system-panel-head"><div><h2 id="system-list-title">Estabelecimentos</h2><p>${state.systemListLoaded ? `${stores.length} cadastrado${stores.length === 1 ? "" : "s"}` : "Lista de lojas do sistema"}</p></div><button class="btn btn-outline btn-sm" type="button" data-refresh-system-list ${state.systemListLoading ? "disabled" : ""}>Atualizar</button></div><div class="system-store-list">${list}</div></section>
     <section class="system-panel system-create-panel" id="novo-estabelecimento" aria-labelledby="system-create-title"><div class="system-panel-head"><div><h2 id="system-create-title">Criar estabelecimento</h2><p>O responsável configurará a loja no primeiro acesso.</p></div></div>
       ${state.createdStoreSlug ? `<div class="system-created" role="status"><strong>Página de agendamento criada.</strong><p>A página já está disponível no endereço abaixo. Copie também os dados de acesso e entregue ao administrador da loja. A senha temporária aparece apenas agora.</p><code>Página: ${escapeHTML(new URL(href(`/${state.createdStoreSlug}`), location.origin).toString())}</code><code>Primeiro acesso: ${escapeHTML(new URL(href(`/login?establishment=${state.createdStoreSlug}`), location.origin).toString())}</code><code>Login: admin</code><code>E-mail: ${escapeHTML(state.createdStoreEmail)}</code><code>Senha temporária: ${escapeHTML(state.createdStorePassword)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-store-access>Copiar dados de acesso</button></div>` : ""}
       <form id="system-create-form"><div class="field"><label for="store-name">Nome do estabelecimento</label><input id="store-name" name="name" required maxlength="100" placeholder="Ex.: Salão Bela" autocomplete="organization" value="${escapeHTML(state.systemCreateName)}"><small data-generated-store-login>${draftSlug ? `URL: ${draftSlug} · Login: admin · E-mail: ${draftSlug}-admin@agendae.com.br` : "O endereço e o e-mail serão gerados a partir do nome."}</small></div><button class="btn btn-primary btn-block" type="submit">Criar estabelecimento</button></form>
     </section></div>
-  </div></main>${footer()}`;
+  </div></main>${footer()}${deletingStore ? `<div class="booking-modal-backdrop" data-system-delete-backdrop><section class="booking-modal system-delete-modal" role="dialog" aria-modal="true" aria-labelledby="system-delete-title"><div class="booking-modal-head"><div><small>ADMINISTRAÇÃO DO SISTEMA</small><h2 id="system-delete-title">Excluir estabelecimento</h2></div><button class="booking-modal-close" type="button" data-close-system-delete aria-label="Fechar">×</button></div><form id="system-delete-form" class="system-access-body"><p class="system-delete-warning">Ao excluir <strong>${escapeHTML(deletingStore.name || state.systemDeleteSlug)}</strong>, todos os dados do estabelecimento serão perdidos, incluindo agendamentos, configurações e acessos da equipe. Esta ação não pode ser desfeita.</p><div class="field"><label for="system-delete-password">Senha de administrador para confirmar</label><input id="system-delete-password" name="password" type="password" autocomplete="off" required></div><div class="system-delete-confirm-actions"><button class="btn btn-outline" type="button" data-close-system-delete>Cancelar</button><button class="btn btn-primary" type="submit">Excluir definitivamente</button></div></form></section></div>` : ""}`;
   if (!state.systemListLoaded && !state.systemListLoading && !state.systemListError) void refreshSystemEstablishments();
 }
 
@@ -1606,6 +1610,47 @@ document.addEventListener("click", async (event) => {
     void refreshSystemEstablishments();
     return;
   }
+  const toggleStoreButton = event.target.closest("[data-system-toggle-store]");
+  if (toggleStoreButton) {
+    if (!firebaseApi || session()?.role !== "system_admin" || state.systemActionSlug) return;
+    const slug = toggleStoreButton.dataset.systemToggleStore;
+    const store = state.systemEstablishments.find(item => (item.slug || item.id) === slug);
+    if (!store || store.deletionPending === true) return;
+    const active = store.active === false;
+    if (!active && !window.confirm(`Inativar ${store.name || slug}? A página e os agendamentos ficarão indisponíveis até a reativação.`)) return;
+    state.systemActionSlug = slug;
+    render();
+    try {
+      await firebaseApi.setEstablishmentActive(slug, active);
+      store.active = active;
+      if (active) establishments[slug] = { ...store, slug };
+      else delete establishments[slug];
+      toast(active ? "Estabelecimento reativado." : "Estabelecimento inativado.");
+    } catch (error) {
+      toast(firebaseApi.firebaseErrorMessage(error), "!");
+    } finally {
+      state.systemActionSlug = "";
+      render();
+    }
+    return;
+  }
+  const deleteStoreButton = event.target.closest("[data-system-delete-store]");
+  if (deleteStoreButton) {
+    if (!firebaseApi || session()?.role !== "system_admin" || state.systemActionSlug) return;
+    const slug = deleteStoreButton.dataset.systemDeleteStore;
+    const store = state.systemEstablishments.find(item => (item.slug || item.id) === slug);
+    if (!store) return;
+    state.systemDeleteSlug = slug;
+    render();
+    requestAnimationFrame(() => document.querySelector("#system-delete-password")?.focus());
+    return;
+  }
+  if (event.target.closest("[data-close-system-delete]") || event.target.matches("[data-system-delete-backdrop]")) {
+    if (state.systemActionSlug) return;
+    state.systemDeleteSlug = "";
+    render();
+    return;
+  }
   if (event.target.closest("[data-close-system-access]") || event.target.matches("[data-system-access-backdrop]")) {
     state.systemAccessOpen = false;
     state.createdStoreSlug = "";
@@ -2378,6 +2423,34 @@ document.addEventListener("submit", async (event) => {
     }
     return;
   }
+  if (event.target.id === "system-delete-form") {
+    if (!firebaseApi || session()?.role !== "system_admin" || !state.systemDeleteSlug || state.systemActionSlug) return;
+    const slug = state.systemDeleteSlug;
+    const button = event.target.querySelector('button[type="submit"]');
+    const password = String(new FormData(event.target).get("password") || "");
+    button.disabled = true;
+    state.systemActionSlug = slug;
+    try {
+      await firebaseApi.deleteEstablishment(slug, password);
+      state.systemEstablishments = state.systemEstablishments.filter(item => (item.slug || item.id) !== slug);
+      delete establishments[slug];
+      state.systemDeleteSlug = "";
+      toast("Estabelecimento excluído.");
+    } catch (error) {
+      if (["invalid_deletion_password", "deletion_key_unconfigured"].includes(error.code)) {
+        button.disabled = false;
+        showLoginError(event.target, firebaseApi.firebaseErrorMessage(error));
+      } else {
+        state.systemDeleteSlug = "";
+        toast(firebaseApi.firebaseErrorMessage(error), "!");
+        void refreshSystemEstablishments();
+      }
+    } finally {
+      state.systemActionSlug = "";
+      if (!state.systemDeleteSlug) render();
+    }
+    return;
+  }
   if (event.target.matches("[data-store-profile-form]")) {
     const establishment = activeEstablishment();
     if (!establishment || session()?.slug !== establishment.slug || session()?.role !== "admin" || !firebaseApi) return;
@@ -2781,7 +2854,7 @@ async function initializeFirebase() {
     catalogLoaded = true;
     firebaseApi.observeSession((profile, error) => {
       firebaseSession = profile;
-      if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; state.systemEstablishments = []; state.systemListLoaded = false; }
+      if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; state.systemEstablishments = []; state.systemListLoaded = false; state.systemDeleteSlug = ""; }
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
       if (!profile && route() === SYSTEM_MANAGE_ROUTE) { navigate("/"); return; }
       if (profile?.role === "admin" && !profile.mustChangePassword && establishments[route()]?.setupComplete === false && !state.settingsOpen) {

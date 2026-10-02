@@ -49,7 +49,11 @@ async function systemRequest(path, options = {}) {
     throw new Error("Não foi possível conectar à API no Render. Tente novamente.");
   }
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.message || "Não foi possível concluir a operação.");
+  if (!response.ok) {
+    const error = new Error(result.message || "Não foi possível concluir a operação.");
+    error.code = result.error;
+    throw error;
+  }
   return result;
 }
 
@@ -142,6 +146,14 @@ async function profileFor(user) {
   }
 
   const profile = profileSnapshot.data();
+  if (profile.role !== "system_admin" && profile.establishmentSlug) {
+    const establishment = await getDoc(doc(db, "establishments", profile.establishmentSlug));
+    if (!establishment.exists() || establishment.data().active === false) {
+      const error = new Error("Este estabelecimento está inativo.");
+      error.code = "agendae/establishment-inactive";
+      throw error;
+    }
+  }
   return {
     uid: user.uid,
     email: user.email,
@@ -239,6 +251,22 @@ export async function createEstablishmentWithOwner(details) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: details.name }),
+  });
+}
+
+export async function setEstablishmentActive(slug, active) {
+  return authenticatedSystemRequest(`establishments/${encodeURIComponent(slug)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ active }),
+  });
+}
+
+export async function deleteEstablishment(slug, password) {
+  return authenticatedSystemRequest(`establishments/${encodeURIComponent(slug)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
   });
 }
 
@@ -1104,6 +1132,7 @@ export function firebaseErrorMessage(error) {
     "auth/network-request-failed": "Não foi possível conectar ao serviço de acesso.",
     "agendae/profile-not-found": "Este usuário ainda não está vinculado a um estabelecimento.",
     "agendae/establishment-mismatch": "Este funcionário não pertence ao estabelecimento selecionado.",
+    "agendae/establishment-inactive": "Este estabelecimento está inativo. Entre em contato com o administrador do sistema.",
     "agendae/system-admin-required": "Esta conta não possui acesso de administrador do sistema.",
     "agendae/slot-unavailable": error?.message,
     "agendae/professional-paused": error?.message,
