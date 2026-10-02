@@ -36,7 +36,7 @@ async function setup() {
 function appointmentAt(offsetMinutes = 0, dateOffset = 0) {
   const instant = new Date(Date.now() + offsetMinutes * 60000 + dateOffset * 86400000);
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(instant).filter(part => part.type !== "literal").map(part => [part.type, part.value]));
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}`, professional: "Renam", service: "Corte", durationMinutes: 20, status: "confirmado" };
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}`, professional: "Rafael", service: "Corte", durationMinutes: 20, status: "confirmado" };
 }
 
 async function confirm(appointment, method) {
@@ -108,8 +108,8 @@ test("expediente extra só pode ser liberado pela equipe vinculada ao estabeleci
 
 test("reserva pública é bloqueada para funcionário que encerrou o expediente", async () => {
   const closed = appointmentAt(60);
-  await seed("establishments/demo", { staffClosedDates: { Renam: closed.date } });
-  for (const [professional, expectedStatus] of [["Renam", 403], ["Ana", 200]]) {
+  await seed("establishments/demo", { staffClosedDates: { Rafael: closed.date } });
+  for (const [professional, expectedStatus] of [["Rafael", 403], ["Ana", 200]]) {
     const id = `closed-day-${++nextId}`;
     const appointment = { ...closed, id, professional, client: "Cliente", phone: "11999999999", checkInCode: "ABC123" };
     const slot = { date: closed.date, time: closed.time, professional, service: "Corte" };

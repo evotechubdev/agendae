@@ -9,10 +9,10 @@ import { queueView, scheduledTicket, ticketState, ticketSubstatus, TICKET_STATES
 const establishment = {
   slug: "demo",
   availableTimes: ["11:30", "12:00", "12:30", "13:00", "13:30", "14:00"],
-  professionals: ["Renam", "Carlos", "Marcos"],
+  professionals: ["Rafael", "Carlos", "Marcos"],
   services: [{ name: "Cabelo Tesoura", duration: 20 }],
   professionalLunchBreaks: {
-    Renam: { start: "12:00", end: "13:00" },
+    Rafael: { start: "12:00", end: "13:00" },
     Carlos: { start: "13:00", end: "14:00" },
     Marcos: { start: "12:15", end: "13:15" },
   },
@@ -20,7 +20,7 @@ const establishment = {
 const date = "2026-09-26";
 
 test("almoço é individual, inclui o início e libera no horário final", () => {
-  const interval = lunchBreakFor(establishment, "Renam");
+  const interval = lunchBreakFor(establishment, "Rafael");
   assert.equal(isLunchTime(interval, "11:59"), false);
   assert.equal(isLunchTime(interval, "12:00"), true);
   assert.equal(isLunchTime(interval, 12 * 60 + 59), true);
@@ -57,9 +57,9 @@ test("almoço fora da grade de vinte minutos ajusta os horários somente no dia 
 
 test("intervalos inválidos não criam pausa e remoção explícita prevalece sobre o cadastro", () => {
   for (const interval of [{ start: "13:00", end: "12:00" }, { start: "12:00", end: "12:00" }, { start: "12:60", end: "14:00" }, { start: "12:00", end: "24:00" }]) {
-    assert.equal(lunchBreakFor({ professionalLunchBreaks: { Renam: interval } }, "Renam"), null);
+    assert.equal(lunchBreakFor({ professionalLunchBreaks: { Rafael: interval } }, "Rafael"), null);
   }
-  assert.equal(lunchBreakFor({ professionals: [{ name: "Renam", lunchBreak: establishment.professionalLunchBreaks.Renam }], professionalLunchBreaks: { Renam: null } }, "Renam"), null);
+  assert.equal(lunchBreakFor({ professionals: [{ name: "Rafael", lunchBreak: establishment.professionalLunchBreaks.Rafael }], professionalLunchBreaks: { Rafael: null } }, "Rafael"), null);
 });
 
 test("almoço aparece na linha do tempo mesmo sem horário de atendimento no início do intervalo", () => {
@@ -77,13 +77,13 @@ test("almoço aparece na linha do tempo mesmo sem horário de atendimento no in�
 test("painel pausa apenas os profissionais em almoço e retoma automaticamente sem renumerar", () => {
   const data = { todaySlots: [], staffStatuses: [] };
   const atNoon = queueView(establishment, data, { date, minutes: 12 * 60 });
-  assert.deepEqual(atNoon.current.map((item) => [item.professional, item.ticketState]), [["Renam", "paused"], ["Carlos", "in-service"], ["Marcos", "in-service"]]);
+  assert.deepEqual(atNoon.current.map((item) => [item.professional, item.ticketState]), [["Rafael", "paused"], ["Carlos", "in-service"], ["Marcos", "in-service"]]);
   assert.equal(atNoon.current[0].ticket, null);
   assert.equal(atNoon.current[0].pauseReason, "Almoço");
   const atOne = queueView(establishment, data, { date, minutes: 13 * 60 });
   assert.deepEqual(atOne.current.map((item) => item.ticketState), ["in-service", "paused", "paused"]);
   assert.equal(atOne.current[0].ticket, "RSI-04");
-  const manuallyPaused = queueView(establishment, { ...data, staffStatuses: [{ professional: "Renam", paused: true, pausedDate: date }] }, { date, minutes: 13 * 60 });
+  const manuallyPaused = queueView(establishment, { ...data, staffStatuses: [{ professional: "Rafael", paused: true, pausedDate: date }] }, { date, minutes: 13 * 60 });
   assert.equal(manuallyPaused.current[0].ticketState, "paused");
 });
 
@@ -132,18 +132,18 @@ function apiContext() {
 
 test("salvar ou remover almoço preserva os intervalos dos demais profissionais", async () => {
   const { context } = apiContext();
-  const changed = await context.updateProfessionalLunchBreak("demo", "Renam", { start: "11:30", end: "12:30" });
-  assert.equal(changed.Renam.start, "11:30");
+  const changed = await context.updateProfessionalLunchBreak("demo", "Rafael", { start: "11:30", end: "12:30" });
+  assert.equal(changed.Rafael.start, "11:30");
   assert.equal(changed.Carlos.start, "13:00");
-  const removed = await context.updateProfessionalLunchBreak("demo", "Renam", null);
-  assert.equal(removed.Renam, null);
+  const removed = await context.updateProfessionalLunchBreak("demo", "Rafael", null);
+  assert.equal(removed.Rafael, null);
   assert.equal(removed.Marcos.start, "12:15");
   await assert.rejects(context.updateProfessionalLunchBreak("demo", "Outro", { start: "12:00", end: "13:00" }), /Profissional não encontrado/);
 });
 
 test("reserva no almoço é rejeitada antes de gravar e outro profissional permanece disponível", async () => {
   const { context, writes } = apiContext();
-  const appointment = { date, time: "12:30", client: "Cliente", checkInCode: "ABC123", professional: "Renam", service: "Cabelo Tesoura" };
+  const appointment = { date, time: "12:30", client: "Cliente", checkInCode: "ABC123", professional: "Rafael", service: "Cabelo Tesoura" };
   await assert.rejects(context.createAppointment("demo", appointment), /horário de almoço/);
   assert.equal(writes.length, 0);
   await context.createAppointment("demo", { ...appointment, professional: "Carlos" });

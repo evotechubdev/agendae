@@ -401,7 +401,6 @@ function homeHeader(active = "home") {
 function renderHome() {
   document.title = "Agendae — Encontre seu estabelecimento";
   const directory = Object.values(establishments).filter(item => item.setupComplete !== false);
-  const sample = directory[0];
   const directoryHtml = !catalogLoaded
     ? '<div class="empty">Carregando estabelecimentos…</div>'
     : directory.length
@@ -420,7 +419,6 @@ function renderHome() {
             <input id="finder-input" autocomplete="off" placeholder="Digite o nome do estabelecimento" aria-label="Nome do estabelecimento">
             <button class="btn btn-yellow" type="submit">Encontrar</button>
           </form>
-          ${sample ? `<div class="finder-note"><span>Exemplo:</span><a href="${href(`/${sample.slug}`)}" data-link>${escapeHTML(sample.name)}</a></div>` : ""}
         </div>
         <aside class="directory-card">
           <div class="directory-label">Estabelecimentos disponíveis</div>

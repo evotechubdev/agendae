@@ -1,9 +1,0 @@
-{
-  "projectId": "agendae-prod",
-  "establishmentSlug": "barbeariadorenam",
-  "professionalLunchBreaks": {
-    "Renam Silva": { "start": "12:00", "end": "13:00" },
-    "Bruno Alves": { "start": "13:00", "end": "14:00" },
-    "Caio Santos": { "start": "12:30", "end": "13:30" }
-  }
-}

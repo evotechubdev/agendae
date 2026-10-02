@@ -8,14 +8,14 @@ O frontend está em `frontend/` e não precisa de instalação ou compilação. 
 
 - página principal para localizar um estabelecimento;
 - login e painel vinculado ao estabelecimento;
-- página pública própria, como `/barbeariadorenam`;
+- página pública própria para cada estabelecimento, como `/salaobela`;
 - agendamento para hoje ou outra data;
 - confirmação de presença pelo cliente com nome ou senha e leitura do QR code do estabelecimento;
 - confirmação manual da chegada pela equipe para clientes sem celular ou internet;
 - bloqueio automático dos horários de hoje que já passaram;
 - navegação lateral entre as agendas dos profissionais, com setas e avanço automático a cada cinco segundos;
 - painel com atendimentos, horários livres e senhas chamadas;
-- dois estabelecimentos de demonstração com dados separados;
+- estabelecimentos carregados do Firestore com dados separados;
 - aba de API para administrar a integração com sites próprios.
 
 Os agendamentos e as configurações ficam no Firebase. O backend de integração fica no repositório separado `evotechubdev/agendae-backend` e usa o mesmo Firestore.
@@ -48,12 +48,12 @@ Antes do primeiro acesso:
 
 1. Ative **Authentication → Sign-in method → E-mail/senha**.
 2. Adicione `evotechubdev.github.io` em **Authentication → Settings → Authorized domains**.
-3. Crie o usuário `barbeariadorenam-admin@agendae.com.br` no Authentication. No site, selecione a Barbearia do Renam e use o login `admin`.
+3. Crie o usuário administrador do estabelecimento no Authentication. Para a loja de exemplo `salaobela`, o e-mail seria `salaobela-admin@agendae.com.br` e o login no site seria `admin`.
 4. Crie o banco Cloud Firestore em modo de produção.
 5. Publique as regras com `npx firebase-tools deploy --only firestore --project agendae-prod` usando uma conta com acesso ao projeto.
-6. Copie o UID desse usuário no Authentication e crie o documento `users/{UID}` no Firestore com os campos de texto `name: Administrador`, `email: barbeariadorenam-admin@agendae.com.br`, `role: admin` e `establishmentSlug: barbeariadorenam`. O ID do documento deve ser o UID exato, não o e-mail nem o login.
+6. Copie o UID desse usuário no Authentication e crie o documento `users/{UID}` no Firestore com os campos de texto `name: Administrador`, `email: salaobela-admin@agendae.com.br`, `role: admin` e `establishmentSlug: salaobela`. O ID do documento deve ser o UID exato, não o e-mail nem o login.
 
-O erro `agendae/profile-not-found` significa que a autenticação funcionou, mas esse documento está ausente. Com uma sessão administrativa do Firebase CLI e o pacote no cache do npm, `node scripts/link-admin-profile.cjs` verifica o vínculo da conta admin; acrescentar `--apply` cria somente o perfil ausente. O script não substitui um perfil existente.
+O erro `agendae/profile-not-found` significa que a autenticação funcionou, mas esse documento está ausente. Com uma sessão administrativa do Firebase CLI e o pacote no cache do npm, `node scripts/link-admin-profile.cjs --slug salaobela` verifica o vínculo da conta admin; acrescente `--apply` para criar somente o perfil ausente. Informe `--email endereco@exemplo.com` se a conta usar outro e-mail. O script não substitui um perfil existente.
 
 Os dados ficam organizados em `establishments/{slug}`. Agendamentos privados e filas só podem ser lidos por usuários cujo documento `users/{uid}` esteja vinculado ao mesmo `establishmentSlug`. Horários ocupados e o estado público da fila não expõem dados pessoais.
 
@@ -93,4 +93,4 @@ firebase emulators:exec --only firestore --project demo-agendae --config firebas
 
 ## API de integração
 
-O administrador pode abrir **Configurações da loja → API** para gerar, trocar ou revogar a chave do estabelecimento. Um único serviço Render, em `https://agendae-backend-t5ax.onrender.com`, atende todas as lojas; cada loja tem uma variável própria, como `api-barbeariadorenam`, e uma rota própria. Com `RENDER_API_KEY` configurada no backend, o modal salva a variável da loja pela API do Render e solicita o deploy automaticamente. A nova chave passa a valer ao fim do deploy. A chave também deve ficar no servidor do site cliente; a interface pública desse site consulta o seu próprio servidor. A documentação das rotas e da publicação está no README do repositório `agendae-backend`.
+O administrador pode abrir **Configurações da loja → API** para gerar, trocar ou revogar a chave do estabelecimento. Um único serviço Render, em `https://agendae-backend-t5ax.onrender.com`, atende todas as lojas; cada loja tem uma variável própria, como `api-salaobela`, e uma rota própria. Com `RENDER_API_KEY` configurada no backend, o modal salva a variável da loja pela API do Render e solicita o deploy automaticamente. A nova chave passa a valer ao fim do deploy. A chave também deve ficar no servidor do site cliente; a interface pública desse site consulta o seu próprio servidor. A documentação das rotas e da publicação está no README do repositório `agendae-backend`.

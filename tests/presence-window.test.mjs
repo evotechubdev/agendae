@@ -5,7 +5,7 @@ import vm from "node:vm";
 import { appointmentPresenceWindow, appointmentDurationMinutes } from "../frontend/schedule-model.mjs";
 
 const establishment = { services: [{ name: "Corte", duration: 20 }, { name: "Combo", duration: 70 }] };
-const appointment = { date: "2026-09-27", time: "09:20", professional: "Renam", service: "Corte" };
+const appointment = { date: "2026-09-27", time: "09:20", professional: "Rafael", service: "Corte" };
 
 test("presença das 09:20 abre exatamente às 08:20 e encerra às 09:40 na data real", () => {
   for (const [time, expected] of [["08:19:59.999", false], ["08:20:00", true], ["09:20:00", true], ["09:40:00", true], ["09:40:00.001", false]]) {

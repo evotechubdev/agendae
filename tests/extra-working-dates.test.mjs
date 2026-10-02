@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { businessDayIsClosed, businessOpeningMinutes, appointmentDurationMinutes } from "../frontend/schedule-model.mjs";
 
-const establishment = { hours: [{ label: "Domingo", value: "Fechado" }], professionals: [{ name: "Renam", availableTimes: ["08:00", "08:20"] }] };
+const establishment = { hours: [{ label: "Domingo", value: "Fechado" }], professionals: [{ name: "Rafael", availableTimes: ["08:00", "08:20"] }] };
 test("expediente extra só libera a data específica e remover recupera o fechamento normal", () => {
   const extra = { ...establishment, extraWorkingDates: { "2026-09-27": true } };
   assert.equal(businessDayIsClosed(extra, "2026-09-27"), false);

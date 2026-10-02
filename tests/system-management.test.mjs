@@ -30,8 +30,11 @@ function fixture(profile = null) {
 
 test("página pública mostra apenas Entrar, sem abas de administração", () => {
   const { app, context } = fixture();
+  context.establishments.salaobela = { slug: "salaobela", name: "Salão Bela", initials: "SB", category: "Salão", neighborhood: "Centro", setupComplete: true };
   context.renderHome();
   assert.match(app.innerHTML, />Entrar<\/button>/);
+  assert.match(app.innerHTML, /class="directory-item"[^>]*data-open-establishment="salaobela"/);
+  assert.doesNotMatch(app.innerHTML, /finder-note|>Exemplo:<\/span>/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Home<\/a>/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Gerenciar Estabelecimentos/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Para estabelecimentos/);

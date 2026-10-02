@@ -10,7 +10,7 @@ function fixture() {
   const state = { booking: { step: 1, date: "2026-09-26", time: null, professional: "" }, publicLookup: {}, scheduleAuto: true };
   const listeners = {};
   let renders = 0, restoredFocus = 0;
-  const slot = { dataset: { professionalName: "Renam", slotTime: "08:20" }, focus: () => { restoredFocus++; } };
+  const slot = { dataset: { professionalName: "Rafael", slotTime: "08:20" }, focus: () => { restoredFocus++; } };
   const context = vm.createContext({ state, businessDayIsClosed,
     document: { addEventListener: (name, callback) => { listeners[name] = callback; }, querySelector: () => null, querySelectorAll: () => [slot] },
     render: () => { renders++; }, requestAnimationFrame: callback => callback(),
@@ -27,12 +27,12 @@ function fixture() {
 
 test("seleção abre o resumo e continua ao formulário sem perder o horário nem retomar a alternância", async () => {
   const f = fixture();
-  const establishment = { professionals: [{ name: "Renam", role: "Barbeiro" }] };
+  const establishment = { professionals: [{ name: "Rafael", role: "Barbeiro" }] };
   assert.equal(f.context.selectedBookingPopup(establishment), "");
   await f.click("[data-public-slot]");
   assert.equal(f.state.booking.step, 1);
   assert.equal(f.state.booking.time, "08:20");
-  assert.equal(f.state.booking.professional, "Renam");
+  assert.equal(f.state.booking.professional, "Rafael");
   assert.match(f.context.selectedBookingPopup(establishment), /role="dialog"/);
   await f.click("[data-booking-next]");
   assert.equal(f.state.booking.step, 2);

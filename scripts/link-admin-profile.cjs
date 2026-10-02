@@ -2,8 +2,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const project = "agendae-prod";
-const email = "barbeariadorenam-admin@agendae.com.br";
-const slug = "barbeariadorenam";
+const option = name => {
+  const index = process.argv.indexOf(name);
+  return index < 0 ? "" : String(process.argv[index + 1] || "").trim();
+};
+const slug = option("--slug");
+if (!/^[a-z0-9-]{1,80}$/.test(slug)) {
+  console.error("Informe --slug com o identificador do estabelecimento.");
+  process.exit(1);
+}
+const email = option("--email") || `${slug}-admin@agendae.com.br`;
 const apply = process.argv.includes("--apply");
 
 async function main() {

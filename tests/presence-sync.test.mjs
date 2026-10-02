@@ -5,11 +5,11 @@ import vm from "node:vm";
 import { appointmentPresenceWindow as realPresenceWindow } from "../frontend/schedule-model.mjs";
 
 const source = readFileSync(new URL("../frontend/firebase-service.js", import.meta.url), "utf8");
-const appointment = { date: "2026-09-26", time: "09:00", professional: "Renam", service: "Corte", status: "confirmado", durationMinutes: 20 };
+const appointment = { date: "2026-09-26", time: "09:00", professional: "Rafael", service: "Corte", status: "confirmado", durationMinutes: 20 };
 function fixture(shared = false, now = "2026-09-26T09:00:00-03:00") {
   const writes = [];
   let committed = false;
-  const slotId = `establishments/demo/slots/2026-09-26_0900_${shared ? "establishment" : "renam"}`;
+  const slotId = `establishments/demo/slots/2026-09-26_0900_${shared ? "establishment" : "rafael"}`;
   const context = vm.createContext({ db: {},
     appointmentPresenceWindow: (establishment, item) => realPresenceWindow(establishment, item, new Date(now)),
     doc: (_db, ...parts) => parts.join("/"), documentKey: value => value.toLowerCase(), serverTimestamp: () => "now",

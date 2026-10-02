@@ -7,7 +7,7 @@ import * as queue from "../frontend/queue-model.mjs";
 import * as calendar from "../frontend/calendar-model.mjs";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
-const establishment = { slug: "demo", professionals: [{ name: "Renam", ...schedule.scheduleFromPeriods([{ start: "08:00", end: "18:00" }]) }] };
+const establishment = { slug: "demo", professionals: [{ name: "Rafael", ...schedule.scheduleFromPeriods([{ start: "08:00", end: "18:00" }]) }] };
 const timeline = schedule.scheduleTimeline(establishment);
 
 test("manhã e tarde dividem o expediente às treze horas em dois turnos de cinco horas", () => {
@@ -35,7 +35,7 @@ function renderFixture(minutes = 8 * 60) {
 
 test("compromisso externo aparece na linha do profissional sem botão de agendamento", () => {
   const { context } = renderFixture();
-  const store = { ...establishment, reservedServices: [{ id: "hospital", name: "Plantão", professional: "Renam", place: "Hospital Central", weekday: "sab", start: "09:00", end: "10:00" }] };
+  const store = { ...establishment, reservedServices: [{ id: "hospital", name: "Plantão", professional: "Rafael", place: "Hospital Central", weekday: "sab", start: "09:00", end: "10:00" }] };
   const html = context.publicSchedule(store);
   assert.match(html, /Hospital Central/);
   assert.match(html, /ticket-state-external/);
@@ -47,13 +47,13 @@ test("cada visualização mostra apenas seu turno e conserva a numeração do di
   const { context, state } = renderFixture();
   let html = context.publicSchedule(establishment);
   assert.match(html, /Manhã, de 08:00 a 13:00/);
-  assert.match(html, /RSI-01, Renam, 08:00/);
-  assert.doesNotMatch(html, /RSI-16, Renam, 13:00/);
+  assert.match(html, /RSI-01, Rafael, 08:00/);
+  assert.doesNotMatch(html, /RSI-16, Rafael, 13:00/);
   state.scheduleTurn.id = "afternoon";
   html = context.publicSchedule(establishment);
   assert.match(html, /Tarde, de 13:00 a 18:00/);
-  assert.match(html, /RSI-16, Renam, 13:00/);
-  assert.doesNotMatch(html, /RSI-01, Renam, 08:00/);
+  assert.match(html, /RSI-16, Rafael, 13:00/);
+  assert.doesNotMatch(html, /RSI-01, Rafael, 08:00/);
   assert.match(html, /data-schedule-turn-auto checked/);
   state.scheduleAuto = false;
   assert.doesNotMatch(context.publicSchedule(establishment), /data-schedule-turn-auto checked/);
@@ -67,10 +67,10 @@ test("botão de próxima senha aparece junto ao avatar somente para equipe logad
   context.session = () => ({ slug: "demo", name: "Outra pessoa" });
   const team = { ...establishment, professionals: [...establishment.professionals, { name: "Bia", ...schedule.scheduleFromPeriods([{ start: "08:00", end: "18:00" }]) }] };
   const teamMarkup = context.publicSchedule(team);
-  assert.match(teamMarkup, /data-open-next-call="Renam"/);
+  assert.match(teamMarkup, /data-open-next-call="Rafael"/);
   assert.match(teamMarkup, /data-open-next-call="Bia"/);
   state.booking.date = "2026-09-27";
-  assert.match(context.publicSchedule(establishment), /data-open-next-call="Renam"[^>]*disabled/);
+  assert.match(context.publicSchedule(establishment), /data-open-next-call="Rafael"[^>]*disabled/);
 });
 
 function timerFixture() {
@@ -90,12 +90,12 @@ function timerFixture() {
 
 test("um atendimento que atravessa as treze horas mantém a mesma senha nos dois turnos", () => {
   const { context, state } = renderFixture();
-  const booking = { date: "2026-09-26", time: "12:40", professional: "Renam", service: "Combo" };
+  const booking = { date: "2026-09-26", time: "12:40", professional: "Rafael", service: "Combo" };
   context.getData = () => ({ slots: [booking] });
   const configured = { ...establishment, services: [{ name: "Combo", duration: 70 }] };
-  assert.match(context.publicSchedule(configured), /RCO-15, Renam, 12:40/);
+  assert.match(context.publicSchedule(configured), /RCO-15, Rafael, 12:40/);
   state.scheduleTurn.id = "afternoon";
-  assert.match(context.publicSchedule(configured), /RCO-15, Renam, 12:40/);
+  assert.match(context.publicSchedule(configured), /RCO-15, Rafael, 12:40/);
 });
 
 test("alternância automática troca os turnos a cada cinco segundos e para ao desmarcar", () => {
@@ -142,7 +142,7 @@ test("selecionar um horário interrompe a alternância até a opção ser marcad
     vm.runInContext(source.slice(source.indexOf('document.addEventListener("click",'), source.indexOf('document.addEventListener("input",')), context);
     context.startScheduleTurnTimer(establishment);
     const originalTimer = timers[0];
-    await listeners.click({ target: { matches: () => false, closest: value => value === selector ? { dataset: { professionalName: "Renam", slotTime: "08:20", time: "08:20" } } : null } });
+    await listeners.click({ target: { matches: () => false, closest: value => value === selector ? { dataset: { professionalName: "Rafael", slotTime: "08:20", time: "08:20" } } : null } });
     assert.equal(state.booking.time, "08:20");
     assert.equal(state.scheduleAuto, false);
     assert.ok(cleared.includes(1));
@@ -174,15 +174,15 @@ test("fechar o popup retoma a alternância com cinco segundos completos", () => 
 
 test("presença confirmada aparece apenas na reserva e mantém o código, a cor e o bloqueio", () => {
   const { context } = renderFixture();
-  const booking = { date: "2026-09-26", time: "09:00", professional: "Renam", status: "confirmado" };
+  const booking = { date: "2026-09-26", time: "09:00", professional: "Rafael", status: "confirmado" };
   context.getData = () => ({ slots: [booking] });
   assert.doesNotMatch(context.publicSchedule(establishment), /matrix-presence-confirmed/);
   booking.status = "presente";
   let html = context.publicSchedule(establishment);
-  assert.match(html, /ticket-state-reserved[^>]*has-confirmed-presence[^>]*disabled[^>]*RSI-04, Renam, 09:00, Reservado, Presença Confirmada/);
+  assert.match(html, /ticket-state-reserved[^>]*has-confirmed-presence[^>]*disabled[^>]*RSI-04, Rafael, 09:00, Reservado, Presença Confirmada/);
   assert.match(html, /matrix-presence-confirmed">Presença Confirmada/);
   booking.status = "atendendo";
   html = context.publicSchedule(establishment);
   assert.doesNotMatch(html, /matrix-presence-confirmed/);
-  assert.match(html, /RSI-04, Renam, 09:00, Em Atendimento/);
+  assert.match(html, /RSI-04, Rafael, 09:00, Em Atendimento/);
 });

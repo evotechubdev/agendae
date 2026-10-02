@@ -10,10 +10,10 @@ const context = vm.createContext({ TICKET_STATES, allProfessionalsClosed, busine
 vm.runInContext(source.slice(source.indexOf("function queueDetail("), source.indexOf("function ticketStatusLegend(")), context);
 
 test("card encerrado mostra Encerrado e nome sem código ou horário nulo", () => {
-  const html = context.currentTicketCards([{ professional: "Renam Silva", ticketState: "closed", ticket: null, time: null, kind: "scheduled" }]);
+  const html = context.currentTicketCards([{ professional: "Rafael Silva", ticketState: "closed", ticket: null, time: null, kind: "scheduled" }]);
   assert.match(html, /ticket-state-closed/);
   assert.match(html, /<strong>Encerrado<\/strong>/);
-  assert.match(html, /Renam Silva/);
+  assert.match(html, /Rafael Silva/);
   assert.doesNotMatch(html, /null/);
 });
 
@@ -25,7 +25,7 @@ test("bolinha só recebe a classe preta se todos estiverem encerrados", () => {
 });
 
 test("pausa de almoço exibe o motivo abaixo de Pausado sem código de senha", () => {
-  const html = context.currentTicketCards([{ professional: "Renam Silva", ticketState: "paused", ticket: null, pauseReason: "Almoço", kind: "scheduled" }]);
+  const html = context.currentTicketCards([{ professional: "Rafael Silva", ticketState: "paused", ticket: null, pauseReason: "Almoço", kind: "scheduled" }]);
   assert.match(html, /<strong>Pausado<\/strong><small class="current-ticket-reason">Almoço<\/small>/);
   assert.doesNotMatch(html, /null|RSI-/);
 });
@@ -41,7 +41,7 @@ test("data futura exibe expediente não iniciado com indicador preto sem senhas 
 
 test("voltar para hoje ou alcançar a data selecionada restaura o atendimento atual", () => {
   context.state = { booking: { date: "2026-09-28" } };
-  context.queueView = () => ({ current: [{ ticket: "RSI-01", time: "08:00", professional: "Renam", ticketState: "in-service", kind: "scheduled" }] });
+  context.queueView = () => ({ current: [{ ticket: "RSI-01", time: "08:00", professional: "Rafael", ticketState: "in-service", kind: "scheduled" }] });
   let html = context.publicCurrentAttendance({}, {}, { date: "2026-09-28", minutes: 8 * 60 });
   assert.match(html, /RSI-01/);
   assert.doesNotMatch(html, /Expediente não Iniciado|live-dot closed/);
@@ -53,8 +53,8 @@ test("voltar para hoje ou alcançar a data selecionada restaura o atendimento at
 
 test("hoje antes da abertura fica preto e retoma exatamente ao iniciar o expediente", () => {
   context.state = { booking: { date: "2026-09-28" } };
-  const establishment = { hours: [{ label: "Seg a sex", value: "08:00 - 18:00" }], professionals: [{ name: "Renam", availableTimes: ["08:00"] }] };
-  context.queueView = () => ({ current: [{ ticket: "RSI-01", professional: "Renam", time: "08:00", kind: "scheduled", ticketState: "in-service" }] });
+  const establishment = { hours: [{ label: "Seg a sex", value: "08:00 - 18:00" }], professionals: [{ name: "Rafael", availableTimes: ["08:00"] }] };
+  context.queueView = () => ({ current: [{ ticket: "RSI-01", professional: "Rafael", time: "08:00", kind: "scheduled", ticketState: "in-service" }] });
   const before = context.publicCurrentAttendance(establishment, {}, { date: "2026-09-28", minutes: 479 });
   assert.match(before, /live-dot closed/);
   assert.match(before, /role="status">Expediente não Iniciado/);
@@ -65,7 +65,7 @@ test("hoje antes da abertura fica preto e retoma exatamente ao iniciar o expedie
 });
 
 test("abertura respeita o dia, o minuto exato e a grade quando não há horário comercial", () => {
-  const establishment = { hours: [{ label: "Dias úteis", value: "08:30 - 18:00" }, { label: "Sábado", value: "09:20 - 17:00" }, { label: "Domingo", value: "Fechado" }], professionals: [{ name: "Renam", availableTimes: ["08:00"] }] };
+  const establishment = { hours: [{ label: "Dias úteis", value: "08:30 - 18:00" }, { label: "Sábado", value: "09:20 - 17:00" }, { label: "Domingo", value: "Fechado" }], professionals: [{ name: "Rafael", availableTimes: ["08:00"] }] };
   assert.equal(businessOpeningMinutes(establishment, "2026-09-28"), 510);
   assert.equal(businessOpeningMinutes(establishment, "2026-09-26"), 560);
   assert.equal(businessOpeningMinutes(establishment, "2026-09-27"), null);
@@ -88,7 +88,7 @@ test("fila preserva atendimento e horários livres do segundo endereço", () => 
 test("domingo fechado informa que não há expediente sem inventar atendimento ou pausa", () => {
   context.state = { booking: { date: "2026-09-27" } };
   context.queueView = () => { throw new Error("Dia fechado não deve gerar posições pausadas"); };
-  const establishment = { hours: [{ label: "Domingo", value: "Fechado" }], professionals: [{ name: "Renam", availableTimes: ["08:00"] }] };
+  const establishment = { hours: [{ label: "Domingo", value: "Fechado" }], professionals: [{ name: "Rafael", availableTimes: ["08:00"] }] };
   for (const minutes of [19, 8 * 60, 12 * 60]) {
     const html = context.publicCurrentAttendance(establishment, {}, { date: "2026-09-27", minutes });
     assert.match(html, /live-dot closed/);
@@ -126,9 +126,9 @@ test("monitor mostra senhas atuais e próximas sem expor nomes de clientes", () 
     cloudCache: new Map([["today", { todaySlots: [] }]]),
     publicCacheKey: () => "today",
     currentSaoPauloClock: () => ({ date: "2026-09-28", minutes: 9 * 60 }),
-    attendanceView: () => ({ notStarted: false, closedDay: false, current: [{ professional: "Renam", ticket: "RCT-03", ticketState: "in-service", time: "09:00", service: "Cabelo Tesoura", client: "Cliente privado" }] }),
+    attendanceView: () => ({ notStarted: false, closedDay: false, current: [{ professional: "Rafael", ticket: "RCT-03", ticketState: "in-service", time: "09:00", service: "Cabelo Tesoura", client: "Cliente privado" }] }),
     queueView: () => ({ waiting: [{ professional: "Bia", ticket: "BCM-04", time: "09:20", service: "Cabelo Máquina", client: "Outra pessoa" }] }),
-    upcomingFreeSlots: () => [{ kind: "free", professional: "Renam", time: "09:10" }],
+    upcomingFreeSlots: () => [{ kind: "free", professional: "Rafael", time: "09:10" }],
     TICKET_STATES,
     escapeHTML: (value) => String(value),
     logo: () => "<span>Logo</span>",
