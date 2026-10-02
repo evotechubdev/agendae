@@ -45,8 +45,6 @@ img { display: block; max-width: 100%; }
 .finder-icon { width: 40px; display: grid; place-items: center; color: var(--blue); font-size: 20px; }
 .finder input { min-width: 0; flex: 1; height: 48px; border: 0; outline: 0; color: var(--ink); }
 .finder input::placeholder { color: #99a4b6; }
-.finder-note { margin-top: 13px; display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
-.finder-note a { color: var(--blue); font-weight: 700; }
 .directory-card { padding: 26px; border: 1px solid rgba(222,228,238,.9); border-radius: 24px; background: rgba(255,255,255,.92); box-shadow: 0 34px 78px rgba(26,52,102,.18); backdrop-filter: blur(14px); }
 .directory-label { margin-bottom: 17px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
 .directory-item { width: 100%; padding: 15px; display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 13px; border: 1px solid var(--line); border-radius: 15px; background: #fff; text-align: left; }
@@ -512,7 +510,6 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .home-copy { text-align: center; }
   .home-kicker,.finder { margin-left: auto; margin-right: auto; }
   .home-copy>p { margin-left: auto; margin-right: auto; }
-  .finder-note { justify-content: center; }
   .directory-card { width: min(620px,100%); margin: auto; }
   .auth-page { grid-template-columns: .85fr 1.15fr; }
   .auth-brand { padding: 42px 38px; }
