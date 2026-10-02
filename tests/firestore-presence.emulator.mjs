@@ -28,7 +28,7 @@ function write(path, data, checkedIn = false) {
 }
 
 async function setup() {
-  await seed("establishments/demo", { services: [{ name: "Corte", duration: 20 }, { name: "Combo", duration: 70 }], serviceDurations: { Corte: 20, Combo: 70 } });
+  await seed("establishments/demo", { active: true, services: [{ name: "Corte", duration: 20 }, { name: "Combo", duration: 70 }], serviceDurations: { Corte: 20, Combo: 70 } });
   await seed("establishments/demo/checkIn/config", { token: "qr-token" });
   await seed("users/employee", { establishmentSlug: "demo", role: "employee" });
 }

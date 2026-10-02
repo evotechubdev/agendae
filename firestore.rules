@@ -10,10 +10,15 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function active(slug) {
+      return get(/databases/$(database)/documents/establishments/$(slug)).data.get('active', false) == true;
+    }
+
     function manages(slug) {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.establishmentSlug == slug;
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.establishmentSlug == slug
+        && active(slug);
     }
 
     function administers(slug) {
@@ -22,11 +27,13 @@ service cloud.firestore {
     }
 
     function published(slug) {
-      return get(/databases/$(database)/documents/establishments/$(slug)).data.get('setupComplete', true) == true;
+      return active(slug)
+        && get(/databases/$(database)/documents/establishments/$(slug)).data.get('setupComplete', true) == true;
     }
 
     function validCheckInToken(slug, token) {
-      return token is string
+      return active(slug)
+        && token is string
         && exists(/databases/$(database)/documents/establishments/$(slug)/checkIn/config)
         && get(/databases/$(database)/documents/establishments/$(slug)/checkIn/config).data.token == token;
     }
@@ -38,7 +45,8 @@ service cloud.firestore {
       let start = day + duration.value(int(timeParts[0]) * 60 + int(timeParts[1]) + 180, 'm');
       let establishment = get(/databases/$(database)/documents/establishments/$(slug)).data;
       let minutes = appointment.get('durationMinutes', establishment.get('serviceDurations', {}).get(appointment['service'], 20));
-      return (request.time - duration.value(3, 'h')).date() == day
+      return active(slug)
+        && (request.time - duration.value(3, 'h')).date() == day
         && minutes is int && minutes > 0 && minutes <= 1440
         && request.time >= start - duration.value(1, 'h')
         && request.time <= start + duration.value(minutes, 'm');
@@ -165,7 +173,8 @@ service cloud.firestore {
       match /appointmentLookups/{lookupKey} {
         function validPublicAppointment(item) {
           let appointment = getAfter(/databases/$(database)/documents/establishments/$(slug)/appointments/$(item.appointmentId)).data;
-          return item.keys().hasOnly(['appointmentId', 'date', 'time', 'service', 'professional', 'status', 'durationMinutes', 'locationType', 'serviceAddress'])
+          return active(slug)
+            && item.keys().hasOnly(['appointmentId', 'date', 'time', 'service', 'professional', 'status', 'durationMinutes', 'locationType', 'serviceAddress'])
             && item.get('durationMinutes', 20) == appointment.get('durationMinutes', 20)
             && item.get('locationType', 'address1') == appointment.get('locationType', 'address1')
             && item.get('serviceAddress', '') == appointment.get('serviceAddress', '')
@@ -194,7 +203,8 @@ service cloud.firestore {
       match /appointmentCodeLookups/{lookupKey} {
         function validCodeAppointment(item) {
           let appointment = getAfter(/databases/$(database)/documents/establishments/$(slug)/appointments/$(item.appointmentId)).data;
-          return item.keys().hasOnly(['appointmentId', 'date', 'time', 'service', 'professional', 'status', 'durationMinutes', 'locationType', 'serviceAddress', 'meetingUrl'])
+          return active(slug)
+            && item.keys().hasOnly(['appointmentId', 'date', 'time', 'service', 'professional', 'status', 'durationMinutes', 'locationType', 'serviceAddress', 'meetingUrl'])
             && item.get('durationMinutes', 20) == appointment.get('durationMinutes', 20)
             && item.get('locationType', 'address1') == appointment.get('locationType', 'address1')
             && item.get('serviceAddress', '') == appointment.get('serviceAddress', '')
@@ -222,7 +232,7 @@ service cloud.firestore {
 
         allow get: if true;
         allow list: if false;
-        allow create: if (manages(slug)
+        allow create: if active(slug) && ((manages(slug)
             && (request.resource.data.status != 'presente' || presenceWithinWindow(slug, matchingAppointment())))
           || (request.resource.data.keys().hasOnly(['appointmentId', 'date', 'status', 'createdAt'])
             && request.resource.data.appointmentId == appointmentId
@@ -239,8 +249,8 @@ service cloud.firestore {
             && request.resource.data.checkedInAt == request.time
             && request.resource.data.checkInMethod == 'qr'
             && validCheckInToken(slug, matchingAppointment().checkInToken)
-            && matchingAppointment().status == 'presente');
-        allow update: if (manages(slug)
+            && matchingAppointment().status == 'presente'));
+        allow update: if active(slug) && ((manages(slug)
             && (request.resource.data.status != 'presente' || resource.data.status == 'presente' || presenceWithinWindow(slug, matchingAppointment())))
           || (resource.data.status == 'confirmado'
             && request.resource.data.status == 'presente'
@@ -251,7 +261,7 @@ service cloud.firestore {
             && request.resource.data.checkedInAt == request.time
             && request.resource.data.checkInMethod == 'qr'
             && validCheckInToken(slug, matchingAppointment().checkInToken)
-            && matchingAppointment().status == 'presente');
+            && matchingAppointment().status == 'presente'));
         allow delete: if manages(slug);
       }
 

@@ -48,6 +48,14 @@ test("administrador vê as abas e uma tela com lista e cadastro", () => {
   assert.match(app.innerHTML, /href="\/novaloja" data-link>Abrir página<\/a>/);
   assert.match(app.innerHTML, /id="system-create-form"/);
   assert.match(app.innerHTML, /data-system-logout/);
+  assert.match(app.innerHTML, /data-system-toggle-store="barbearia"[^>]*>Inativar<\/button>/);
+  assert.match(app.innerHTML, /data-system-delete-store="barbearia"[^>]*>Excluir<\/button>/);
+  context.state.systemEstablishments[0].active = false;
+  context.state.systemDeleteSlug = "barbearia";
+  context.renderSystemManagement();
+  assert.match(app.innerHTML, /data-system-toggle-store="barbearia"[^>]*>Reativar<\/button>/);
+  assert.match(app.innerHTML, /todos os dados do estabelecimento.*perdidos/);
+  assert.match(app.innerHTML, /id="system-delete-password"[^>]*type="password"/);
   context.state.createdStoreSlug = "novaloja";
   context.state.createdStoreEmail = "novaloja-admin@agendae.com.br";
   context.state.createdStorePassword = "senha-temporaria";
