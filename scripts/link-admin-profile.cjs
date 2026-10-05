@@ -53,6 +53,9 @@ async function main() {
     if (admin.perfil?.stringValue !== "gerente") {
       throw new Error("A conta já possui vínculo com outro estabelecimento; nenhum dado foi alterado.");
     }
+    if (admin.status_ativo?.booleanValue !== true) {
+      throw new Error("O mapa logins do administrador existe, mas status_ativo não está true.");
+    }
     console.log(JSON.stringify({ status: "already-linked", email, uid: user.localId, slug }));
     return;
   }
