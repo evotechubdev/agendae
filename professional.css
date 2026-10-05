@@ -52,40 +52,76 @@ img { display: block; max-width: 100%; }
 .home-contact-disabled:hover { transform: none; background: #c6e7d6; }
 .home-preview { position: relative; width: 100%; border: 1px solid #dce5f1; border-radius: 20px; background: #fff; box-shadow: 0 36px 80px rgba(18,54,113,.15); }
 .home-preview-top { height: 56px; padding: 0 23px; display: flex; align-items: center; gap: 11px; border-bottom: 1px solid #e8edf5; color: var(--navy); font-size: 13px; font-weight: 800; }
-.home-preview-top small { color: #97a2b5; font-size: 12px; font-weight: 600; }
+.home-preview-top small { margin-left: auto; color: #97a2b5; font-size: 9px; font-weight: 800; letter-spacing: .7px; }
 .preview-mark { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; color: #fff; background: var(--blue); font: 800 15px "Manrope",sans-serif; }
-.preview-top-dot { width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: #34be8e; box-shadow: 0 0 0 4px #e8f8f1; }
-.home-preview-body { padding: 29px; }
-.preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.preview-heading small,.preview-heading strong { display: block; }
-.preview-heading small { margin-bottom: 5px; color: #8492a8; font-size: 9px; font-weight: 800; letter-spacing: 1.1px; }
-.preview-heading strong { color: var(--navy); font: 800 19px "Manrope",sans-serif; }
-.preview-heading>span { padding: 7px 11px; border: 1px solid #dce6f4; border-radius: 8px; color: var(--blue); background: #f7faff; font-size: 11px; font-weight: 700; }
-.preview-stats { margin: 24px 0; display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
-.preview-stats>div { min-height: 109px; padding: 17px 14px; border: 1px solid #e8edf5; border-radius: 12px; background: #f9fbfe; }
-.preview-stats small,.preview-stats strong,.preview-stats span { display: block; }
-.preview-stats small { color: #728097; font-size: 10px; font-weight: 700; }
-.preview-stats strong { margin: 9px 0 1px; color: var(--navy); font: 800 24px "Manrope",sans-serif; }
-.preview-stats span { color: #9aa6b6; font-size: 10px; }
-.preview-list { padding: 18px 17px 7px; border: 1px solid #e8edf5; border-radius: 12px; }
-.preview-list-head { padding-bottom: 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.preview-list-head strong { color: var(--navy); font-size: 12px; }
-.preview-list-head span { color: #97a3b4; font-size: 10px; }
-.preview-row { min-height: 57px; display: flex; align-items: center; gap: 11px; border-top: 1px solid #edf1f6; }
-.preview-row>span { width: 37px; color: #5f6f87; font-size: 11px; font-weight: 700; }
-.preview-row i { width: 8px; height: 8px; border-radius: 50%; background: #4c83db; }
-.preview-row>div { min-width: 0; flex: 1; }
-.preview-row strong,.preview-row small { display: block; }
-.preview-row strong { overflow: hidden; color: #273955; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.preview-row small { margin-top: 2px; color: #9aa6b7; font-size: 9px; }
-.preview-row b { padding: 5px 7px; border-radius: 6px; color: #3871b6; background: #eaf3ff; font-size: 9px; }
-.preview-row.available i { background: #2bb988; }
-.preview-row.available b { color: #178659; background: #e5f8ef; }
-.preview-float { position: absolute; right: -23px; bottom: -27px; padding: 13px 17px; display: flex; align-items: center; gap: 10px; border: 1px solid #e8eef5; border-radius: 13px; background: #fff; box-shadow: 0 15px 35px rgba(18,54,113,.13); }
-.preview-float>span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; color: #168458; background: #e7f7ee; font-weight: 800; }
-.preview-float strong,.preview-float small { display: block; }
-.preview-float strong { color: var(--navy); font-size: 11px; }
-.preview-float small { margin-top: 2px; color: #8c9aae; font-size: 10px; }
+.home-preview-tabs { height: 42px; padding: 0 20px; display: flex; align-items: stretch; gap: 22px; border-bottom: 1px solid #e8edf5; color: #8795a8; font-size: 10px; font-weight: 700; }
+.home-preview-tabs span { display: flex; align-items: center; }
+.home-preview-tabs .active { border-bottom: 2px solid var(--blue); color: var(--blue); }
+.home-preview-body { padding: 16px; display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,.9fr); gap: 12px; background: #f7f9fd; border-radius: 0 0 20px 20px; }
+.preview-agenda,.preview-services,.preview-map { min-width: 0; border: 1px solid #e4eaf3; border-radius: 12px; background: #fff; }
+.preview-agenda { padding: 17px; }
+.preview-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.preview-panel-heading small,.preview-panel-heading strong,.preview-services>small,.preview-services>strong,.preview-map small,.preview-map strong { display: block; }
+.preview-panel-heading small,.preview-services>small,.preview-map small { margin-bottom: 5px; color: #8391a7; font-size: 9px; font-weight: 800; letter-spacing: .8px; }
+.preview-panel-heading strong { color: var(--navy); font: 800 15px "Manrope",sans-serif; }
+.preview-calendar-symbol { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--blue); background: #edf4ff; font-size: 17px; }
+.preview-date-picker { margin: 18px 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.preview-date-picker span { padding: 8px 9px; border: 1px solid #e1e8f2; border-radius: 7px; color: #5d6b81; background: #fff; font-size: 9px; font-weight: 700; }
+.preview-date-picker .active { border-color: var(--blue); color: var(--blue); background: #edf4ff; }
+.preview-agenda-content { display: grid; gap: 9px; }
+.preview-professional { padding: 12px; display: grid; grid-template-columns: 31px 1fr; align-items: center; column-gap: 8px; border: 1px solid #e5ebf3; border-radius: 9px; background: #fafcff; }
+.preview-person-avatar { grid-row: span 2; width: 31px; height: 31px; display: grid; place-items: center; border-radius: 9px; color: #fff; background: var(--navy-2); font-size: 15px; }
+.preview-professional strong { color: var(--navy); font-size: 10px; }
+.preview-professional small { color: #8795aa; font-size: 8px; }
+.preview-availability { padding: 12px; border: 1px solid #e5ebf3; border-radius: 9px; }
+.preview-availability strong,.preview-availability>span { display: block; }
+.preview-availability strong { color: var(--navy); font-size: 10px; }
+.preview-availability>span { margin: 4px 0 11px; color: #8795aa; font-size: 8px; }
+.preview-availability-bars { display: flex; gap: 7px; }
+.preview-availability-bars i { width: 28%; height: 18px; border-radius: 6px; background: #e8eef8; }
+.preview-availability-bars i:first-child { background: #d9e8ff; }
+.preview-side { min-width: 0; display: grid; gap: 12px; }
+.preview-services { padding: 15px; }
+.preview-services>strong,.preview-map strong { color: var(--navy); font: 800 12px "Manrope",sans-serif; }
+.preview-services label { display: block; margin-top: 11px; color: #65758c; font-size: 8px; font-weight: 800; }
+.preview-services label>span { min-height: 29px; margin-top: 4px; padding: 0 8px; display: flex; align-items: center; justify-content: space-between; gap: 5px; border: 1px solid #dde5f1; border-radius: 6px; color: #91a0b3; font-size: 8px; font-weight: 500; }
+.preview-services b { color: #6a7b93; font-size: 14px; }
+.preview-map { padding: 12px; }
+.preview-map svg { width: 100%; height: 82px; margin: 9px 0 5px; display: block; border-radius: 7px; }
+.preview-map>span { color: #62758e; font-size: 8px; font-weight: 700; }
+.home-scenarios { background: #f5f8fc; }
+.home-scenarios-inner { width: min(1180px,calc(100% - 48px)); margin: auto; padding: 90px 0 82px; }
+.scenario-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 19px; }
+.scenario-card { min-width: 0; overflow: hidden; border: 1px solid #e1e8f2; border-radius: 18px; background: #fff; box-shadow: 0 15px 35px rgba(16,45,94,.05); }
+.scenario-media { position: relative; height: 278px; overflow: hidden; background: #dce7f1; }
+.scenario-media::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg,rgba(7,27,63,.22),transparent 52%); pointer-events: none; }
+.scenario-media img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.scenario-display { position: absolute; z-index: 1; top: 16px; right: 16px; width: 154px; padding: 11px 12px; border: 1px solid rgba(255,255,255,.3); border-radius: 10px; color: #fff; background: rgba(7,27,63,.9); box-shadow: 0 12px 25px rgba(7,27,63,.2); text-align: left; }
+.scenario-display small,.scenario-display strong,.scenario-display span { display: block; }
+.scenario-display small { color: #aecaef; font-size: 7px; font-weight: 800; letter-spacing: .9px; }
+.scenario-display strong { margin-top: 4px; font: 800 11px "Manrope",sans-serif; }
+.scenario-display span { margin-top: 3px; color: #dce8f8; font-size: 8px; }
+.scenario-fast-food .scenario-display { background: rgba(7,27,63,.93); }
+.scenario-ui { position: absolute; z-index: 1; left: 15px; bottom: 15px; width: min(250px,calc(100% - 30px)); padding: 13px; border: 1px solid rgba(255,255,255,.8); border-radius: 12px; background: rgba(255,255,255,.96); box-shadow: 0 14px 30px rgba(7,27,63,.2); }
+.scenario-ui-label { display: block; color: var(--blue); font-size: 8px; font-weight: 800; letter-spacing: 1px; }
+.scenario-ui>strong { display: block; margin-top: 4px; color: var(--navy); font: 800 13px "Manrope",sans-serif; }
+.scenario-ui-row { margin-top: 10px; padding: 8px; display: flex; align-items: center; gap: 8px; border: 1px solid #e6edf5; border-radius: 8px; color: #273955; font-size: 10px; font-weight: 800; }
+.scenario-ui-row small { display: block; margin-top: 2px; color: #8b9aae; font-size: 8px; font-weight: 600; }
+.scenario-ui-icon { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 7px; color: var(--blue); background: #eaf2ff; font-size: 13px; }
+.scenario-ui-action { margin-top: 9px; padding: 7px 10px; display: flex; align-items: center; justify-content: space-between; border-radius: 7px; color: #fff; background: var(--blue); font-size: 9px; font-weight: 800; }
+.scenario-ui-action b { font-size: 13px; }
+.scenario-ticket { margin: 9px 0 7px; padding: 10px; border: 1px solid #dce8f7; border-radius: 8px; background: #f5f9ff; }
+.scenario-ticket span,.scenario-ticket b { display: block; }
+.scenario-ticket span { color: #66809d; font-size: 9px; }
+.scenario-ticket b { margin-top: 3px; color: var(--navy); font-size: 12px; }
+.scenario-ui>small { color: #798aa0; font-size: 8px; }
+.scenario-queue-ui .scenario-ticket { border-color: #f2e1a9; background: #fffaf0; }
+.scenario-queue-ui .scenario-ticket b { color: #795719; }
+.scenario-copy { padding: 24px 22px 26px; }
+.scenario-copy>span { color: var(--blue); font-size: 10px; font-weight: 800; letter-spacing: 1.1px; }
+.scenario-copy h3 { margin: 9px 0 9px; color: var(--navy); font: 800 19px/1.25 "Manrope",sans-serif; letter-spacing: -.4px; }
+.scenario-copy p { margin: 0; color: #65748a; font-size: 13px; line-height: 1.65; }
+.scenario-note { margin: 18px 0 0; color: #8795a8; font-size: 11px; text-align: center; }
 .home-solutions { width: min(1180px,calc(100% - 48px)); margin: auto; padding: 91px 0 84px; }
 .home-section-heading { max-width: 690px; margin: 0 auto 38px; text-align: center; }
 .home-section-heading>span,.home-partners>div:first-child>span { color: var(--blue); font-size: 11px; font-weight: 800; letter-spacing: 1.5px; }
@@ -559,6 +595,9 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .home-hero-inner { grid-template-columns: 1fr; padding: 72px 0 93px; gap: 55px; }
   .home-copy { max-width: 740px; }
   .home-preview { max-width: 650px; margin: auto; }
+  .scenario-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .scenario-card:last-child { grid-column: 1/-1; }
+  .scenario-card:last-child .scenario-media { height: 310px; }
   .home-benefits { flex-wrap: wrap; justify-content: center; }
   .auth-page { grid-template-columns: .85fr 1.15fr; }
   .auth-brand { padding: 42px 38px; }
@@ -590,6 +629,10 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .home-hero-inner { width: calc(100% - 36px); padding: 59px 0 78px; gap: 47px; }
   .home-copy h1 { font-size: 42px; letter-spacing: -2px; }
   .home-copy>p { margin: 22px 0 27px; font-size: 15px; }
+  .home-scenarios-inner { width: calc(100% - 36px); padding: 68px 0; }
+  .scenario-grid { grid-template-columns: 1fr; }
+  .scenario-card:last-child { grid-column: auto; }
+  .scenario-card:last-child .scenario-media,.scenario-media { height: 310px; }
   .home-solutions { width: calc(100% - 36px); padding: 68px 0; }
   .home-solution-grid { grid-template-columns: 1fr; }
   .home-solution-card p { min-height: 0; }
@@ -662,14 +705,15 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .home-kicker { font-size: 9px; letter-spacing: 1.2px; }
   .home-actions { align-items: flex-start; flex-direction: column; gap: 10px; }
   .home-actions>span { max-width: none; }
-  .home-preview-body { padding: 18px; }
-  .preview-stats { gap: 6px; }
-  .preview-stats>div { min-height: 100px; padding: 12px 9px; }
-  .preview-stats small { font-size: 9px; }
-  .preview-stats strong { font-size: 19px; }
-  .preview-stats span { font-size: 9px; }
-  .preview-row b { display: none; }
-  .preview-float { right: -5px; bottom: -27px; }
+  .home-preview-top { padding: 0 14px; }
+  .home-preview-top small { font-size: 8px; }
+  .home-preview-body { padding: 12px; grid-template-columns: 1fr; }
+  .preview-side { grid-template-columns: 1fr 1fr; }
+  .preview-services,.preview-map { padding: 11px; }
+  .preview-services>strong,.preview-map strong { font-size: 10px; }
+  .preview-map svg { height: 98px; }
+  .scenario-card:last-child .scenario-media,.scenario-media { height: 260px; }
+  .scenario-display { top: 12px; right: 12px; width: 142px; }
   .home-solution-card { padding: 27px 25px; }
   .est-avatar { width: 46px; height: 46px; }
   .est-header-actions .divider,.est-header-actions .btn-sm { display: none; }
