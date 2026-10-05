@@ -160,6 +160,15 @@ img { display: block; max-width: 100%; }
 .portfolio-feature-copy p { margin: 0; color: #5f6f85; font-size: 16px; line-height: 1.72; }
 .portfolio-feature-tags { margin-top: 25px; display: flex; flex-wrap: wrap; gap: 8px; }
 .portfolio-feature-tags b { padding: 8px 11px; border: 1px solid #dbe5f3; border-radius: 999px; color: #3d5779; background: #f8fbff; font-size: 10px; }
+.portfolio-contact-cta { margin-top: 25px; padding-top: 22px; display: grid; gap: 15px; border-top: 1px solid #dce5f1; }
+.portfolio-contact-cta strong,.portfolio-contact-cta span { display: block; }
+.portfolio-contact-cta strong { color: var(--navy); font: 800 15px/1.3 "Manrope",sans-serif; }
+.portfolio-contact-cta div>span { margin-top: 6px; color: #68788e; font-size: 11px; line-height: 1.55; }
+.portfolio-whatsapp-button { width: fit-content; min-height: 46px; padding: 0 17px; color: #fff; background: #168458; box-shadow: 0 10px 22px rgba(22,132,88,.18); font-size: 11px; }
+.portfolio-whatsapp-button:hover { background: #106b48; }
+.portfolio-whatsapp-button:disabled { color: #587266; background: #dcebe4; box-shadow: none; cursor: not-allowed; }
+.portfolio-whatsapp-button:disabled:hover { transform: none; background: #dcebe4; }
+.portfolio-whatsapp-button>span { margin-left: 4px; display: inline; font-size: 15px; }
 .portfolio-feature-media { position: relative; min-height: 500px; overflow: hidden; border-radius: 24px; background: #dfe8f3; box-shadow: 0 28px 65px rgba(12,42,91,.15); }
 .portfolio-feature-media::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg,rgba(7,27,63,.08),transparent 55%); pointer-events: none; }
 .portfolio-feature-media>img { width: 100%; height: 500px; object-fit: cover; }
@@ -226,6 +235,8 @@ img { display: block; max-width: 100%; }
   .portfolio-feature-copy h1,.portfolio-feature-copy h2 { font-size: 29px; }
   .portfolio-feature-tags { margin-top: 20px; }
   .portfolio-feature-tags b { padding: 7px 9px; font-size: 9px; }
+  .portfolio-contact-cta { margin-top: 20px; padding-top: 18px; }
+  .portfolio-whatsapp-button { width: 100%; }
   .portfolio-feature-media,.portfolio-feature-media>img { min-height: 350px; height: 350px; }
   .portfolio-feature-media>img { object-position: 57% center; }
   .portfolio-app-card { left: 12px; bottom: 12px; width: calc(100% - 24px); padding: 14px; }
