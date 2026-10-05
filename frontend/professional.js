@@ -1205,7 +1205,7 @@ async function fillPostalCodeFromAddress(form, suffix) {
 }
 
 function storeSettingsMarkup(establishment) {
-  if (session()?.role !== "admin") return '<div class="settings-section"><p class="settings-hint">Somente o administrador da loja pode alterar os dados do estabelecimento.</p></div>';
+  if (session()?.role !== "gerente") return '<div class="settings-section"><p class="settings-hint">Somente o gerente da loja pode alterar os dados do estabelecimento.</p></div>';
   const days = [["seg", "Segunda", "2026-09-28"], ["ter", "Terça", "2026-09-29"], ["qua", "Quarta", "2026-09-30"], ["qui", "Quinta", "2026-10-01"], ["sex", "Sexta", "2026-10-02"], ["sab", "Sábado", "2026-10-03"], ["dom", "Domingo", "2026-10-04"]];
   const weeklyRows = (suffix = "") => days.map(([day, label, date]) => {
     const locationType = suffix ? "address2" : "address1";
@@ -1224,7 +1224,7 @@ function storeSettingsMarkup(establishment) {
 
 function apiSettingsMarkup(establishment) {
   const base = firebaseApi?.integrationApiBaseUrl || "https://agendae-backend-t5ax.onrender.com";
-  if (session()?.role !== "admin") return '<div class="settings-section"><p class="settings-hint">A chave de API pode criar agendamentos. Peça a um administrador da loja para configurar a integração.</p></div>';
+  if (session()?.role !== "gerente") return '<div class="settings-section"><p class="settings-hint">A chave de API pode criar agendamentos. Peça ao gerente da loja para configurar a integração.</p></div>';
   const status = state.apiKeyStatus.slug === establishment.slug ? state.apiKeyStatus : { loading: true };
   const variable = status.variable || `api-${establishment.slug}`;
   const statusText = status.loading || !status.loaded ? "Consultando a chave no servidor…"
@@ -1239,7 +1239,7 @@ function apiSettingsMarkup(establishment) {
 }
 
 async function loadApiKeyStatus(establishment) {
-  if (!firebaseApi || session()?.role !== "admin" || state.apiKeyStatus.loading && state.apiKeyStatus.slug === establishment.slug) return;
+  if (!firebaseApi || session()?.role !== "gerente" || state.apiKeyStatus.loading && state.apiKeyStatus.slug === establishment.slug) return;
   const previous = state.apiKeyStatus.slug === establishment.slug ? state.apiKeyStatus : {};
   state.apiKeyStatus = { slug: establishment.slug, loading: true, loaded: false, active: false, lastFour: null, variable: `api-${establishment.slug}`, automationReady: false, pending: previous.pending || "", deployRequested: previous.deployRequested || false, error: "" };
   render();
@@ -1411,7 +1411,7 @@ function renderAdmin(establishment) {
   const currentUser = session();
   const firstName = currentUser?.name?.split(" ")[0] || "gestor";
   app.innerHTML = `<div class="admin-shell">
-    <aside class="sidebar ${state.mobileMenu ? "mobile-open" : ""}"><a href="${href("/")}" data-link>${logo()}</a><div class="workspace"><span class="est-avatar">${escapeHTML(establishment.initials)}</span><span><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.category)}</small></span></div><div class="side-label">Gestão</div><nav class="side-nav"><button class="side-link active"><span class="side-icon">⌂</span>Visão geral</button><button class="side-link" data-coming><span class="side-icon">▣</span>Agenda</button><button class="side-link" data-coming><span class="side-icon">☷</span>Fila de senhas</button><button class="side-link" data-coming><span class="side-icon">♙</span>Clientes</button><button class="side-link" data-coming><span class="side-icon">⌁</span>Relatórios</button></nav><div class="side-spacer"></div><a class="side-link" href="${href(`/${establishment.slug}?public=1`)}" data-link><span class="side-icon">↗</span>Ver página pública</a><button class="side-link" data-logout><span class="side-icon">←</span>Sair</button><div class="sidebar-user"><span class="user-avatar">${initials(currentUser?.name || "Usuário")}</span><span><strong>${escapeHTML(currentUser?.name || "Usuário")}</strong><small>${currentUser?.role === "admin" ? "Administrador" : "Equipe"}</small></span></div></aside>
+    <aside class="sidebar ${state.mobileMenu ? "mobile-open" : ""}"><a href="${href("/")}" data-link>${logo()}</a><div class="workspace"><span class="est-avatar">${escapeHTML(establishment.initials)}</span><span><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.category)}</small></span></div><div class="side-label">Gestão</div><nav class="side-nav"><button class="side-link active"><span class="side-icon">⌂</span>Visão geral</button><button class="side-link" data-coming><span class="side-icon">▣</span>Agenda</button><button class="side-link" data-coming><span class="side-icon">☷</span>Fila de senhas</button><button class="side-link" data-coming><span class="side-icon">♙</span>Clientes</button><button class="side-link" data-coming><span class="side-icon">⌁</span>Relatórios</button></nav><div class="side-spacer"></div><a class="side-link" href="${href(`/${establishment.slug}?public=1`)}" data-link><span class="side-icon">↗</span>Ver página pública</a><button class="side-link" data-logout><span class="side-icon">←</span>Sair</button><div class="sidebar-user"><span class="user-avatar">${initials(currentUser?.name || "Usuário")}</span><span><strong>${escapeHTML(currentUser?.name || "Usuário")}</strong><small>${currentUser?.role === "gerente" ? "Gerente" : "Equipe"}</small></span></div></aside>
     <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}?public=1#agendar`)}" data-link>+ Novo agendamento</a></div></header>
       <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
       ${adminCheckInPanel(establishment, today)}
@@ -1725,7 +1725,7 @@ document.addEventListener("click", async (event) => {
   if (openMenu && !openMenu.contains(event.target)) openMenu.open = false;
   let establishmentForModal;
   const canManage = () => { establishmentForModal = activeEstablishment(); return establishmentForModal && session()?.slug === establishmentForModal.slug; };
-  if (event.target.closest("[data-publish-store]") && canManage() && session()?.role === "admin" && firebaseApi) {
+  if (event.target.closest("[data-publish-store]") && canManage() && session()?.role === "gerente" && firebaseApi) {
     try {
       await firebaseApi.publishStore(establishmentForModal.slug);
       establishmentForModal.setupComplete = true;
@@ -1763,7 +1763,7 @@ document.addEventListener("click", async (event) => {
     document.querySelector(`[data-settings-tab="${state.settingsTab}"]`)?.focus();
     return;
   }
-  if (event.target.closest("[data-generate-api-key]") && canManage() && session()?.role === "admin" && firebaseApi) {
+  if (event.target.closest("[data-generate-api-key]") && canManage() && session()?.role === "gerente" && firebaseApi) {
     if (state.apiKeyStatus.active && !window.confirm("Gerar e salvar uma nova chave no Render? A chave atual continuará ativa até o novo deploy terminar.")) return;
     state.apiKeyStatus.loading = true;
     render();
@@ -1780,11 +1780,11 @@ document.addEventListener("click", async (event) => {
     }
     return;
   }
-  if (event.target.closest("[data-refresh-api-key]") && canManage() && session()?.role === "admin") {
+  if (event.target.closest("[data-refresh-api-key]") && canManage() && session()?.role === "gerente") {
     void loadApiKeyStatus(establishmentForModal);
     return;
   }
-  if (event.target.closest("[data-revoke-api-key]") && canManage() && session()?.role === "admin" && firebaseApi) {
+  if (event.target.closest("[data-revoke-api-key]") && canManage() && session()?.role === "gerente" && firebaseApi) {
     if (!window.confirm("Revogar esta chave? O site integrado perderá o acesso quando o novo deploy terminar.")) return;
     state.apiKeyStatus.loading = true;
     render();
@@ -2444,7 +2444,7 @@ document.addEventListener("submit", async (event) => {
   }
   if (event.target.matches("[data-store-profile-form]")) {
     const establishment = activeEstablishment();
-    if (!establishment || session()?.slug !== establishment.slug || session()?.role !== "admin" || !firebaseApi) return;
+    if (!establishment || session()?.slug !== establishment.slug || session()?.role !== "gerente" || !firebaseApi) return;
     const button = event.target.querySelector('button[type="submit"]');
     const status = event.target.querySelector("[data-store-save-status]");
     button.disabled = true;
@@ -2647,7 +2647,7 @@ document.addEventListener("submit", async (event) => {
       }
       state.booking = freshBooking();
       navigate(`/${establishmentSlug}`);
-      if (establishments[establishmentSlug]?.setupComplete === false && firebaseSession.role === "admin" && !firebaseSession.mustChangePassword) {
+      if (establishments[establishmentSlug]?.setupComplete === false && firebaseSession.role === "gerente" && !firebaseSession.mustChangePassword) {
         state.settingsTab = "store";
         state.settingsOpen = true;
         render();
@@ -2837,7 +2837,7 @@ async function initializeFirebase() {
       if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; state.systemEstablishments = []; state.systemListLoaded = false; state.systemDeleteSlug = ""; }
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
       if (!profile && route() === SYSTEM_MANAGE_ROUTE) { navigate("/"); return; }
-      if (profile?.role === "admin" && !profile.mustChangePassword && establishments[route()]?.setupComplete === false && !state.settingsOpen) {
+      if (profile?.role === "gerente" && !profile.mustChangePassword && establishments[route()]?.setupComplete === false && !state.settingsOpen) {
         state.settingsTab = "store";
         state.settingsOpen = true;
       }
@@ -2849,7 +2849,7 @@ async function initializeFirebase() {
           return;
         }
         navigate(`/${profile.slug}`);
-        if (profile.role === "admin" && !profile.mustChangePassword && establishments[profile.slug]?.setupComplete === false) {
+        if (profile.role === "gerente" && !profile.mustChangePassword && establishments[profile.slug]?.setupComplete === false) {
           state.settingsTab = "store";
           state.settingsOpen = true;
           render();

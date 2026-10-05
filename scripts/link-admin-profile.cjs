@@ -45,11 +45,12 @@ async function main() {
   const root = `projects/${project}/databases/(default)/documents`;
   const endpoint = `https://firestore.googleapis.com/v1/${root}`;
   await request(`${endpoint}/establishments/${slug}`);
-  const profileName = `${root}/users/${user.localId}`;
-  const profileUrl = `${endpoint}/users/${user.localId}`;
+  const profileName = `${root}/logins/${slug}`;
+  const profileUrl = `${endpoint}/logins/${slug}`;
   const existing = await request(profileUrl, {}, true);
-  if (existing) {
-    if (existing.fields?.establishmentSlug?.stringValue !== slug) {
+  const admin = existing?.fields?.admin?.mapValue?.fields;
+  if (admin) {
+    if (admin.perfil?.stringValue !== "gerente") {
       throw new Error("A conta já possui vínculo com outro estabelecimento; nenhum dado foi alterado.");
     }
     console.log(JSON.stringify({ status: "already-linked", email, uid: user.localId, slug }));
@@ -62,18 +63,19 @@ async function main() {
   await request(`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents:commit`, {
     method: "POST",
     body: JSON.stringify({ writes: [{
-      update: { name: profileName, fields: {
-        name: { stringValue: "Administrador" },
-        email: { stringValue: email },
-        role: { stringValue: "admin" },
-        establishmentSlug: { stringValue: slug },
-      } },
-      currentDocument: { exists: false },
-      updateTransforms: ["createdAt", "updatedAt"].map(fieldPath => ({ fieldPath, setToServerValue: "REQUEST_TIME" })),
+      update: { name: profileName, fields: { admin: { mapValue: { fields: {
+        nome: { stringValue: "Administrador" },
+        perfil: { stringValue: "gerente" },
+        mustChangePassword: { booleanValue: false },
+        status_ativo: { booleanValue: true },
+      } } } } },
+      updateMask: { fieldPaths: ["admin"] },
+      updateTransforms: ["admin.createdAt", "admin.updatedAt"].map(fieldPath => ({ fieldPath, setToServerValue: "REQUEST_TIME" })),
     }] }),
   });
   const verified = await request(profileUrl);
-  if (verified.fields?.establishmentSlug?.stringValue !== slug || verified.fields?.role?.stringValue !== "admin") {
+  if (verified.fields?.admin?.mapValue?.fields?.perfil?.stringValue !== "gerente"
+      || verified.fields?.admin?.mapValue?.fields?.status_ativo?.booleanValue !== true) {
     throw new Error("Não foi possível confirmar o vínculo criado.");
   }
   console.log(JSON.stringify({ status: "profile-created-and-verified", email, uid: user.localId, slug }));

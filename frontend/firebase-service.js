@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { lunchBreakFor, isLunchTime, scheduleFromPeriods, scheduleMatrix, workPeriodsFor, serviceFitsSlot, serviceAvailableAt, businessDayIsClosed, appointmentDurationMinutes, appointmentPresenceWindow } from "./schedule-model.mjs";
 import { normalizeWeeklyAvailability, normalizeReservedService } from "./establishment-model.mjs";
+import { loginIdentity } from "./login-model.mjs";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
@@ -15,6 +16,7 @@ import {
 import {
   collection,
   doc,
+  FieldPath,
   getDoc,
   getDocs,
   getFirestore,
@@ -137,18 +139,28 @@ async function appointmentCodeLookupKey(slug, code) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function profileFor(user) {
+function profileError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+async function profileFor(user, expectedSlug = "") {
   if (!user) return null;
-  const profileRef = doc(db, "users", user.uid);
-  const profileSnapshot = await getDoc(profileRef);
+  const identity = loginIdentity(user.email, expectedSlug);
+  if (!identity) return authenticatedSystemRequest("session");
+  const profileSnapshot = await getDoc(doc(db, "logins", identity.slug));
 
   if (!profileSnapshot.exists()) {
-    return authenticatedSystemRequest("session");
+    throw profileError("Perfil de acesso não encontrado.", "agendae/profile-not-found");
   }
 
   const profile = profileSnapshot.data();
-  if (profile.role !== "system_admin" && profile.establishmentSlug) {
-    const establishment = await getDoc(doc(db, "establishments", profile.establishmentSlug));
+  const loginProfile = profile?.[identity.login];
+  if (!loginProfile) throw profileError("Perfil de acesso não encontrado.", "agendae/profile-not-found");
+  if (loginProfile.status_ativo !== true) throw profileError("Este acesso foi desativado.", "auth/user-disabled");
+  if (identity.slug) {
+    const establishment = await getDoc(doc(db, "establishments", identity.slug));
     if (!establishment.exists() || establishment.data().active === false) {
       const error = new Error("Este estabelecimento está inativo.");
       error.code = "agendae/establishment-inactive";
@@ -158,10 +170,11 @@ async function profileFor(user) {
   return {
     uid: user.uid,
     email: user.email,
-    name: profile.name || user.displayName || user.email,
-    role: profile.role || "staff",
-    slug: profile.establishmentSlug,
-    mustChangePassword: profile.mustChangePassword === true,
+    login: identity.login,
+    name: loginProfile.nome || user.displayName || user.email,
+    role: loginProfile.perfil || "equipe",
+    slug: identity.slug,
+    mustChangePassword: loginProfile.mustChangePassword === true,
   };
 }
 
@@ -193,7 +206,7 @@ export async function login(email, password, remember = true, legacyEmail = "", 
   }
 
   try {
-    const profile = await profileFor(credential.user);
+    const profile = await profileFor(credential.user, expectedSlug);
     if (expectedSlug && profile.slug !== expectedSlug) {
       const mismatch = new Error("Funcionário vinculado a outro estabelecimento.");
       mismatch.code = "agendae/establishment-mismatch";
@@ -202,10 +215,6 @@ export async function login(email, password, remember = true, legacyEmail = "", 
 
     if (migrateLegacyEmail) {
       await updateEmail(credential.user, email);
-      await updateDoc(doc(db, "users", credential.user.uid), {
-        email,
-        updatedAt: serverTimestamp(),
-      });
       profile.email = email;
     }
 
@@ -222,10 +231,14 @@ export async function logout() {
 
 export async function changeOwnPassword(password) {
   if (!auth.currentUser) throw new Error("Entre novamente para trocar a senha.");
+  const identity = loginIdentity(auth.currentUser.email);
+  if (!identity) throw new Error("Este acesso não pertence a um estabelecimento.");
   await updatePassword(auth.currentUser, password);
-  await updateDoc(doc(db, "users", auth.currentUser.uid), {
-    mustChangePassword: false, updatedAt: serverTimestamp(),
-  });
+  await updateDoc(
+    doc(db, "logins", identity.slug),
+    new FieldPath(identity.login, "mustChangePassword"), false,
+    new FieldPath(identity.login, "updatedAt"), serverTimestamp(),
+  );
 }
 
 export async function loginSystemAdmin(login, password) {
@@ -234,7 +247,7 @@ export async function loginSystemAdmin(login, password) {
   await setPersistence(auth, browserLocalPersistence);
   const credential = await signInWithEmailAndPassword(auth, email, password);
   try {
-    const profile = await profileFor(credential.user);
+    const profile = await authenticatedSystemRequest("session");
     if (profile.role !== "system_admin") {
       const error = new Error("Esta conta não possui acesso de administrador do sistema.");
       error.code = "agendae/system-admin-required";

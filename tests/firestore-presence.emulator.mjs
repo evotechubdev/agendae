@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 const project = "demo-agendae";
 const base = `http://${process.env.FIRESTORE_EMULATOR_HOST}/v1/projects/${project}/databases/(default)/documents`;
 const root = `projects/${project}/databases/(default)/documents`;
-const token = `${Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ iss: `https://securetoken.google.com/${project}`, aud: project, sub: "employee", user_id: "employee", iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600, firebase: { sign_in_provider: "password" } })).toString("base64url")}.`;
+const token = `${Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ iss: `https://securetoken.google.com/${project}`, aud: project, sub: "employee", user_id: "employee", email: "demo-funcionario@agendae.com.br", iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600, firebase: { sign_in_provider: "password" } })).toString("base64url")}.`;
 let nextId = 0;
 
 function fields(data) {
@@ -30,7 +30,7 @@ function write(path, data, checkedIn = false) {
 async function setup() {
   await seed("establishments/demo", { active: true, services: [{ name: "Corte", duration: 20 }, { name: "Combo", duration: 70 }], serviceDurations: { Corte: 20, Combo: 70 } });
   await seed("establishments/demo/checkIn/config", { token: "qr-token" });
-  await seed("users/employee", { establishmentSlug: "demo", role: "employee" });
+  await seed("logins/demo", { funcionario: { nome: "Funcionario", perfil: "funcionario", status_ativo: true, mustChangePassword: false } });
 }
 
 function appointmentAt(offsetMinutes = 0, dateOffset = 0) {
@@ -108,7 +108,7 @@ test("expediente extra só pode ser liberado pela equipe vinculada ao estabeleci
 
 test("reserva pública é bloqueada para funcionário que encerrou o expediente", async () => {
   const closed = appointmentAt(60);
-  await seed("establishments/demo", { staffClosedDates: { Rafael: closed.date } });
+  await seed("establishments/demo", { active: true, staffClosedDates: { Rafael: closed.date } });
   for (const [professional, expectedStatus] of [["Rafael", 403], ["Ana", 200]]) {
     const id = `closed-day-${++nextId}`;
     const appointment = { ...closed, id, professional, client: "Cliente", phone: "11999999999", checkInCode: "ABC123" };

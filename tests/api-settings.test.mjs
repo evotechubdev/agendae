@@ -20,16 +20,16 @@ function markup(role, secret = null) {
 
 test("aba API reserva geração e detalhes da integração ao administrador", () => {
   assert.doesNotMatch(markup("staff"), /data-generate-api-key|\/v1\/establishments/);
-  const admin = markup("admin");
-  assert.match(admin, /data-generate-api-key/);
-  assert.match(admin, /data-refresh-api-key/);
-  assert.match(admin, /api-demo/);
-  assert.match(admin, /data-revoke-api-key/);
-  assert.match(admin, /\/v1\/establishments\/demo/);
-  assert.doesNotMatch(admin, /ag_live_/);
+  const gerente = markup("gerente");
+  assert.match(gerente, /data-generate-api-key/);
+  assert.match(gerente, /data-refresh-api-key/);
+  assert.match(gerente, /api-demo/);
+  assert.match(gerente, /data-revoke-api-key/);
+  assert.match(gerente, /\/v1\/establishments\/demo/);
+  assert.doesNotMatch(gerente, /ag_live_/);
 });
 
 test("chave recém-gerada aparece apenas no estado temporário da aba", () => {
-  assert.match(markup("admin", "ag_live_exemplo"), /ag_live_exemplo/);
-  assert.doesNotMatch(markup("admin"), /ag_live_exemplo/);
+  assert.match(markup("gerente", "ag_live_exemplo"), /ag_live_exemplo/);
+  assert.doesNotMatch(markup("gerente"), /ag_live_exemplo/);
 });

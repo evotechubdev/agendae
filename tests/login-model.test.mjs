@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loginCredentials } from "../frontend/login-model.mjs";
+import { loginCredentials, loginIdentity } from "../frontend/login-model.mjs";
 
 test("admin do estabelecimento usa exatamente o e-mail informado", () => {
   assert.deepEqual(loginCredentials(" ADMIN ", "salaobela"), {
@@ -26,4 +26,14 @@ test("entrada vazia ou e-mail malformado não gera credenciais", () => {
   for (const value of ["", "   ", "@@", "ana@", "ana @example.com", "ana@example", "ana@@example.com"]) {
     assert.equal(loginCredentials(value, "salaobela"), null);
   }
+});
+
+test("e-mail autenticado localiza seu mapa de login", () => {
+  assert.deepEqual(loginIdentity("barbeariadorenam-admin@agendae.com.br"), {
+    slug: "barbeariadorenam", login: "admin",
+  });
+  assert.deepEqual(loginIdentity("admin@agendae.com.br", "barbeariadorenam"), {
+    slug: "barbeariadorenam", login: "admin",
+  });
+  assert.equal(loginIdentity("admin@example.com"), null);
 });

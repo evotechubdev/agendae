@@ -6,8 +6,25 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function ownsProfile(userId) {
-      return signedIn() && request.auth.uid == userId;
+    function authenticatedEmail() {
+      return signedIn() && request.auth.token.get('email', '') is string
+        ? request.auth.token.get('email', '').lower()
+        : '';
+    }
+
+    function ownsLogin(slug) {
+      return signedIn()
+        && authenticatedEmail().matches('^' + slug + '-[a-z0-9._-]+@agendae[.]com[.]br$');
+    }
+
+    function loginName(slug) {
+      return authenticatedEmail()
+        .replace('^' + slug + '-', '')
+        .replace('@agendae[.]com[.]br$', '');
+    }
+
+    function loginProfile(slug) {
+      return get(/databases/$(database)/documents/logins/$(slug)).data[loginName(slug)];
     }
 
     function active(slug) {
@@ -15,15 +32,15 @@ service cloud.firestore {
     }
 
     function manages(slug) {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.establishmentSlug == slug
+      return ownsLogin(slug)
+        && exists(/databases/$(database)/documents/logins/$(slug))
+        && loginProfile(slug).get('status_ativo', false) == true
         && active(slug);
     }
 
     function administers(slug) {
       return manages(slug)
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        && loginProfile(slug).get('perfil', '') == 'gerente';
     }
 
     function published(slug) {
@@ -52,13 +69,24 @@ service cloud.firestore {
         && request.time <= start + duration.value(minutes, 'm');
     }
 
-    match /users/{userId} {
-      allow read: if ownsProfile(userId);
+    match /logins/{slug} {
+      allow get: if ownsLogin(slug)
+        && resource.data[loginName(slug)].get('status_ativo', false) == true;
+      allow list: if false;
       allow create: if false;
-      allow update: if ownsProfile(userId)
-        && request.resource.data.establishmentSlug == resource.data.establishmentSlug
-        && request.resource.data.role == resource.data.role;
+      allow update: if ownsLogin(slug)
+        && resource.data[loginName(slug)].get('status_ativo', false) == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([loginName(slug)])
+        && request.resource.data[loginName(slug)].diff(resource.data[loginName(slug)]).affectedKeys().hasOnly([
+          'mustChangePassword', 'updatedAt'
+        ])
+        && request.resource.data[loginName(slug)].mustChangePassword == false
+        && request.resource.data[loginName(slug)].updatedAt == request.time;
       allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read, write: if false;
     }
 
     match /establishments/{slug} {

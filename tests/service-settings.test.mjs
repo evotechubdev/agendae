@@ -7,7 +7,7 @@ import { businessHoursForDate } from "../frontend/schedule-model.mjs";
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
 const context = vm.createContext({
   escapeHTML: value => String(value), businessHoursForDate,
-  session: () => ({ role: "admin" }),
+  session: () => ({ role: "gerente" }),
 });
 vm.runInContext(source.slice(source.indexOf("function serviceIntervalMarkup("), source.indexOf("function hoursSettingsMarkup(")), context);
 vm.runInContext(source.slice(source.indexOf("function storeAddressFields("), source.indexOf("function apiSettingsMarkup(")), context);
