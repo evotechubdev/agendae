@@ -172,33 +172,11 @@ img { display: block; max-width: 100%; }
 .portfolio-feature-media { position: relative; min-height: 500px; overflow: hidden; border-radius: 24px; background: #dfe8f3; box-shadow: 0 28px 65px rgba(12,42,91,.15); }
 .portfolio-feature-media::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg,rgba(7,27,63,.08),transparent 55%); pointer-events: none; }
 .portfolio-feature-media>img { width: 100%; height: 500px; object-fit: cover; }
-.portfolio-app-card { position: absolute; z-index: 2; left: 22px; bottom: 22px; width: min(310px,calc(100% - 44px)); padding: 18px; border: 1px solid rgba(255,255,255,.8); border-radius: 15px; background: rgba(255,255,255,.96); box-shadow: 0 18px 38px rgba(7,27,63,.25); backdrop-filter: blur(8px); }
-.portfolio-app-card>small { display: block; margin-bottom: 6px; color: var(--blue); font-size: 8px; font-weight: 800; letter-spacing: 1px; }
-.portfolio-app-card>strong { display: block; margin: 10px 0 6px; color: var(--navy); font: 800 13px "Manrope",sans-serif; }
-.portfolio-app-card>label { padding: 9px; display: flex; align-items: center; gap: 9px; border: 1px solid #e1e8f2; border-radius: 9px; color: #263954; background: #fbfdff; font-size: 10px; font-weight: 800; }
-.portfolio-app-card label+strong { margin-top: 13px; }
-.portfolio-app-card label em,.portfolio-demo-list em { display: block; margin-top: 2px; color: #8795a8; font-size: 8px; font-style: normal; font-weight: 600; }
+.portfolio-clinic .portfolio-feature-media>img,.portfolio-food .portfolio-feature-media>img { object-position: 70% center; }
+.portfolio-demo-list em { display: block; margin-top: 2px; color: #8795a8; font-size: 8px; font-style: normal; font-weight: 600; }
 .portfolio-app-icon,.portfolio-avatar { width: 30px; height: 30px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 8px; color: var(--blue); background: #e7f0ff; font-size: 14px; font-weight: 800; }
 .portfolio-avatar { color: #fff; background: var(--navy-2); font-size: 10px; }
 .portfolio-avatar.green { background: #238263; }
-.portfolio-status-card>strong { margin-top: 3px; font-size: 16px; }
-.portfolio-status { margin: 12px 0 9px; padding: 11px; display: block; border: 1px solid #dbe7f5; border-radius: 9px; color: var(--navy); background: #f3f8ff; font-size: 11px; font-weight: 800; }
-.portfolio-status-card>em { color: #718299; font-size: 9px; font-style: normal; }
-.portfolio-status-card.food .portfolio-status { border-color: #eedca2; color: #775313; background: #fff9e9; }
-.portfolio-wall-display { position: absolute; z-index: 2; top: 22px; right: 22px; width: 210px; padding: 17px; border: 1px solid rgba(255,255,255,.25); border-radius: 13px; color: #fff; background: rgba(7,27,63,.92); box-shadow: 0 16px 32px rgba(7,27,63,.25); }
-.portfolio-wall-display small,.portfolio-wall-display strong,.portfolio-wall-display span,.portfolio-wall-display b { display: block; }
-.portfolio-wall-display small { color: #b8cdec; font-size: 8px; font-weight: 800; letter-spacing: 1px; }
-.portfolio-wall-display strong { margin-top: 7px; color: #dbe7f7; font: 800 9px "Manrope",sans-serif; letter-spacing: .5px; }
-.portfolio-ticket-code { margin-top: 5px; color: #fff; font: 800 28px/1 "Manrope",sans-serif; letter-spacing: 1px; }
-.portfolio-wall-display span { margin-top: 4px; color: #dbe7f7; font-size: 10px; }
-.portfolio-presence-row { margin-top: 13px; padding-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid #dce5f1; }
-.portfolio-app-password small,.portfolio-app-password strong { display: block; }
-.portfolio-app-password small { color: #61738b; font-size: 8px; font-weight: 800; letter-spacing: .7px; }
-.portfolio-app-password strong { margin-top: 3px; color: var(--navy); font: 800 21px/1 "Manrope",sans-serif; letter-spacing: .6px; }
-.portfolio-qr-wrap { display: flex; align-items: center; gap: 8px; }
-.portfolio-qr-wrap em { max-width: 52px; color: #52657e; font-size: 8px; font-style: normal; font-weight: 800; line-height: 1.2; }
-.portfolio-qr-code { width: 54px; height: 54px; padding: 3px; display: grid; place-items: center; overflow: hidden; border: 1px solid #dbe4f0; border-radius: 6px; background: #fff; }
-.portfolio-qr-code svg { width: 100%; height: 100%; display: block; }
 .portfolio-clinic .portfolio-feature-copy h2,.portfolio-food .portfolio-feature-copy h2 { font-size: clamp(29px,3.1vw,43px); }
 .portfolio-product { padding: 92px 0; background: #071b3f; }
 .portfolio-product-inner { width: min(1180px,calc(100% - 48px)); margin: auto; }
@@ -249,9 +227,8 @@ img { display: block; max-width: 100%; }
   .portfolio-whatsapp-button { width: 100%; }
   .portfolio-feature-media,.portfolio-feature-media>img { min-height: 410px; height: 410px; }
   .portfolio-feature-media>img { object-position: 57% center; }
-  .portfolio-app-card { left: 12px; bottom: 12px; width: calc(100% - 24px); padding: 14px; }
-  .portfolio-wall-display { top: 12px; right: 12px; width: 170px; padding: 12px; }
-  .portfolio-ticket-code { font-size: 23px; }
+  .portfolio-barber .portfolio-feature-media>img { object-position: 55% center; }
+  .portfolio-clinic .portfolio-feature-media>img,.portfolio-food .portfolio-feature-media>img { object-position: 76% center; }
   .portfolio-product-card { padding: 20px; }
   .portfolio-map-card svg { height: 165px; }
 }
