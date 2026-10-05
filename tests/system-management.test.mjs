@@ -22,7 +22,6 @@ function fixture(profile = null, contactWhatsapp = "") {
     SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", session: () => profile, firebaseApi: { contactWhatsapp },
     logo: () => "Agendae", footer: () => "", href: path => path,
     escapeHTML: value => String(value), initials: name => name.slice(0, 2).toUpperCase(), establishmentSlug: value => String(value || "").toLowerCase(),
-    qrCodeMarkup: (_value, className = "") => `<div class="qr-code ${className}"><svg></svg></div>`,
     establishments: {}, catalogLoaded: true, storeOpenNow: () => false,
   });
   vm.runInContext(views, context);
@@ -44,12 +43,8 @@ test("página inicial prioriza os três segmentos e a página do estabelecimento
   assert.match(app.innerHTML, /portfolio-barbearia\.webp/);
   assert.match(app.innerHTML, /portfolio-clinica\.webp/);
   assert.match(app.innerHTML, /portfolio-fast-food\.webp/);
-  assert.equal((app.innerHTML.match(/SENHA NO APP/g) || []).length, 3);
-  assert.equal((app.innerHTML.match(/MESMA SENHA NO PAINEL/g) || []).length, 3);
-  assert.equal((app.innerHTML.match(/portfolio-qr-code/g) || []).length, 3);
-  for (const password of ["BAR-K7P", "CLN-A7K", "PED-M4Q"]) {
-    assert.equal((app.innerHTML.match(new RegExp(password, "g")) || []).length, 2);
-  }
+  assert.doesNotMatch(app.innerHTML, /portfolio-wall-display|portfolio-app-card|portfolio-qr-code/);
+  assert.equal((app.innerHTML.match(/placa física com QR code/g) || []).length, 3);
   assert.doesNotMatch(app.innerHTML, /home-hero|home-solutions|home-benefits|14:30|09:00/);
   assert.match(app.innerHTML, /id="partner-select"/);
   assert.match(app.innerHTML, /<option value="salaobela">Salão Bela<\/option>/);
