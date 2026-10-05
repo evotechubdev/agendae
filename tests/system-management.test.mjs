@@ -33,8 +33,16 @@ test("página inicial apresenta o produto, o acesso interno e os parceiros em um
   context.establishments.salaobela = { slug: "salaobela", name: "Salão Bela", initials: "SB", category: "Salão", neighborhood: "Centro", setupComplete: true };
   context.renderHome();
   assert.match(app.innerHTML, /data-open-system-access>Acesso Interno<\/button>/);
-  assert.match(app.innerHTML, /Interface completa/);
-  assert.match(app.innerHTML, /API para seu site/);
+  assert.match(app.innerHTML, /Interface pronta para usar/);
+  assert.match(app.innerHTML, /INTEGRAÇÃO POR API/);
+  assert.match(app.innerHTML, /Selecione um serviço/);
+  assert.match(app.innerHTML, /Seu endereço aqui/);
+  assert.match(app.innerHTML, /portfolio-barbearia\.webp/);
+  assert.match(app.innerHTML, /portfolio-clinica\.webp/);
+  assert.match(app.innerHTML, /portfolio-fast-food\.webp/);
+  assert.match(app.innerHTML, /Senha agendada/);
+  assert.match(app.innerHTML, /Chamadas do dia/);
+  assert.doesNotMatch(app.innerHTML, /preview-stats|14:30|09:00/);
   assert.match(app.innerHTML, /id="partner-select"/);
   assert.match(app.innerHTML, /<option value="salaobela">Salão Bela<\/option>/);
   assert.match(app.innerHTML, /https:\/\/wa\.me\/5571999999999\?text=/);
