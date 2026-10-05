@@ -377,17 +377,6 @@ function footer() {
   return `<footer class="footer"><div class="footer-inner">${logo()}<span>Agendamentos e filas em um só lugar.</span><span>© ${new Date().getFullYear()} Agendae</span></div></footer>`;
 }
 
-function storeOpenNow(establishment) {
-  const clock = currentSaoPauloClock();
-  if (businessDayIsClosed(establishment, clock.date)) return false;
-  const opening = businessOpeningMinutes(establishment, clock.date);
-  const closingText = String(businessHoursForDate(establishment, clock.date)?.value || "");
-  const times = [...closingText.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g)];
-  if (opening === null || times.length < 2) return Boolean(establishment.openNow);
-  const closing = Number(times.at(-1)[1]) * 60 + Number(times.at(-1)[2]);
-  return clock.minutes >= opening && clock.minutes < closing;
-}
-
 function homeHeader(active = "home") {
   const admin = session()?.role === "system_admin";
   return `<header class="home-header"><div class="home-nav">
@@ -398,36 +387,44 @@ function homeHeader(active = "home") {
   </div></header>`;
 }
 
+function whatsappContactUrl() {
+  const number = String(firebaseApi?.contactWhatsapp || "").trim();
+  if (!/^\d{11}$/.test(number)) return "";
+  return `https://wa.me/55${number}?text=${encodeURIComponent("Olá! Quero conhecer o Agendae para meu negócio.")}`;
+}
+
 function renderHome() {
-  document.title = "Agendae — Encontre seu estabelecimento";
-  const directory = Object.values(establishments).filter(item => item.setupComplete !== false);
-  const directoryHtml = !catalogLoaded
-    ? '<div class="empty">Carregando estabelecimentos…</div>'
-    : directory.length
-      ? directory.map((item) => `<button class="directory-item" data-open-establishment="${item.slug}"><span class="est-avatar ${item.type === "clinic" ? "green" : ""}">${escapeHTML(item.initials)}</span><span class="directory-meta"><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(item.category)} · ${escapeHTML(item.neighborhood)}</small></span><span class="open-tag">${storeOpenNow(item) ? "ABERTO" : "FECHADO"}</span></button>`).join("")
-      : '<div class="empty">Nenhum estabelecimento disponível.</div>';
+  document.title = "Agendae — Sistema de agendamento para seu negócio";
+  const partners = Object.values(establishments).filter(item => item.setupComplete !== false);
+  const partnerOptions = partners.map(item => `<option value="${escapeHTML(item.slug)}">${escapeHTML(item.name)}</option>`).join("");
+  const contactUrl = whatsappContactUrl();
+  const contactButton = contactUrl
+    ? `<a class="btn home-contact" href="${contactUrl}" target="_blank" rel="noopener noreferrer">Contato WhatsApp <span aria-hidden="true">↗</span></a>`
+    : '<button class="btn home-contact home-contact-disabled" type="button" disabled>Contato WhatsApp <span aria-hidden="true">↗</span></button>';
   app.innerHTML = `
     ${homeHeader()}
-    <main>
-      <section class="home-hero" id="encontrar"><div class="home-hero-inner">
+    <main class="marketing-home">
+      <section class="home-hero"><div class="home-hero-inner">
         <div class="home-copy">
-          <div class="home-kicker">Agende sem ligar e sem esperar</div>
-          <h1>Encontre seu estabelecimento e <span>agende agora.</span></h1>
-          <p>Acesse a página do seu estabelecimento, confira os horários livres e acompanhe as senhas chamadas em tempo real.</p>
-          <form class="finder" id="finder-form">
-            <span class="finder-icon">⌕</span>
-            <input id="finder-input" autocomplete="off" placeholder="Digite o nome do estabelecimento" aria-label="Nome do estabelecimento">
-            <button class="btn btn-yellow" type="submit">Encontrar</button>
-          </form>
+          <div class="home-kicker"><span></span> TECNOLOGIA PARA ATENDER MELHOR</div>
+          <h1>Mais tempo para atender. <span>Menos trabalho para agendar.</span></h1>
+          <p>Organize horários, serviços, equipe e fila em uma plataforma completa. Ou conecte os agendamentos ao site que seu negócio já usa com nossa API.</p>
+          <div class="home-actions">${contactButton}<span>Converse com a equipe e descubra a melhor opção para seu negócio.</span></div>
         </div>
-        <aside class="directory-card">
-          <div class="directory-label">Estabelecimentos disponíveis</div>
-          ${directoryHtml}
-        </aside>
+        <div class="home-preview" aria-hidden="true">
+          <div class="home-preview-top"><span class="preview-mark">A</span><span>Agendae <small>/ Visão geral</small></span><span class="preview-top-dot"></span></div>
+          <div class="home-preview-body">
+            <div class="preview-heading"><div><small>PAINEL DE AGENDAMENTOS</small><strong>Sua operação, em ordem.</strong></div><span>Hoje</span></div>
+            <div class="preview-stats"><div><small>Agendamentos</small><strong>24</strong><span>para hoje</span></div><div><small>Profissionais</small><strong>04</strong><span>em atendimento</span></div><div><small>Próximo horário</small><strong>14:30</strong><span>disponível</span></div></div>
+            <div class="preview-list"><div class="preview-list-head"><strong>Agenda do dia</strong><span>Horários organizados</span></div><div class="preview-row"><span>09:00</span><i></i><div><strong>Atendimento agendado</strong><small>Serviço confirmado</small></div><b>Confirmado</b></div><div class="preview-row"><span>10:30</span><i></i><div><strong>Atendimento agendado</strong><small>Serviço confirmado</small></div><b>Confirmado</b></div><div class="preview-row available"><span>14:30</span><i></i><div><strong>Horário disponível</strong><small>Pronto para agendar</small></div><b>Livre</b></div></div>
+          </div>
+          <div class="preview-float"><span>✓</span><div><strong>Agenda atualizada</strong><small>Em tempo real</small></div></div>
+        </div>
       </div></section>
-      <section class="trust-strip"><div class="trust-inner"><div class="trust-item"><span class="trust-icon">✓</span>Agendamento confirmado na hora</div><div class="trust-item"><span class="trust-icon">◷</span>Horários livres atualizados</div><div class="trust-item"><span class="trust-icon">#</span>Fila de senhas online</div></div></section>
-       <section class="business-cta" id="para-negocios"><div><h2>Seu estabelecimento também pode ter uma agenda profissional.</h2><p>Controle horários, clientes e fila de atendimento em uma única interface.</p></div><button class="btn btn-yellow" type="button" data-open-system-access>${session()?.role === "system_admin" ? "Gerenciar estabelecimentos" : "Administração do sistema"}</button></section>
-     </main>${footer()}${systemAccessModal()}`;
+      <section class="home-solutions"><div class="home-section-heading"><span>DUAS FORMAS DE USAR</span><h2>Uma agenda que se encaixa no seu negócio.</h2><p>Comece com a interface pronta ou mantenha a experiência do seu próprio site.</p></div><div class="home-solution-grid"><article class="home-solution-card"><div class="solution-icon">▦</div><span>01 / PLATAFORMA</span><h3>Interface completa</h3><p>Um espaço para configurar serviços, equipe e horários, acompanhar agendamentos e organizar a fila de atendimento.</p><div class="solution-foot">Tudo em um só lugar <span aria-hidden="true">↗</span></div></article><article class="home-solution-card"><div class="solution-icon api-icon">{ }</div><span>02 / INTEGRAÇÃO</span><h3>API para seu site</h3><p>Leve os agendamentos para o site que você já tem. Consulte serviços e disponibilidade e receba reservas pela API.</p><div class="solution-foot">Sua marca, sua experiência <span aria-hidden="true">↗</span></div></article></div></section>
+      <section class="home-benefits"><div><span>✓</span> Agenda e horários organizados</div><div><span>✓</span> Equipe e serviços em um só painel</div><div><span>✓</span> Fila de atendimento online</div></section>
+      <section class="home-partners"><div><span>JÁ USA O AGENDAE?</span><h2>Estabelecimentos Parceiros</h2><p>Selecione seu estabelecimento para acessar a agenda.</p></div><div class="partner-field"><label for="partner-select">Estabelecimentos Parceiros</label><select id="partner-select" ${partners.length ? "" : "disabled"}><option value="">${!catalogLoaded ? "Carregando estabelecimentos…" : partners.length ? "Selecione um estabelecimento" : "Nenhum parceiro disponível"}</option>${partnerOptions}</select></div></section>
+    </main>${footer()}${systemAccessModal()}`;
 }
 
 function systemAccessModal() {
@@ -1515,7 +1512,7 @@ function renderLoading() {
 
 function renderNotFound() {
   document.title = "Estabelecimento não encontrado — Agendae";
-  app.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;padding:30px;background:var(--canvas)"><div style="max-width:520px;text-align:center">${logo()}<h1 style="margin:35px 0 10px;color:var(--navy);font:800 34px Manrope">Estabelecimento não encontrado</h1><p style="color:var(--muted);line-height:1.6">Confira o endereço ou volte para pesquisar na Agendae.</p><a class="btn btn-primary" style="margin-top:18px" href="${href("/")}" data-link>Encontrar estabelecimento</a></div></main>`;
+  app.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;padding:30px;background:var(--canvas)"><div style="max-width:520px;text-align:center">${logo()}<h1 style="margin:35px 0 10px;color:var(--navy);font:800 34px Manrope">Estabelecimento não encontrado</h1><p style="color:var(--muted);line-height:1.6">Confira o endereço ou volte à página inicial da Agendae.</p><a class="btn btn-primary" style="margin-top:18px" href="${href("/")}" data-link>Voltar à página inicial</a></div></main>`;
 }
 
 function render() {
@@ -2268,6 +2265,11 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.id === "partner-select") {
+    const slug = event.target.value;
+    if (slug && establishments[slug]?.setupComplete !== false) navigate(`/${slug}`);
+    return;
+  }
   const addressForm = event.target.closest?.("[data-store-profile-form]");
   if (addressForm) {
     const suffix = event.target.name?.endsWith("2") || event.target.dataset.postalOptions === "2" ? "2" : "";
@@ -2624,18 +2626,6 @@ document.addEventListener("submit", async (event) => {
     render();
     return;
   }
-  if (event.target.id === "finder-form") {
-    const query = new FormData(event.target).get("query") || document.querySelector("#finder-input")?.value || "";
-    const normalized = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
-    if (!normalized) return toast("Digite o nome do estabelecimento.", "!");
-    const match = Object.values(establishments).find((item) => {
-      const searchable = `${item.name} ${item.category} ${item.slug}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
-      return searchable.includes(normalized);
-    });
-    if (match) navigate(`/${match.slug}`);
-    else toast("Não encontramos esse estabelecimento.", "!");
-    return;
-  }
   if (event.target.id === "login-form") {
     if (authFlowInProgress) return;
     showLoginError(event.target);
@@ -2847,6 +2837,7 @@ render();
 async function initializeFirebase() {
   try {
     firebaseApi = await import("./firebase-service.js");
+    if (route() === "home") render();
     const directory = await firebaseApi.loadEstablishments();
     establishments = Object.fromEntries(directory.map((item) => [item.slug || item.id, { ...item, slug: item.slug || item.id }]));
     catalogLoaded = true;

@@ -6,7 +6,7 @@ import vm from "node:vm";
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
 const views = source.slice(source.indexOf("function homeHeader("), source.indexOf("function renderLogin("));
 
-function fixture(profile = null) {
+function fixture(profile = null, contactWhatsapp = "") {
   const app = { innerHTML: "" };
   const state = {
     systemAccessOpen: false, systemListLoaded: true, systemListLoading: false, systemListError: "",
@@ -19,7 +19,7 @@ function fixture(profile = null) {
   };
   const context = vm.createContext({
     app, state, document: { title: "" }, location: { origin: "https://example.test" }, URL,
-    SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", session: () => profile,
+    SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", session: () => profile, firebaseApi: { contactWhatsapp },
     logo: () => "Agendae", footer: () => "", href: path => path,
     escapeHTML: value => String(value), initials: name => name.slice(0, 2).toUpperCase(), establishmentSlug: value => String(value || "").toLowerCase(),
     establishments: {}, catalogLoaded: true, storeOpenNow: () => false,
@@ -28,16 +28,27 @@ function fixture(profile = null) {
   return { app, context };
 }
 
-test("página pública mostra apenas Acesso Interno, sem abas de administração", () => {
-  const { app, context } = fixture();
+test("página inicial apresenta o produto, o acesso interno e os parceiros em um seletor", () => {
+  const { app, context } = fixture(null, "71999999999");
   context.establishments.salaobela = { slug: "salaobela", name: "Salão Bela", initials: "SB", category: "Salão", neighborhood: "Centro", setupComplete: true };
   context.renderHome();
   assert.match(app.innerHTML, /data-open-system-access>Acesso Interno<\/button>/);
-  assert.match(app.innerHTML, /class="directory-item"[^>]*data-open-establishment="salaobela"/);
-  assert.doesNotMatch(app.innerHTML, /finder-note|>Exemplo:<\/span>/);
+  assert.match(app.innerHTML, /Interface completa/);
+  assert.match(app.innerHTML, /API para seu site/);
+  assert.match(app.innerHTML, /id="partner-select"/);
+  assert.match(app.innerHTML, /<option value="salaobela">Salão Bela<\/option>/);
+  assert.match(app.innerHTML, /https:\/\/wa\.me\/5571999999999\?text=/);
+  assert.doesNotMatch(app.innerHTML, /Encontre seu estabelecimento|id="finder-form"|directory-item/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Home<\/a>/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Gerenciar Estabelecimentos/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Para estabelecimentos/);
+});
+
+test("contato sem número válido não cria um link de WhatsApp", () => {
+  const { app, context } = fixture(null, "71999999999<script>");
+  context.renderHome();
+  assert.match(app.innerHTML, /home-contact-disabled/);
+  assert.doesNotMatch(app.innerHTML, /wa\.me/);
 });
 
 test("administrador vê as abas e uma tela com lista e cadastro", () => {

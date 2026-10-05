@@ -6,7 +6,7 @@ Plataforma especializada em agendamentos e gestão de filas para estabelecimento
 
 O frontend está em `frontend/` e não precisa de instalação ou compilação. Ele inclui:
 
-- página principal para localizar um estabelecimento;
+- página principal de apresentação da plataforma completa e da API, com seletor compacto de estabelecimentos parceiros;
 - login e painel vinculado ao estabelecimento;
 - página pública própria para cada estabelecimento, como `/salaobela`;
 - agendamento para hoje ou outra data;
@@ -43,6 +43,8 @@ No repositório do GitHub, abra **Settings → Pages** e selecione **GitHub Acti
 O frontend está conectado ao projeto `agendae-prod` usando Firebase Authentication e Cloud Firestore.
 
 O mapa público usa automaticamente a Google Maps Embed API para localizar o endereço escolhido. O campo Complemento fornece o nome do edifício; rua, número, cidade e estado ajudam a localizar o lugar. Configure `API_GOOGLE_MAPS` no serviço Render do backend; o frontend recebe essa chave pela rota `GET /v1/config/firebase`. Sem a variável, o mapa fica indisponível. A chave aparece no navegador porque a Maps Embed API a exige no URL do iframe: mantenha-a restrita à Maps Embed API e ao domínio público.
+
+O botão **Contato WhatsApp** da página inicial usa `CONTATO_WHATSAPP` no serviço Render do backend. Informe DDD e número com 11 dígitos, sem `55`, espaços ou sinais (por exemplo, `71999999999`). O backend envia o número pela rota pública `GET /v1/config/firebase`; sem um número válido, o botão aparece indisponível.
 
 Antes do primeiro acesso:
 
