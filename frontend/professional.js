@@ -58,7 +58,7 @@ const state = {
   systemDeleteSlug: "",
   settingsOpen: false,
   settingsTab: "professionals",
-  apiKeyStatus: { slug: "", loading: false, loaded: false, active: false, lastFour: null, variable: "", automationReady: false, pending: "", deployRequested: false, error: "" },
+  apiKeyStatus: { slug: "", loading: false, loaded: false, active: false, lastFour: null, variable: "", externalVariable: "", automationReady: false, pending: "", deployRequested: false, error: "" },
   apiKeySecret: null,
   attendanceOpen: false,
   attendanceSelection: null,
@@ -1227,30 +1227,31 @@ function apiSettingsMarkup(establishment) {
   if (session()?.role !== "gerente") return '<div class="settings-section"><p class="settings-hint">A chave de API pode criar agendamentos. Peça ao gerente da loja para configurar a integração.</p></div>';
   const status = state.apiKeyStatus.slug === establishment.slug ? state.apiKeyStatus : { loading: true };
   const variable = status.variable || `api-${establishment.slug}`;
+  const externalVariable = status.externalVariable || `agendae-api-${establishment.slug}`;
   const statusText = status.loading || !status.loaded ? "Consultando a chave no servidor…"
     : status.error ? escapeHTML(status.error)
       : status.pending ? `${status.pending === "revoke" ? "Revogação" : "Ativação"} aguardando deploy${status.active ? ` · chave atual final ${escapeHTML(status.lastFour || "")}` : ""}`
         : status.active ? `Chave ativa · final ${escapeHTML(status.lastFour || "")}` : "Nenhuma chave ativa";
   const secret = state.apiKeySecret
-    ? `<div class="api-key-created" role="status"><strong>Copie a chave agora</strong><p>Ela será mostrada uma única vez. O backend já salvou a variável <code>${escapeHTML(variable)}</code> no Render. ${status.active && status.lastFour === state.apiKeySecret.slice(-4) ? "A nova chave já está ativa." : status.deployRequested ? "O deploy foi solicitado; aguarde a ativação antes de usar a chave." : "O deploy não pôde ser iniciado. Inicie um deploy manual no Render para ativá-la."} Guarde a chave no servidor do site cliente.</p><div class="api-key-value"><code>${escapeHTML(state.apiKeySecret)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-api-key>Copiar</button></div></div>` : "";
+    ? `<div class="api-key-created" role="status"><strong>Cadastre esta chave API no backend do seu sistema externo</strong><p>Ela será mostrada uma única vez. No Render do sistema externo, use o nome <code>${escapeHTML(externalVariable)}</code> e o valor abaixo. O backend do Agendae já salvou internamente <code>${escapeHTML(variable)}</code>. ${status.active && status.lastFour === state.apiKeySecret.slice(-4) ? "A nova chave já está ativa." : status.deployRequested ? "O deploy do Agendae foi solicitado; aguarde a ativação antes de usar a chave." : "O deploy do Agendae não pôde ser iniciado. Inicie-o manualmente no Render para ativar a chave."}</p><div class="api-key-value"><code>${escapeHTML(externalVariable)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-external-api-variable="${escapeHTML(externalVariable)}">Copiar nome</button></div><div class="api-key-value"><code>${escapeHTML(state.apiKeySecret)}</code><button class="btn btn-outline btn-sm" type="button" data-copy-api-key>Copiar valor</button></div></div>` : "";
   const automationHint = status.loaded && !status.automationReady ? '<p class="settings-hint">O proprietário precisa configurar <code>RENDER_API_KEY</code> no serviço agendae-backend para habilitar a atualização automática.</p>' : "";
   const deployHint = status.pending === "revoke" && !status.deployRequested ? '<p class="settings-hint">A variável foi removida, mas o deploy não iniciou. Inicie um deploy manual no Render para concluir a revogação.</p>' : "";
-  return `<div class="settings-section api-settings"><div><h3>API de agendamentos</h3><p class="settings-hint">Um serviço no Render atende todas as lojas. Cada loja usa sua própria variável e sua própria rota.</p></div><div class="api-key-panel"><div><strong>Chave de ${escapeHTML(establishment.name)}</strong><small>${statusText}</small></div><div class="api-key-actions"><button class="btn btn-primary btn-sm" type="button" data-generate-api-key ${status.loading || !status.automationReady || status.pending ? "disabled" : ""}>${status.active ? "Gerar e salvar nova chave" : "Gerar e salvar chave"}</button>${status.active ? `<button class="btn btn-outline btn-sm" type="button" data-revoke-api-key ${status.loading || !status.automationReady || status.pending ? "disabled" : ""}>Revogar chave</button>` : ""}<button class="btn btn-outline btn-sm" type="button" data-refresh-api-key ${status.loading ? "disabled" : ""}>Atualizar status</button></div></div>${automationHint}${deployHint}<div class="api-endpoints"><strong>Variável no Render</strong><code>${escapeHTML(variable)}</code><p class="settings-hint">Ao gerar, trocar ou revogar, o backend altera esta variável e solicita um deploy ao Render. A mudança entra em vigor quando o deploy terminar. Guarde a chave apenas no servidor do site cliente.</p></div>${secret}<div class="api-endpoints"><strong>URL da loja</strong><code>${escapeHTML(base)}/v1/establishments/${escapeHTML(establishment.slug)}</code><strong>Rotas disponíveis</strong><code>GET /catalog</code><code>GET /availability?date=AAAA-MM-DD&amp;service=SERVIÇO</code><code>POST /appointments</code><p class="settings-hint">Envie a chave no cabeçalho <code>Authorization: Bearer SUA_CHAVE</code>. A reserva recebe <code>date</code>, <code>time</code>, <code>professional</code>, <code>service</code>, <code>client</code> e <code>phone</code>.</p></div></div>`;
+  return `<div class="settings-section api-settings"><div><h3>API de agendamentos</h3><p class="settings-hint">Um serviço no Render atende todas as lojas. Cada loja usa sua própria variável e sua própria rota.</p></div><div class="api-key-panel"><div><strong>Chave de ${escapeHTML(establishment.name)}</strong><small>${statusText}</small></div><div class="api-key-actions"><button class="btn btn-primary btn-sm" type="button" data-generate-api-key ${status.loading || !status.automationReady || status.pending ? "disabled" : ""}>${status.active ? "Gerar e salvar nova chave" : "Gerar e salvar chave"}</button>${status.active ? `<button class="btn btn-outline btn-sm" type="button" data-revoke-api-key ${status.loading || !status.automationReady || status.pending ? "disabled" : ""}>Revogar chave</button>` : ""}<button class="btn btn-outline btn-sm" type="button" data-refresh-api-key ${status.loading ? "disabled" : ""}>Atualizar status</button></div></div>${automationHint}${deployHint}<div class="api-endpoints"><strong>Variável interna no Render do Agendae</strong><code>${escapeHTML(variable)}</code><p class="settings-hint">Ao gerar, trocar ou revogar, o backend central altera esta variável e solicita um deploy ao Render do Agendae.</p><strong>Variável no backend do sistema externo</strong><code>${escapeHTML(externalVariable)}</code><p class="settings-hint">Cadastre esta variável no Render do sistema externo e use a chave <code>ag_live_...</code> como valor.</p></div>${secret}<div class="api-endpoints"><strong>URL da loja</strong><code>${escapeHTML(base)}/v1/establishments/${escapeHTML(establishment.slug)}</code><strong>Rotas disponíveis</strong><code>GET /catalog</code><code>GET /availability?date=AAAA-MM-DD&amp;service=SERVIÇO</code><code>POST /appointments</code><p class="settings-hint">Envie a chave no cabeçalho <code>Authorization: Bearer SUA_CHAVE</code>. A reserva recebe <code>date</code>, <code>time</code>, <code>professional</code>, <code>service</code>, <code>client</code> e <code>phone</code>.</p></div></div>`;
 }
 
 async function loadApiKeyStatus(establishment) {
   if (!firebaseApi || session()?.role !== "gerente" || state.apiKeyStatus.loading && state.apiKeyStatus.slug === establishment.slug) return;
   const previous = state.apiKeyStatus.slug === establishment.slug ? state.apiKeyStatus : {};
-  state.apiKeyStatus = { slug: establishment.slug, loading: true, loaded: false, active: false, lastFour: null, variable: `api-${establishment.slug}`, automationReady: false, pending: previous.pending || "", deployRequested: previous.deployRequested || false, error: "" };
+  state.apiKeyStatus = { slug: establishment.slug, loading: true, loaded: false, active: false, lastFour: null, variable: `api-${establishment.slug}`, externalVariable: `agendae-api-${establishment.slug}`, automationReady: false, pending: previous.pending || "", deployRequested: previous.deployRequested || false, error: "" };
   render();
   try {
     const result = await firebaseApi.getIntegrationApiKeyStatus(establishment.slug);
     if (state.apiKeyStatus.slug !== establishment.slug) return;
     const pending = previous.pending === "revoke" && result.active || previous.pending === "update" && state.apiKeySecret && result.lastFour !== state.apiKeySecret.slice(-4) ? previous.pending : "";
-    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: Boolean(result.active), lastFour: result.lastFour, variable: result.variable || `api-${establishment.slug}`, automationReady: Boolean(result.automationReady), pending, deployRequested: previous.deployRequested || false, error: "" };
+    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: Boolean(result.active), lastFour: result.lastFour, variable: result.variable || `api-${establishment.slug}`, externalVariable: result.externalVariable || `agendae-api-${establishment.slug}`, automationReady: Boolean(result.automationReady), pending, deployRequested: previous.deployRequested || false, error: "" };
   } catch (error) {
     if (state.apiKeyStatus.slug !== establishment.slug) return;
-    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: false, lastFour: null, variable: `api-${establishment.slug}`, automationReady: false, pending: previous.pending || "", deployRequested: previous.deployRequested || false, error: error.message || "Não foi possível consultar a API." };
+    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: false, lastFour: null, variable: `api-${establishment.slug}`, externalVariable: `agendae-api-${establishment.slug}`, automationReady: false, pending: previous.pending || "", deployRequested: previous.deployRequested || false, error: error.message || "Não foi possível consultar a API." };
   }
   if (state.settingsOpen && state.settingsTab === "api" && activeEstablishment()?.slug === establishment.slug) {
     const tabFocused = document.activeElement?.matches('[data-settings-tab="api"]');
@@ -1770,7 +1771,7 @@ document.addEventListener("click", async (event) => {
     try {
       const result = await firebaseApi.generateIntegrationApiKey(establishmentForModal.slug);
       state.apiKeySecret = result.key;
-      state.apiKeyStatus = { ...state.apiKeyStatus, slug: establishmentForModal.slug, loading: false, loaded: true, variable: result.variable || `api-${establishmentForModal.slug}`, pending: "update", deployRequested: Boolean(result.deployRequested), error: "" };
+      state.apiKeyStatus = { ...state.apiKeyStatus, slug: establishmentForModal.slug, loading: false, loaded: true, variable: result.variable || `api-${establishmentForModal.slug}`, externalVariable: result.externalVariable || `agendae-api-${establishmentForModal.slug}`, pending: "update", deployRequested: Boolean(result.deployRequested), error: "" };
       render();
       document.querySelector("[data-copy-api-key]")?.focus();
     } catch (error) {
@@ -1804,6 +1805,12 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-copy-api-key]") && state.apiKeySecret) {
     try { await navigator.clipboard.writeText(state.apiKeySecret); toast("Chave copiada."); }
     catch { toast("Não foi possível copiar. Selecione a chave e copie manualmente.", "!"); }
+    return;
+  }
+  const externalVariableButton = event.target.closest("[data-copy-external-api-variable]");
+  if (externalVariableButton) {
+    try { await navigator.clipboard.writeText(externalVariableButton.dataset.copyExternalApiVariable); toast("Nome da variável copiado."); }
+    catch { toast("Não foi possível copiar o nome. Selecione-o e copie manualmente.", "!"); }
     return;
   }
   const selectedAppointmentSlot = event.target.closest("[data-open-attendance-slot]");
