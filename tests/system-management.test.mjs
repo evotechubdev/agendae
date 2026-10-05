@@ -28,11 +28,11 @@ function fixture(profile = null) {
   return { app, context };
 }
 
-test("página pública mostra apenas Entrar, sem abas de administração", () => {
+test("página pública mostra apenas Acesso Interno, sem abas de administração", () => {
   const { app, context } = fixture();
   context.establishments.salaobela = { slug: "salaobela", name: "Salão Bela", initials: "SB", category: "Salão", neighborhood: "Centro", setupComplete: true };
   context.renderHome();
-  assert.match(app.innerHTML, />Entrar<\/button>/);
+  assert.match(app.innerHTML, /data-open-system-access>Acesso Interno<\/button>/);
   assert.match(app.innerHTML, /class="directory-item"[^>]*data-open-establishment="salaobela"/);
   assert.doesNotMatch(app.innerHTML, /finder-note|>Exemplo:<\/span>/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Home<\/a>/);
