@@ -153,8 +153,6 @@ img { display: block; max-width: 100%; }
 .portfolio-feature { position: relative; padding: 78px 0; }
 .portfolio-feature:nth-child(even) { background: #f3f7fd; }
 .portfolio-feature-inner { width: min(1180px,calc(100% - 48px)); margin: auto; display: grid; grid-template-columns: minmax(300px,.72fr) minmax(0,1.28fr); align-items: center; gap: 62px; }
-.portfolio-feature:nth-child(even) .portfolio-feature-copy { order: 2; }
-.portfolio-feature:nth-child(even) .portfolio-feature-media { order: 1; }
 .portfolio-feature-copy>span,.portfolio-section-title>span,.portfolio-product-card>small { color: var(--blue); font-size: 10px; font-weight: 800; letter-spacing: 1.4px; }
 .portfolio-feature-copy h1,.portfolio-feature-copy h2 { margin: 13px 0 17px; color: var(--navy); font: 800 clamp(32px,3.6vw,50px)/1.12 "Manrope",sans-serif; letter-spacing: -1.8px; }
 .portfolio-feature-copy p { margin: 0; color: #5f6f85; font-size: 16px; line-height: 1.72; }
