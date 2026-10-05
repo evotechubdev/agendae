@@ -2657,7 +2657,7 @@ document.addEventListener("submit", async (event) => {
       button.disabled = false;
       button.textContent = "Entrar no painel";
       showLoginError(event.target, firebaseApi.firebaseErrorMessage(error));
-      console.error("Agendae: falha no login", { code: error?.code || "unknown" });
+      console.error("Agendae: falha no login", error);
     } finally {
       authFlowInProgress = false;
     }
