@@ -8,6 +8,8 @@ import { formatPostalCode, lookupPostalCode, matchingPostalCode, postalDigits, s
 
 const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
 const SYSTEM_MANAGE_ROUTE = "gerenciar-estabelecimentos";
+const embeddedSlugParam = new URLSearchParams(location.search).get("embed") || "";
+const EMBEDDED_SLUG = /^[a-z0-9-]+$/.test(embeddedSlugParam) ? embeddedSlugParam : "";
 const app = document.querySelector("#app");
 const toastArea = document.querySelector("#toast-region");
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -209,7 +211,7 @@ function normalizedSearch(value) {
 }
 
 function requestedEstablishment() {
-  const slug = new URLSearchParams(location.search).get("establishment");
+  const slug = EMBEDDED_SLUG || new URLSearchParams(location.search).get("establishment");
   return slug && establishments[slug] ? establishments[slug] : null;
 }
 
@@ -220,6 +222,7 @@ function href(path = "/") {
   const routeName = pathname.replace(/^\/+|\/+$/g, "");
   const params = new URLSearchParams(queryString);
   if (routeName && routeName !== "home") params.set("route", routeName);
+  if (EMBEDDED_SLUG) params.set("embed", EMBEDDED_SLUG);
   const ordered = new URLSearchParams();
   if (params.has("route")) ordered.set("route", params.get("route"));
   for (const [key, value] of params) if (key !== "route") ordered.append(key, value);
@@ -473,7 +476,7 @@ function renderSystemManagement() {
 function renderLogin() {
   document.title = "Entrar — Agendae";
   const requested = requestedEstablishment();
-  const directory = Object.values(establishments);
+  const directory = Object.values(establishments).filter((item) => !EMBEDDED_SLUG || item.slug === EMBEDDED_SLUG);
   const establishmentOptions = directory.length
     ? directory.map((item) => `<option value="${escapeHTML(item.slug)}" ${requested?.slug === item.slug ? "selected" : ""}>${escapeHTML(item.name)}</option>`).join("")
     : '<option value="">Carregando estabelecimentos…</option>';
@@ -1517,7 +1520,10 @@ function render() {
   clearInterval(serviceCarouselTimer);
   serviceCarouselTimer = null;
   if (session()?.mustChangePassword) return renderPasswordChange();
-  const current = route();
+  const requestedRoute = route();
+  const embeddedRouteMatch = String(typeof location === "undefined" ? "" : location.search || "").match(/[?&]embed=([a-z0-9-]+)(?:&|$)/);
+  const embeddedRouteSlug = embeddedRouteMatch?.[1] || "";
+  const current = embeddedRouteSlug && !["login", embeddedRouteSlug].includes(requestedRoute) ? embeddedRouteSlug : requestedRoute;
   if (current === "home") return renderHome();
   if (current === SYSTEM_MANAGE_ROUTE) return session()?.role === "system_admin" ? renderSystemManagement() : renderHome();
   if (current === "login") return renderLogin();
@@ -1528,6 +1534,7 @@ function render() {
   if (routeParams.get("display") === "queue") return renderQueueDisplay(establishment);
   const authenticated = session()?.slug === establishment.slug;
   if (routeParams.get("display") === "checkin" && authenticated) return renderCheckInDisplay(establishment);
+  if (authenticated && routeParams.get("public") !== "1") return renderAdmin(establishment);
   renderEstablishmentPublic(establishment);
 }
 
@@ -2167,7 +2174,7 @@ document.addEventListener("click", async (event) => {
     state.attendanceOpen = false;
     state.attendanceSelection = null;
     state.nextCallProfessional = null;
-    navigate(establishmentSlug ? `/${establishmentSlug}` : "/");
+    navigate(EMBEDDED_SLUG ? `/login?establishment=${EMBEDDED_SLUG}` : establishmentSlug ? `/${establishmentSlug}` : "/");
     toast("Sessão encerrada.");
     return;
   }
@@ -2840,6 +2847,7 @@ async function initializeFirebase() {
     establishments = Object.fromEntries(directory.map((item) => [item.slug || item.id, { ...item, slug: item.slug || item.id }]));
     catalogLoaded = true;
     firebaseApi.observeSession((profile, error) => {
+      if (EMBEDDED_SLUG && profile?.role === "system_admin") profile = null;
       firebaseSession = profile;
       if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; state.systemEstablishments = []; state.systemListLoaded = false; state.systemDeleteSlug = ""; }
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");

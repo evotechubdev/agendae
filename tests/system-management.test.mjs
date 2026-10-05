@@ -165,3 +165,31 @@ test("rota de gestão abre a Home sem sessão administrativa", () => {
   context.render();
   assert.deepEqual(rendered, ["home", "manage"]);
 });
+
+test("login da loja abre o painel e o modo incorporado permanece restrito ao estabelecimento", () => {
+  const store = { slug: "octn", name: "OCTN" };
+  const rendered = [];
+  const location = { search: "?embed=octn" };
+  let currentRoute = "octn";
+  let profile = { slug: "octn", role: "gerente" };
+  const context = vm.createContext({
+    location, URLSearchParams, SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", state: {}, catalogLoaded: true,
+    establishments: { octn: store }, scheduleTurnTimer: null, adminRefreshTimer: null, monitorClockTimer: null, serviceCarouselTimer: null,
+    clearTimeout() {}, clearInterval() {}, session: () => profile, route: () => currentRoute,
+    renderAdmin: value => rendered.push(["admin", value.slug]),
+    renderEstablishmentPublic: value => rendered.push(["public", value.slug]),
+    renderHome: () => rendered.push(["home"]), renderSystemManagement: () => rendered.push(["system"]),
+    renderNotFound: () => rendered.push(["not-found"]),
+  });
+  vm.runInContext(source.slice(source.indexOf("function render() {"), source.indexOf("function activeEstablishment()")), context);
+
+  context.render();
+  location.search = "?public=1&embed=octn";
+  context.render();
+  profile = null;
+  currentRoute = "gerenciar-estabelecimentos";
+  location.search = "?embed=octn";
+  context.render();
+
+  assert.deepEqual(rendered, [["admin", "octn"], ["public", "octn"], ["public", "octn"]]);
+});
