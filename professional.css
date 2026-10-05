@@ -28,7 +28,8 @@ img { display: block; max-width: 100%; }
 .icon-btn { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: var(--navy-2); }
 
 /* Página inicial */
-.home-header { height: 78px; border-bottom: 1px solid #e9edf4; background: #fff; }
+.home-header { position: fixed; z-index: 70; top: 0; right: 0; left: 0; height: 78px; border-bottom: 1px solid #e9edf4; background: #fff; }
+.home-header+.portfolio-home,.home-header+.system-page { margin-top: 78px; }
 .home-nav { width: min(1180px,calc(100% - 48px)); height: 100%; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .home-nav-links { display: flex; align-items: center; gap: 8px; }
 .home-header-contact { min-height: 44px; color: #176b49; background: #e7f7ef; box-shadow: none; }
@@ -150,9 +151,12 @@ img { display: block; max-width: 100%; }
 .partner-field select:focus { border-color: var(--blue-2); box-shadow: 0 0 0 3px var(--blue-soft); }
 .partner-field select:disabled { color: #8795a8; background: #f8fafd; }
 .portfolio-home { overflow: hidden; background: #fff; }
-.portfolio-feature { position: relative; padding: 78px 0; }
+.portfolio-feature { position: relative; min-height: calc(100svh - 78px); padding: 32px 0; display: flex; align-items: center; }
 .portfolio-feature:nth-child(even) { background: #f3f7fd; }
 .portfolio-feature-inner { width: min(1180px,calc(100% - 48px)); margin: auto; display: grid; grid-template-columns: minmax(300px,.72fr) minmax(0,1.28fr); align-items: center; gap: 62px; }
+.portfolio-clinic .portfolio-feature-inner { grid-template-columns: minmax(0,1.28fr) minmax(300px,.72fr); }
+.portfolio-clinic .portfolio-feature-media { order: 1; }
+.portfolio-clinic .portfolio-feature-copy { order: 2; }
 .portfolio-feature-copy>span,.portfolio-section-title>span,.portfolio-product-card>small { color: var(--blue); font-size: 10px; font-weight: 800; letter-spacing: 1.4px; }
 .portfolio-feature-copy h1,.portfolio-feature-copy h2 { margin: 13px 0 17px; color: var(--navy); font: 800 clamp(32px,3.6vw,50px)/1.12 "Manrope",sans-serif; letter-spacing: -1.8px; }
 .portfolio-feature-copy p { margin: 0; color: #5f6f85; font-size: 16px; line-height: 1.72; }
@@ -167,15 +171,16 @@ img { display: block; max-width: 100%; }
 .portfolio-whatsapp-button:disabled { color: #587266; background: #dcebe4; box-shadow: none; cursor: not-allowed; }
 .portfolio-whatsapp-button:disabled:hover { transform: none; background: #dcebe4; }
 .portfolio-whatsapp-button>span { margin-left: 4px; display: inline; font-size: 15px; }
-.portfolio-feature-media { position: relative; min-height: 500px; overflow: hidden; border-radius: 24px; background: #dfe8f3; box-shadow: 0 28px 65px rgba(12,42,91,.15); }
+.portfolio-feature-media { position: relative; height: clamp(380px,calc(100svh - 142px),560px); min-height: 0; overflow: hidden; border-radius: 24px; background: #dfe8f3; box-shadow: 0 28px 65px rgba(12,42,91,.15); }
 .portfolio-feature-media::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg,rgba(7,27,63,.08),transparent 55%); pointer-events: none; }
-.portfolio-feature-media>img { width: 100%; height: 500px; object-fit: cover; }
+.portfolio-feature-media>img { width: 100%; height: 100%; object-fit: cover; }
 .portfolio-clinic .portfolio-feature-media>img,.portfolio-food .portfolio-feature-media>img { object-position: 70% center; }
 .portfolio-demo-list em { display: block; margin-top: 2px; color: #8795a8; font-size: 8px; font-style: normal; font-weight: 600; }
 .portfolio-app-icon,.portfolio-avatar { width: 30px; height: 30px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 8px; color: var(--blue); background: #e7f0ff; font-size: 14px; font-weight: 800; }
 .portfolio-avatar { color: #fff; background: var(--navy-2); font-size: 10px; }
 .portfolio-avatar.green { background: #238263; }
-.portfolio-clinic .portfolio-feature-copy h2,.portfolio-food .portfolio-feature-copy h2 { font-size: clamp(29px,3.1vw,43px); }
+.portfolio-clinic .portfolio-feature-copy h2 { font-size: clamp(27px,2.7vw,38px); }
+.portfolio-food .portfolio-feature-copy h2 { font-size: clamp(29px,3.1vw,43px); }
 .portfolio-product { padding: 92px 0; background: #071b3f; }
 .portfolio-product-inner { width: min(1180px,calc(100% - 48px)); margin: auto; }
 .portfolio-section-title { max-width: 680px; margin-bottom: 36px; }
@@ -193,7 +198,7 @@ img { display: block; max-width: 100%; }
 .portfolio-partners { padding-top: 62px; padding-bottom: 68px; }
 .portfolio-partners h2 { font-size: 25px; }
 @media (max-width:980px) {
-  .portfolio-feature { padding: 64px 0; }
+  .portfolio-feature { min-height: 0; padding: 64px 0; display: block; }
   .portfolio-feature-inner { grid-template-columns: 1fr; gap: 34px; }
   .portfolio-feature-copy,.portfolio-feature:nth-child(even) .portfolio-feature-copy { order: 1; max-width: 720px; }
   .portfolio-feature-media,.portfolio-feature:nth-child(even) .portfolio-feature-media { order: 2; width: 100%; }
@@ -202,11 +207,12 @@ img { display: block; max-width: 100%; }
   .portfolio-map-card svg { grid-column: 2; grid-row: 1 / span 2; }
 }
 @media (max-width:720px) {
+  .home-header+.portfolio-home,.home-header+.system-page { margin-top: 70px; }
   .portfolio-feature { padding: 48px 0; }
   .portfolio-feature-inner,.portfolio-product-inner { width: calc(100% - 32px); }
   .portfolio-feature-copy h1,.portfolio-feature-copy h2 { font-size: 34px; letter-spacing: -1.3px; }
   .portfolio-feature-copy p { font-size: 14px; }
-  .portfolio-feature-media,.portfolio-feature-media>img { min-height: 430px; height: 430px; }
+  .portfolio-feature-media,.portfolio-feature-media>img { min-height: min(430px,calc(100svh - 94px)); height: min(430px,calc(100svh - 94px)); }
   .portfolio-product { padding: 66px 0; }
   .portfolio-product-grid { grid-template-columns: 1fr; }
   .portfolio-map-card { grid-column: auto; display: block; }
@@ -223,7 +229,7 @@ img { display: block; max-width: 100%; }
   .portfolio-feature-tags b { padding: 7px 9px; font-size: 9px; }
   .portfolio-contact-cta { margin-top: 20px; padding-top: 18px; }
   .portfolio-whatsapp-button { width: 100%; }
-  .portfolio-feature-media,.portfolio-feature-media>img { min-height: 410px; height: 410px; }
+  .portfolio-feature-media,.portfolio-feature-media>img { min-height: min(410px,calc(100svh - 94px)); height: min(410px,calc(100svh - 94px)); }
   .portfolio-feature-media>img { object-position: 57% center; }
   .portfolio-barber .portfolio-feature-media>img { object-position: 55% center; }
   .portfolio-clinic .portfolio-feature-media>img,.portfolio-food .portfolio-feature-media>img { object-position: 76% center; }
