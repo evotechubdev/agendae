@@ -49,6 +49,9 @@ test("página inicial prioriza os três segmentos e a página do estabelecimento
   assert.match(app.innerHTML, /id="partner-select"/);
   assert.match(app.innerHTML, /<option value="salaobela">Salão Bela<\/option>/);
   assert.match(app.innerHTML, /https:\/\/wa\.me\/5571999999999\?text=/);
+  assert.equal((app.innerHTML.match(/Quero adquirir pelo WhatsApp/g) || []).length, 3);
+  assert.match(app.innerHTML, /Quer adquirir este sistema de agendamento\?/);
+  assert.match(app.innerHTML, /Quero%20adquirir%20o%20sistema%20de%20agendamento%20Agendae/);
   assert.doesNotMatch(app.innerHTML, /Encontre seu estabelecimento|id="finder-form"|directory-item/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Home<\/a>/);
   assert.doesNotMatch(app.innerHTML, /class="home-nav-link[^\"]*"[^>]*>Gerenciar Estabelecimentos/);
