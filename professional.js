@@ -1532,8 +1532,8 @@ function renderCheckInDisplay(establishment) {
   if (!token) void loadCheckInConfig(establishment);
 }
 
-function renderLoading() {
-  document.title = "Carregando — Agendae";
+function renderLoading(slug) {
+  setEstablishmentTitle(slug);
   app.innerHTML = `<main class="loading-page">${logo()}<span class="loading-spinner"></span><p>Carregando estabelecimento…</p></main>`;
 }
 
@@ -1560,7 +1560,7 @@ function render() {
   if (current === SYSTEM_MANAGE_ROUTE) return session()?.role === "system_admin" ? renderSystemManagement() : renderHome();
   if (current === SYSTEM_MATERIALS_ROUTE) return session()?.role === "system_admin" ? renderSystemMaterials() : renderHome();
   if (current === "login") return renderLogin();
-  if (!catalogLoaded) return renderLoading();
+  if (!catalogLoaded) return renderLoading(current);
   const establishment = establishments[current];
   if (!establishment) return renderNotFound();
   const routeParams = new URLSearchParams(location.search);
