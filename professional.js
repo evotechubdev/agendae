@@ -40,7 +40,6 @@ const state = {
   booking: freshBooking(),
   mapAddressType: "address1",
   mapSlug: "",
-  appointmentQuery: "",
   scheduleScrollLeft: 0,
   scheduleTurn: null,
   scheduleAuto: true,
@@ -68,7 +67,6 @@ const state = {
   attendanceOpen: false,
   attendanceSelection: null,
   nextCallProfessional: null,
-  mobileMenu: false,
 };
 
 function freshBooking() {
@@ -252,7 +250,6 @@ function navigate(path) {
   state.attendanceOpen = false;
   state.attendanceSelection = null;
   state.nextCallProfessional = null;
-  state.mobileMenu = false;
   render();
   window.scrollTo({ top: 0, behavior: "instant" });
 }
@@ -554,7 +551,7 @@ function closeSelectedBooking() {
 
 function publicAccessMenu(establishment, authenticated = false) {
   const options = authenticated
-    ? `<a href="${href(`/${establishment.slug}?admin=1`)}" data-link><strong>Painel administrativo</strong><small>Visão geral e atendimentos</small></a><button type="button" data-open-settings><strong>Configurações da loja</strong><small>Funcionários, horários e serviços</small></button><button type="button" data-logout><strong>Sair</strong><small>Encerrar sessão</small></button>`
+    ? '<button type="button" data-open-settings><strong>Configurações da loja</strong><small>Funcionários, horários e serviços</small></button><button type="button" data-logout><strong>Sair</strong><small>Encerrar sessão</small></button>'
     : '<button type="button" data-open-employee-access><strong>Entrar</strong><small>Acesso da equipe</small></button>';
   return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento" title="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></summary><div class="public-internal-dropdown">${options}</div></details>`;
 }
@@ -999,20 +996,6 @@ function ticketStatusLegend() {
   return `<div class="ticket-status-legend" aria-label="Legenda dos status das senhas">${Object.entries(TICKET_STATES).map(([state, label]) => `<span class="ticket-state-${state}"><i aria-hidden="true"></i>${label}</span>`).join("")}</div>`;
 }
 
-function queuePanel(establishment, data, showNames = true, showHeader = true, date) {
-  const clock = currentSaoPauloClock();
-  const view = attendanceView(establishment, data, date || clock.date, clock);
-  return `<section class="panel queue-panel">${showHeader ? '<div class="panel-head queue-panel-head"><div><h2>Painel de senhas</h2><p>Uma senha por profissional, no horário atual</p></div><div class="queue-head-actions"><span class="open-tag">AO VIVO</span><button class="btn btn-soft btn-sm" data-open-queue-display>⛶ Exibir no monitor</button></div></div>' : ""}
-    <div class="queue-board"><div class="queue-current"><small>Atendendo agora</small>${view.notStarted ? liveStatusDot([], true, view.closedDay) : ""}${attendanceCards(view, showNames)}</div>
-    </div></section>`;
-}
-
-function ticketLegend(establishment) {
-  const professionals = professionalDirectory(establishment).map((item) => `<span><b>${escapeHTML(professionalInitial(item.name))}</b> ${escapeHTML(item.name)}</span>`).join("");
-  const services = (establishment.services || []).map((item) => `<span><b>${escapeHTML(serviceInitials(item.name))}</b> ${escapeHTML(item.name)}</span>`).join("");
-  return `<section class="ticket-legend" aria-label="Legenda das senhas"><h3>Como ler as senhas</h3>${ticketStatusLegend()}<p class="ticket-legend-example"><strong>RCT-08</strong><span><b>R</b>: inicial do profissional · <b>CT</b>: iniciais do serviço · <b>08</b>: 8º horário na agenda do profissional naquele dia.</span></p><p>Exemplos de serviço: <b>CT</b> = Cabelo Tesoura, <b>CM</b> = Cabelo Máquina, <b>CC</b> = Cabelo Completo, <b>SI</b> = Serviço indefinido (sem serviço registrado para o horário).</p><div class="ticket-legend-group"><h4>Profissionais</h4><div>${professionals}</div></div><div class="ticket-legend-group"><h4>Serviços</h4><div>${services}</div></div><p>A contagem começa em 01 e inclui os horários ocupados e os que já passaram. Na agenda compartilhada, usa a grade do estabelecimento. Somente horários da grade cadastrada geram senhas no painel.</p></section>`;
-}
-
 function ensureQueueSubscription(establishment) {
   if (!firebaseApi || queueSubscriptionSlug === establishment.slug) return;
   if (queueSubscription) queueSubscription();
@@ -1295,10 +1278,19 @@ async function loadApiKeyStatus(establishment) {
   }
 }
 
+function checkInSettingsMarkup(establishment) {
+  const token = checkInConfigs.get(establishment.slug)?.token;
+  if (!token) void loadCheckInConfig(establishment);
+  const qr = token
+    ? qrCodeMarkup(checkInQrUrl(establishment, token), "admin-checkin-qr")
+    : '<div class="qr-placeholder"><span class="loading-spinner"></span>Preparando QR code…</div>';
+  return `<div class="settings-section"><section class="admin-checkin panel"><div class="admin-checkin-copy"><small>CHECK-IN PRESENCIAL</small><h2>Confirmação de presença</h2><p>Exiba este QR no balcão. O cliente localiza o próprio agendamento pelo nome ou pela senha e aponta a câmera para o código.</p><div class="admin-checkin-actions"><span>O código é exclusivo de <b>${escapeHTML(establishment.name)}</b> e permanece disponível nesta aba, sem abrir outra tela administrativa.</span></div></div><div class="admin-checkin-visual">${qr}<small>QR exclusivo de ${escapeHTML(establishment.name)}</small></div></section></div>`;
+}
+
 function settingsModal(establishment) {
   if (!state.settingsOpen) return "";
-  const tabs = [["store", "Loja"], ["professionals", "Funcionários"], ["hours", "Horários"], ["services", "Serviços"], ["api", "API"]];
-  const content = state.settingsTab === "store" ? storeSettingsMarkup(establishment) : state.settingsTab === "hours" ? hoursSettingsMarkup(establishment) : state.settingsTab === "services" ? serviceSettingsMarkup(establishment) : state.settingsTab === "api" ? apiSettingsMarkup(establishment) : professionalSettingsMarkup(establishment);
+  const tabs = [["store", "Loja"], ["professionals", "Funcionários"], ["hours", "Horários"], ["services", "Serviços"], ["checkin", "Presença"], ["api", "API"]];
+  const content = state.settingsTab === "store" ? storeSettingsMarkup(establishment) : state.settingsTab === "hours" ? hoursSettingsMarkup(establishment) : state.settingsTab === "services" ? serviceSettingsMarkup(establishment) : state.settingsTab === "checkin" ? checkInSettingsMarkup(establishment) : state.settingsTab === "api" ? apiSettingsMarkup(establishment) : professionalSettingsMarkup(establishment);
   return `<div class="booking-modal-backdrop" data-settings-backdrop><section class="booking-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div class="booking-modal-head"><div><small>ÁREA DA EQUIPE</small><h2 id="settings-title">Configurações da loja</h2></div><button class="booking-modal-close" type="button" data-close-settings aria-label="Fechar configurações">×</button></div><nav class="settings-tabs" aria-label="Configurações">${tabs.map(([key, label]) => `<button type="button" data-settings-tab="${key}" class="${state.settingsTab === key ? "active" : ""}" ${state.settingsTab === key ? 'aria-current="page"' : ""}>${label}</button>`).join("")}</nav><div class="settings-body">${content}</div></section></div>`;
 }
 
@@ -1373,7 +1365,7 @@ function renderEstablishmentPublic(establishment) {
   }
 }
 
-function appointmentRows(data, query = state.appointmentQuery, selection = null) {
+function appointmentRows(data, query = "", selection = null) {
   const establishment = activeEstablishment();
   const todayAppointments = data.appointments.filter((item) => item.date === isoDate()
     && (!selection || (selection.kind === "professional" ? item.professional === selection.professional
@@ -1426,50 +1418,6 @@ async function loadCheckInConfig(establishment) {
   } finally {
     checkInConfigLoading.delete(establishment.slug);
   }
-}
-
-function adminCheckInPanel(establishment, today) {
-  const token = checkInConfigs.get(establishment.slug)?.token;
-  const present = today.filter((item) => item.status === "presente").length;
-  const qr = token ? qrCodeMarkup(checkInQrUrl(establishment, token), "admin-checkin-qr") : '<div class="qr-placeholder"><span class="loading-spinner"></span>Preparando QR code…</div>';
-  return `<section class="admin-checkin panel"><div class="admin-checkin-copy"><small>CHECK-IN PRESENCIAL</small><h2>Confirmação de presença</h2><p>Deixe este QR visível no balcão. O cliente informa o nome ou a senha do agendamento e aponta a câmera para o código.</p><div class="admin-checkin-stats"><strong>${String(present).padStart(2, "0")}</strong><span>presenças confirmadas hoje</span></div><div class="admin-checkin-actions"><a class="btn btn-primary btn-sm ${token ? "" : "disabled"}" href="${href(`/${establishment.slug}?display=checkin`)}" data-link>Exibir QR no estabelecimento</a><span>Sem celular ou internet? Pesquise o cliente abaixo e use <b>Confirmar chegada</b>.</span></div></div><div class="admin-checkin-visual">${qr}<small>QR exclusivo de ${escapeHTML(establishment.name)}</small></div></section>`;
-}
-
-function renderAdmin(establishment) {
-  setEstablishmentTitle(establishment);
-  const data = getData(establishment);
-  const today = data.appointments.filter((item) => item.date === isoDate());
-  const waiting = queueView(establishment, data, currentSaoPauloClock()).waiting.length;
-  const completed = today.filter((item) => item.status === "concluido").length;
-  const freeSlots = usesEmployeeSchedules(establishment)
-    ? professionalAvailability(establishment, data).flatMap((professional) => professional.freeTimes).sort()
-    : availableTimesFor(establishment, data);
-  const currentUser = session();
-  const firstName = currentUser?.name?.split(" ")[0] || "gestor";
-  app.innerHTML = `<div class="admin-shell">
-    <aside class="sidebar ${state.mobileMenu ? "mobile-open" : ""}"><a href="${href("/")}" data-link>${logo()}</a><div class="workspace"><span class="est-avatar">${escapeHTML(establishment.initials)}</span><span><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.category)}</small></span></div><div class="side-label">Gestão</div><nav class="side-nav"><button class="side-link active"><span class="side-icon">⌂</span>Visão geral</button><button class="side-link" data-coming><span class="side-icon">▣</span>Agenda</button><button class="side-link" data-coming><span class="side-icon">☷</span>Fila de senhas</button><button class="side-link" data-coming><span class="side-icon">♙</span>Clientes</button><button class="side-link" data-coming><span class="side-icon">⌁</span>Relatórios</button></nav><div class="side-spacer"></div><a class="side-link" href="${href(`/${establishment.slug}`)}" data-link><span class="side-icon">↗</span>Ver página pública</a><button class="side-link" data-logout><span class="side-icon">←</span>Sair</button><div class="sidebar-user"><span class="user-avatar">${initials(currentUser?.name || "Usuário")}</span><span><strong>${escapeHTML(currentUser?.name || "Usuário")}</strong><small>${currentUser?.role === "gerente" ? "Gerente" : "Equipe"}</small></span></div></aside>
-    <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}#agendar`)}" data-link>+ Novo agendamento</a></div></header>
-      <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
-      ${adminCheckInPanel(establishment, today)}
-      ${extraWorkingDatesMarkup(establishment)}
-      ${workSchedulesMarkup(establishment)}
-      ${lunchSchedulesMarkup(establishment)}
-      <section class="schedule-config"><div><small>MODELO DA AGENDA</small><h2>Como os horários são organizados?</h2><p>Essa configuração vale para todos os novos agendamentos.</p></div><div class="schedule-mode-options"><button class="schedule-mode ${usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="employee"><span>♙</span><strong>Agenda por funcionário</strong><small>Cada profissional tem seus próprios horários.</small></button><button class="schedule-mode ${!usesEmployeeSchedules(establishment) ? "active" : ""}" data-schedule-mode="establishment"><span>▣</span><strong>Agenda do estabelecimento</strong><small>Uma única grade compartilhada pela equipe.</small></button></div></section>
-      <div class="admin-grid"><section class="panel"><div class="panel-head"><div><h2>Atendimentos de hoje</h2><p><span data-appointment-count>${today.length}</span> horários agendados</p></div><button class="btn btn-soft btn-sm" data-coming>Ver agenda completa</button></div><div class="appointment-search"><span class="appointment-search-icon" aria-hidden="true">⌕</span><input type="search" value="${escapeHTML(state.appointmentQuery)}" data-appointment-search aria-label="Pesquisar agendamento pelo nome ou senha" placeholder="Pesquisar por nome completo ou senha"><button type="button" data-clear-appointment-search aria-label="Limpar pesquisa" ${state.appointmentQuery ? "" : "hidden"}>×</button></div><div class="appointment-list">${appointmentRows(data)}</div></section><div class="side-stack">${queuePanel(establishment, data)}<section class="panel staff-availability-panel"><div class="panel-head"><div><h2>${usesEmployeeSchedules(establishment) ? "Agenda por profissional" : "Agenda do estabelecimento"}</h2><p>${usesEmployeeSchedules(establishment) ? "Disponibilidade individual de hoje" : "Disponibilidade compartilhada de hoje"}</p></div></div><div class="staff-schedules">${staffSchedulesMarkup(establishment, data)}</div></section></div></div>
-    </main></div>`;
-  const queueSection = app.querySelector(".admin-grid .queue-panel");
-  if (queueSection) {
-    queueSection.insertAdjacentHTML("beforeend", ticketLegend(establishment));
-  }
-  void refreshCloudData(establishment, "admin");
-  void loadCheckInConfig(establishment);
-  adminRefreshTimer = setInterval(() => {
-    if (route() !== establishment.slug || session()?.slug !== establishment.slug || new URLSearchParams(location.search).get("admin") !== "1") return;
-    if (document.activeElement?.closest("[data-lunch-form], [data-work-form], [data-extra-working-form]")) return;
-    if (document.querySelector('[data-work-form][data-dirty="true"], [data-lunch-form][data-dirty="true"], [data-extra-working-form][data-dirty="true"]')) return;
-    cloudCache.delete(`admin:${establishment.slug}`);
-    void refreshCloudData(establishment, "admin");
-  }, 10000);
 }
 
 function updateMonitorClock() {
@@ -1567,7 +1515,6 @@ function render() {
   if (routeParams.get("display") === "queue") return renderQueueDisplay(establishment);
   const authenticated = session()?.slug === establishment.slug;
   if (routeParams.get("display") === "checkin" && authenticated) return renderCheckInDisplay(establishment);
-  if (authenticated && routeParams.get("admin") === "1") return renderAdmin(establishment);
   renderEstablishmentPublic(establishment);
 }
 
@@ -2154,9 +2101,7 @@ document.addEventListener("click", async (event) => {
     render();
     return;
   }
-  if (event.target.closest("[data-mobile-admin]")) { state.mobileMenu = !state.mobileMenu; render(); return; }
   if (event.target.closest("[data-coming]")) { toast("Módulo preparado para a próxima etapa do sistema.", "ⓘ"); return; }
-  if (event.target.closest("[data-notification]")) { toast("Nenhuma nova notificação.", "○"); return; }
   const scheduleModeButton = event.target.closest("[data-schedule-mode]");
   if (scheduleModeButton) {
     const establishment = activeEstablishment();
@@ -2209,12 +2154,6 @@ document.addEventListener("click", async (event) => {
     state.nextCallProfessional = null;
     navigate(EMBEDDED_SLUG ? `/login?establishment=${EMBEDDED_SLUG}` : establishmentSlug ? `/${establishmentSlug}` : "/");
     toast("Sessão encerrada.");
-    return;
-  }
-  if (event.target.closest("[data-clear-appointment-search]")) {
-    state.appointmentQuery = "";
-    render();
-    requestAnimationFrame(() => document.querySelector("[data-appointment-search]")?.focus());
     return;
   }
   const pauseButton = event.target.closest("[data-toggle-professional-pause]");
@@ -2384,15 +2323,6 @@ document.addEventListener("input", (event) => {
     if (event.target.matches('input[name="zipCode"], input[name="zipCode2"]') && postalDigits(event.target.value).length === 8) void fillAddressFromPostalCode(scheduleForm, event.target.name.endsWith("2") ? "2" : "");
     return;
   }
-  if (!event.target.matches("[data-appointment-search]")) return;
-  state.appointmentQuery = event.target.value;
-  const establishment = activeEstablishment();
-  if (!establishment) return;
-  const data = getData(establishment);
-  const list = document.querySelector(".appointment-list");
-  if (list) list.innerHTML = appointmentRows(data);
-  const clearButton = document.querySelector("[data-clear-appointment-search]");
-  if (clearButton) clearButton.hidden = !state.appointmentQuery;
 });
 
 document.addEventListener("submit", async (event) => {
@@ -2408,7 +2338,7 @@ document.addEventListener("submit", async (event) => {
     try {
       await firebaseApi.changeOwnPassword(password);
       firebaseSession.mustChangePassword = false;
-      if (route() !== firebaseSession.slug || new URLSearchParams(location.search).get("admin") !== "1") navigate(`/${firebaseSession.slug}?admin=1`);
+      if (route() !== firebaseSession.slug) navigate(`/${firebaseSession.slug}`);
       if (establishments[firebaseSession.slug]?.setupComplete === false) {
         state.settingsTab = "store";
         state.settingsOpen = true;
@@ -2693,7 +2623,7 @@ document.addEventListener("submit", async (event) => {
         throw mismatch;
       }
       state.booking = freshBooking();
-      navigate(`/${establishmentSlug}?admin=1`);
+      navigate(`/${establishmentSlug}`);
       if (establishments[establishmentSlug]?.setupComplete === false && firebaseSession.role === "gerente" && !firebaseSession.mustChangePassword) {
         state.settingsTab = "store";
         state.settingsOpen = true;
@@ -2885,7 +2815,7 @@ async function initializeFirebase() {
       if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; state.systemEstablishments = []; state.systemListLoaded = false; state.systemDeleteSlug = ""; }
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
       if (!profile && route() === SYSTEM_MANAGE_ROUTE) { navigate("/"); return; }
-      if (profile?.role === "gerente" && !profile.mustChangePassword && new URLSearchParams(location.search).get("admin") === "1" && establishments[route()]?.setupComplete === false && !state.settingsOpen) {
+      if (profile?.role === "gerente" && !profile.mustChangePassword && establishments[route()]?.setupComplete === false && !state.settingsOpen) {
         state.settingsTab = "store";
         state.settingsOpen = true;
       }
@@ -2896,7 +2826,7 @@ async function initializeFirebase() {
           void firebaseApi.logout();
           return;
         }
-        navigate(`/${profile.slug}?admin=1`);
+        navigate(`/${profile.slug}`);
         if (profile.role === "gerente" && !profile.mustChangePassword && establishments[profile.slug]?.setupComplete === false) {
           state.settingsTab = "store";
           state.settingsOpen = true;
