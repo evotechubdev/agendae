@@ -1225,12 +1225,16 @@ function storeSettingsMarkup(establishment) {
     ${establishment.setupComplete === false ? `<div class="store-publish"><strong>Publicação</strong><p>Para aparecer na busca e aceitar agendamentos, salve os dados da loja, adicione pelo menos um funcionário, uma escala e um serviço.</p><button class="btn btn-primary btn-sm" type="button" data-publish-store ${ready ? "" : "disabled"}>Publicar estabelecimento</button></div>` : '<p class="settings-hint">Estabelecimento publicado. Você pode editar os dados acima e salvá-los a qualquer momento.</p>'}</div>`;
 }
 
+function integrationApiVariable(slug) {
+  return `AGENDAE_API_KEY_${String(slug || "").replaceAll("-", "_").toUpperCase()}`;
+}
+
 function apiSettingsMarkup(establishment) {
   const base = firebaseApi?.integrationApiBaseUrl || "https://agendae-backend-t5ax.onrender.com";
   if (session()?.role !== "gerente") return '<div class="settings-section"><p class="settings-hint">A chave de API pode criar agendamentos. Peça ao gerente da loja para configurar a integração.</p></div>';
   const status = state.apiKeyStatus.slug === establishment.slug ? state.apiKeyStatus : { loading: true };
-  const variable = status.variable || `api-${establishment.slug}`;
-  const externalVariable = status.externalVariable || `agendae-api-${establishment.slug}`;
+  const variable = status.variable || integrationApiVariable(establishment.slug);
+  const externalVariable = status.externalVariable || integrationApiVariable(establishment.slug);
   const statusText = status.loading || !status.loaded ? "Consultando a chave no servidor…"
     : status.error ? escapeHTML(status.error)
       : status.pending ? `${status.pending === "revoke" ? "Revogação" : "Ativação"} aguardando deploy${status.active ? ` · chave atual final ${escapeHTML(status.lastFour || "")}` : ""}`
@@ -1245,16 +1249,16 @@ function apiSettingsMarkup(establishment) {
 async function loadApiKeyStatus(establishment) {
   if (!firebaseApi || session()?.role !== "gerente" || state.apiKeyStatus.loading && state.apiKeyStatus.slug === establishment.slug) return;
   const previous = state.apiKeyStatus.slug === establishment.slug ? state.apiKeyStatus : {};
-  state.apiKeyStatus = { slug: establishment.slug, loading: true, loaded: false, active: false, lastFour: null, variable: `api-${establishment.slug}`, externalVariable: `agendae-api-${establishment.slug}`, automationReady: false, pending: previous.pending || "", deployRequested: previous.deployRequested || false, error: "" };
+  state.apiKeyStatus = { slug: establishment.slug, loading: true, loaded: false, active: false, lastFour: null, variable: integrationApiVariable(establishment.slug), externalVariable: integrationApiVariable(establishment.slug), automationReady: false, pending: previous.pending || "", deployRequested: previous.deployRequested || false, error: "" };
   render();
   try {
     const result = await firebaseApi.getIntegrationApiKeyStatus(establishment.slug);
     if (state.apiKeyStatus.slug !== establishment.slug) return;
     const pending = previous.pending === "revoke" && result.active || previous.pending === "update" && state.apiKeySecret && result.lastFour !== state.apiKeySecret.slice(-4) ? previous.pending : "";
-    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: Boolean(result.active), lastFour: result.lastFour, variable: result.variable || `api-${establishment.slug}`, externalVariable: result.externalVariable || `agendae-api-${establishment.slug}`, automationReady: Boolean(result.automationReady), pending, deployRequested: previous.deployRequested || false, error: "" };
+    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: Boolean(result.active), lastFour: result.lastFour, variable: result.variable || integrationApiVariable(establishment.slug), externalVariable: result.externalVariable || integrationApiVariable(establishment.slug), automationReady: Boolean(result.automationReady), pending, deployRequested: previous.deployRequested || false, error: "" };
   } catch (error) {
     if (state.apiKeyStatus.slug !== establishment.slug) return;
-    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: false, lastFour: null, variable: `api-${establishment.slug}`, externalVariable: `agendae-api-${establishment.slug}`, automationReady: false, pending: previous.pending || "", deployRequested: previous.deployRequested || false, error: error.message || "Não foi possível consultar a API." };
+    state.apiKeyStatus = { slug: establishment.slug, loading: false, loaded: true, active: false, lastFour: null, variable: integrationApiVariable(establishment.slug), externalVariable: integrationApiVariable(establishment.slug), automationReady: false, pending: previous.pending || "", deployRequested: previous.deployRequested || false, error: error.message || "Não foi possível consultar a API." };
   }
   if (state.settingsOpen && state.settingsTab === "api" && activeEstablishment()?.slug === establishment.slug) {
     const tabFocused = document.activeElement?.matches('[data-settings-tab="api"]');
@@ -1778,7 +1782,7 @@ document.addEventListener("click", async (event) => {
     try {
       const result = await firebaseApi.generateIntegrationApiKey(establishmentForModal.slug);
       state.apiKeySecret = result.key;
-      state.apiKeyStatus = { ...state.apiKeyStatus, slug: establishmentForModal.slug, loading: false, loaded: true, variable: result.variable || `api-${establishmentForModal.slug}`, externalVariable: result.externalVariable || `agendae-api-${establishmentForModal.slug}`, pending: "update", deployRequested: Boolean(result.deployRequested), error: "" };
+      state.apiKeyStatus = { ...state.apiKeyStatus, slug: establishmentForModal.slug, loading: false, loaded: true, variable: result.variable || integrationApiVariable(establishmentForModal.slug), externalVariable: result.externalVariable || integrationApiVariable(establishmentForModal.slug), pending: "update", deployRequested: Boolean(result.deployRequested), error: "" };
       render();
       document.querySelector("[data-copy-api-key]")?.focus();
     } catch (error) {
