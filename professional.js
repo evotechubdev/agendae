@@ -219,7 +219,9 @@ function requestedEstablishment() {
 }
 
 function href(path = "/") {
-  if (path.startsWith("/public/")) return `${BASE}${path}`;
+  if (["/public/", "/integracoes/", "/vendor/"].some((prefix) => path.startsWith(prefix))) {
+    return `${BASE}${path}`;
+  }
   const [pathAndQuery, hash = ""] = String(path).split("#", 2);
   const [pathname, queryString = ""] = pathAndQuery.split("?", 2);
   const routeName = pathname.replace(/^\/+|\/+$/g, "");
