@@ -285,6 +285,9 @@ export async function deleteEstablishment(slug, password) {
 }
 
 export async function saveStoreProfile(slug, profile) {
+  if (["name", "initials", "slug"].some(field => Object.hasOwn(profile, field))) {
+    throw new Error("O nome e o identificador do estabelecimento são definidos na criação e não podem ser alterados.");
+  }
   const reference = doc(db, "establishments", slug);
   const snapshot = await getDoc(reference);
   if (!snapshot.exists()) throw new Error("Estabelecimento não encontrado.");
