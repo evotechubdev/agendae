@@ -15,10 +15,11 @@ test("o nome gera o endereço e o login exclusivos da loja", () => {
 });
 
 test("os dados públicos são configurados pelo administrador da loja", () => {
-  const profile = storeProfile({ name: "Salão Bela", category: "Salão", street: "Rua A", number: "10", neighborhood: "Centro", zipCode: "01001000", city: "São Paulo", state: "sp", complement: "Sala 2", opening: "08:00", closing: "18:00", saturdayOpen: "on" });
+  const profile = storeProfile({ name: "Salão Bela", category: "Salão", bookingMode: "daily", street: "Rua A", number: "10", neighborhood: "Centro", zipCode: "01001000", city: "São Paulo", state: "sp", complement: "Sala 2", opening: "08:00", closing: "18:00", saturdayOpen: "on" });
   assert.equal(profile.initials, "SB");
   assert.equal(profile.address, "Rua A, 10, Sala 2 - Centro, São Paulo - SP, 01001-000");
   assert.equal(profile.zipCode, "01001-000");
+  assert.equal(profile.bookingMode, "daily");
   assert.equal(storeProfile({ ...profile, number: "sn", opening: "08:00", closing: "18:00" }).number, "SN");
   assert.deepEqual(profile.hours, [
     { label: "Seg a sex", value: "08:00 - 18:00" },
@@ -26,6 +27,7 @@ test("os dados públicos são configurados pelo administrador da loja", () => {
     { label: "Domingo", value: "Fechado" },
   ]);
   assert.throws(() => storeProfile({ ...profile, opening: "18:00", closing: "08:00" }), /horário/);
+  assert.throws(() => storeProfile({ ...profile, bookingMode: "invalid" }), /modalidade/);
 });
 
 test("expediente varia por dia e inclui segundo endereço opcional", () => {

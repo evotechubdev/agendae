@@ -5,9 +5,11 @@ import { readFile } from "node:fs/promises";
 const root = new URL("../", import.meta.url);
 
 test("widget distribuível é isolado e não contém segredo", async () => {
-  const [widget, manual] = await Promise.all([
+  const [widget, manual, professional, rules] = await Promise.all([
     readFile(new URL("frontend/integracoes/agendae-booking-widget.js", root), "utf8"),
     readFile(new URL("frontend/integracoes/INSTALACAO.md", root), "utf8"),
+    readFile(new URL("frontend/professional.js", root), "utf8"),
+    readFile(new URL("firestore.rules", root), "utf8"),
   ]);
 
   assert.match(widget, /attachShadow\(\{ mode: "open" \}\)/);
@@ -23,4 +25,7 @@ test("widget distribuível é isolado e não contém segredo", async () => {
   assert.match(manual, /API_AGENDAE_\{SLUG/);
   assert.match(manual, /data-agendae-open/);
   assert.match(manual, /data-agendae-api/);
+  assert.match(professional, /name="bookingMode"/);
+  assert.match(professional, /Somente senhas diárias/);
+  assert.match(rules, /'bookingMode'/);
 });

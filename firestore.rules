@@ -103,8 +103,9 @@ service cloud.firestore {
             'name', 'initials', 'category',
             'street', 'number', 'neighborhood', 'zipCode', 'city', 'state', 'complement', 'mapEmbedUrl', 'address', 'mapCoordinates1',
             'street2', 'number2', 'neighborhood2', 'zipCode2', 'city2', 'state2', 'complement2', 'mapEmbedUrl2', 'address2', 'mapCoordinates2',
-            'hours', 'hours2', 'setupComplete', 'updatedAt'
+            'hours', 'hours2', 'bookingMode', 'setupComplete', 'updatedAt'
           ])
+          && request.resource.data.get('bookingMode', 'scheduled') in ['scheduled', 'daily']
           && (request.resource.data.get('setupComplete', true) != true || (
             request.resource.data.name is string
             && request.resource.data.name != 'Estabelecimento em configuração'
