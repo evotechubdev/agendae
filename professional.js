@@ -1226,7 +1226,7 @@ function storeSettingsMarkup(establishment) {
 }
 
 function integrationApiVariable(slug) {
-  return `AGENDAE_API_KEY_${String(slug || "").replaceAll("-", "_").toUpperCase()}`;
+  return `API_AGENDAE_${String(slug || "").replaceAll("-", "_").toUpperCase()}`;
 }
 
 function apiSettingsMarkup(establishment) {
