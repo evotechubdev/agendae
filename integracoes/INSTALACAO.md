@@ -53,7 +53,7 @@ window.AgendaeBooking.open();
 window.AgendaeBooking.close();
 ```
 
-O catálogo informa `bookingMode: "scheduled"` para estabelecimentos com agendamento e `bookingMode: "daily"` para estabelecimentos que trabalham somente com senhas do dia. No modo diário, o widget preenche a data de hoje e impede sua alteração automaticamente.
+O gerente escolhe a modalidade em **Configurações da loja → Dados do estabelecimento → Modalidade de atendimento**. O AGENDAE salva essa configuração e o catálogo informa `bookingMode: "scheduled"` para estabelecimentos com agendamento ou `bookingMode: "daily"` para estabelecimentos que trabalham somente com senhas do dia. O site cliente não configura esse comportamento. No modo diário, o widget preenche a data de hoje e impede sua alteração automaticamente.
 
 ## 3. Configurar a chave nos dois backends
 

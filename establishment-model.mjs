@@ -25,6 +25,7 @@ export function newEstablishment(input) {
 export function storeProfile(input) {
   const name = String(input.name || "").trim().replace(/\s+/g, " ");
   const category = String(input.category || "").trim();
+  const bookingMode = String(input.bookingMode || "scheduled");
   const readAddress = (suffix, required) => {
     const values = Object.fromEntries(["street", "number", "neighborhood", "zipCode", "city", "state", "complement"].map(key => [key, String(input[`${key}${suffix}`] || "").trim()]));
     const { street, neighborhood, zipCode, city, complement } = values;
@@ -41,6 +42,7 @@ export function storeProfile(input) {
   const closing = String(input.closing || "");
   const minutes = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value) ? Number(value.slice(0, 2)) * 60 + Number(value.slice(3)) : NaN;
   if (!name || name.length > 100 || !category) throw new Error("Preencha nome e categoria da loja.");
+  if (!["scheduled", "daily"].includes(bookingMode)) throw new Error("Selecione uma modalidade de atendimento válida.");
   const days = [["seg", "Segunda"], ["ter", "Terça"], ["qua", "Quarta"], ["qui", "Quinta"], ["sex", "Sexta"], ["sab", "Sábado"], ["dom", "Domingo"]];
   const weekly = days.some(([day]) => Object.hasOwn(input, `day_${day}_start`));
   let hours;
@@ -70,7 +72,7 @@ export function storeProfile(input) {
     name, category, ...first,
     street2: second.street, number2: second.number, neighborhood2: second.neighborhood, zipCode2: second.zipCode, city2: second.city, state2: second.state, complement2: second.complement, address2: second.address,
     initials: name.split(" ").map(part => part[0]).slice(0, 2).join("").toLocaleUpperCase("pt-BR"),
-    hours, hours2,
+    hours, hours2, bookingMode,
   };
 }
 
