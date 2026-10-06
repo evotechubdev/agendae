@@ -1,3 +1,4 @@
-backend/
-firestore-debug.log
-.local/
+/backend/
+/local/
+/firestore-debug.log
+/frontend/.git/

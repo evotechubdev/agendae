@@ -30,7 +30,7 @@ jobs:
       - name: Preparar arquivos estáticos
         uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend
+          path: .
       - name: Publicar
         id: deployment
         uses: actions/deploy-pages@v4
