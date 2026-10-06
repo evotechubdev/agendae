@@ -6,7 +6,9 @@ import { establishmentSlug, storeProfile } from "./establishment-model.mjs";
 import { addressMapLabel, googleMapsPlaceQuery } from "./address-map.mjs";
 import { formatPostalCode, lookupPostalCode, matchingPostalCode, postalDigits, searchPostalCodes } from "./postal-code.mjs";
 
-const BASE = location.hostname.endsWith("github.io") ? "/agendae" : "";
+const BASE = location.hostname.endsWith("github.io")
+  ? new URL(".", import.meta.url).pathname.replace(/\/$/, "")
+  : "";
 const SYSTEM_MANAGE_ROUTE = "gerenciar-estabelecimentos";
 const SYSTEM_MATERIALS_ROUTE = "materiais-de-apoio";
 const embeddedSlugParam = new URLSearchParams(location.search).get("embed") || "";
