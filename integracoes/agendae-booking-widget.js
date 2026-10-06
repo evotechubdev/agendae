@@ -10,7 +10,7 @@
   const config = {
     apiBase: String(loader?.dataset.agendaeApi || "").trim().replace(/\/$/, ""),
     establishmentName: String(loader?.dataset.agendaeEstablishment || "").trim(),
-    logoUrl: String(loader?.dataset.agendaeLogo || "https://evotechubdev.github.io/agendae/public/imagens/logo_agendae.png").trim(),
+    logoUrl: String(loader?.dataset.agendaeLogo || "https://evotechubdev.github.io/agendae-frontend/public/imagens/logo_agendae.png").trim(),
     openSelector: String(loader?.dataset.agendaeOpenSelector || "[data-agendae-open]").trim(),
   };
 
