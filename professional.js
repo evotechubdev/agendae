@@ -269,6 +269,11 @@ function session() {
   return firebaseSession;
 }
 
+function setEstablishmentTitle(establishmentOrSlug) {
+  const slug = typeof establishmentOrSlug === "string" ? establishmentOrSlug : establishmentOrSlug?.slug;
+  document.title = slug ? `Agendae | ${slug}` : "Agendae";
+}
+
 function publicCacheKey(establishment, date = state.booking.date) {
   return `public:${establishment.slug}:${date}`;
 }
@@ -496,8 +501,9 @@ function renderSystemMaterials() {
 }
 
 function renderLogin() {
-  document.title = "Entrar — Agendae";
   const requested = requestedEstablishment();
+  if (requested) setEstablishmentTitle(requested);
+  else document.title = "Entrar — Agendae";
   const directory = Object.values(establishments).filter((item) => !EMBEDDED_SLUG || item.slug === EMBEDDED_SLUG);
   const establishmentOptions = directory.length
     ? directory.map((item) => `<option value="${escapeHTML(item.slug)}" ${requested?.slug === item.slug ? "selected" : ""}>${escapeHTML(item.name)}</option>`).join("")
@@ -531,7 +537,7 @@ function selectedBookingPopup(establishment) {
 }
 
 function renderPasswordChange() {
-  document.title = "Definir senha definitiva — Agendae";
+  setEstablishmentTitle(session()?.slug);
   app.innerHTML = `<main class="password-change-page"><section class="booking-modal password-change-modal" aria-labelledby="password-change-title"><div class="booking-modal-head"><div><small>PRIMEIRO ACESSO</small><h2 id="password-change-title">Defina sua senha definitiva</h2></div></div><form id="first-password-form" class="booking-modal-form"><p class="booking-modal-lead">Antes de configurar o estabelecimento, escolha uma senha exclusiva para sua conta.</p><div class="field"><label for="new-password">Nova senha</label><input id="new-password" name="password" type="password" minlength="8" autocomplete="new-password" required></div><div class="field"><label for="confirm-new-password">Confirme a nova senha</label><input id="confirm-new-password" name="confirmation" type="password" minlength="8" autocomplete="new-password" required></div><button class="btn btn-primary btn-block" type="submit">Salvar senha e continuar</button><button class="system-signout" type="button" data-first-access-logout>Sair</button></form></section></main>`;
 }
 
@@ -1326,7 +1332,7 @@ function nextCallModal(establishment) {
 }
 
 function renderEstablishmentPublic(establishment) {
-  document.title = `${establishment.name} — Agendae`;
+  setEstablishmentTitle(establishment);
   if (state.mapSlug !== establishment.slug) {
     state.mapSlug = establishment.slug;
     state.mapAddressType = "address1";
@@ -1430,7 +1436,7 @@ function adminCheckInPanel(establishment, today) {
 }
 
 function renderAdmin(establishment) {
-  document.title = `Painel · ${establishment.name} — Agendae`;
+  setEstablishmentTitle(establishment);
   const data = getData(establishment);
   const today = data.appointments.filter((item) => item.date === isoDate());
   const waiting = queueView(establishment, data, currentSaoPauloClock()).waiting.length;
@@ -1492,7 +1498,7 @@ function startQueueClock(establishment, monitor = false) {
 }
 
 function renderQueueDisplay(establishment) {
-  document.title = `Painel de senhas · ${establishment.name}`;
+  setEstablishmentTitle(establishment);
   const clock = currentSaoPauloClock();
   const data = cloudCache.get(publicCacheKey(establishment, clock.date)) || { queue: [], slots: [], todayAppointments: 0 };
   const view = attendanceView(establishment, data, clock.date, clock);
@@ -1519,7 +1525,7 @@ function renderQueueDisplay(establishment) {
 }
 
 function renderCheckInDisplay(establishment) {
-  document.title = `QR de presença · ${establishment.name}`;
+  setEstablishmentTitle(establishment);
   const token = checkInConfigs.get(establishment.slug)?.token;
   const qr = token ? qrCodeMarkup(checkInQrUrl(establishment, token), "display-checkin-qr") : '<div class="qr-placeholder"><span class="loading-spinner"></span>Preparando QR code…</div>';
   app.innerHTML = `<main class="checkin-display"><header class="checkin-display-header">${logo()}<span>${escapeHTML(establishment.name)}</span></header><section class="checkin-display-content"><div class="checkin-display-copy"><small>CONFIRMAÇÃO DE PRESENÇA</small><h1>Chegou? Confirme aqui.</h1><p>Abra a página da ${escapeHTML(establishment.name)}, informe seu nome ou a senha do agendamento e aponte a câmera para este QR code.</p><div class="checkin-display-steps"><span><b>1</b> Identifique seu horário</span><span><b>2</b> Leia o QR code</span><span><b>3</b> Presença confirmada</span></div></div><div class="checkin-display-code">${qr}<strong>Aponte a câmera para o código</strong><small>QR exclusivo deste estabelecimento</small></div></section><footer class="checkin-display-footer"><span>Se precisar de ajuda, procure nossa equipe.</span><div><button class="monitor-action" data-request-fullscreen>⛶ Tela cheia</button><button class="monitor-action" data-print-checkin ${token ? "" : "disabled"}>Imprimir</button><a class="monitor-action" href="${href(`/${establishment.slug}`)}" data-link>Fechar</a></div></footer></main>`;
