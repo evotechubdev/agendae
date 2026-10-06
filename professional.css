@@ -401,6 +401,20 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .system-list-message .btn { margin-left: 10px; }
 .system-create-panel .field { margin-bottom: 18px; }
 .system-create-panel .field small { display: block; margin-top: 7px; color: var(--muted); line-height: 1.45; }
+.support-library { display: grid; gap: 22px; }
+.support-library .system-panel-head { margin-bottom: 0; }
+.support-download-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.support-download-card { min-width: 0; padding: 18px; display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: start; gap: 14px; border: 1px solid var(--line); border-radius: 15px; background: #f8fbff; }
+.support-file-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 12px; color: #fff; background: #d0444d; font-size: 12px; font-weight: 900; letter-spacing: .4px; }
+.support-file-icon.code { background: var(--blue); }
+.support-download-card small { display: block; margin-bottom: 5px; color: var(--blue); font-size: 9px; font-weight: 900; letter-spacing: 1px; }
+.support-download-card h3 { margin: 0 0 7px; color: var(--navy); font: 800 16px "Manrope",sans-serif; }
+.support-download-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.support-download-card .btn { grid-column: 2; justify-self: start; }
+.support-install-summary { padding: 18px; border-left: 4px solid var(--yellow); border-radius: 0 12px 12px 0; background: #fffbeb; color: var(--ink); }
+.support-install-summary > strong { color: var(--navy); }
+.support-install-summary ol { margin: 10px 0 0; padding-left: 20px; font-size: 13px; line-height: 1.75; }
+.support-install-summary code { padding: 2px 5px; border-radius: 4px; background: #fff; color: var(--navy); }
 .password-change-page { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--canvas); }
 .password-change-modal { width: min(100%, 480px); }
 .store-weekend-options { display: flex; gap: 20px; flex-wrap: wrap; margin: 4px 0 18px; }
@@ -715,6 +729,7 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
   .system-store-info { grid-column: 2 / -1; }
   .system-store-status { grid-column: 2; justify-self: start; }
   .system-store-actions { grid-column: 2 / -1; justify-content: flex-start; }
+  .support-download-grid { grid-template-columns: 1fr; }
   .home-hero-inner { width: calc(100% - 36px); padding: 59px 0 78px; gap: 47px; }
   .home-copy h1 { font-size: 42px; letter-spacing: -2px; }
   .home-copy>p { margin: 22px 0 27px; font-size: 15px; }
@@ -1798,6 +1813,10 @@ body:has(.booking-modal-backdrop) { overflow: hidden; }
 .api-endpoints { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
 .api-endpoints > strong:not(:first-child) { margin-top: 8px; }
 .api-endpoints > code { overflow-wrap: anywhere; padding: 8px 10px; border-radius: 7px; background: #f4f7fb; color: var(--navy); font-size: 12px; }
+.api-materials { display: grid; gap: 13px; padding-top: 3px; }
+.api-materials .support-download-card { padding: 14px; grid-template-columns: 42px minmax(0,1fr); }
+.api-materials .support-file-icon { width: 42px; height: 42px; }
+.api-materials .support-download-card h3 { font-size: 14px; }
 .settings-item-form { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .settings-item-form h3 { margin: 0; color: var(--navy); font: 800 14px "Manrope", sans-serif; }
 .settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
