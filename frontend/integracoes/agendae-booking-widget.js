@@ -19,6 +19,7 @@
     availabilityController: null,
     returnFocus: null,
     previousOverflow: "",
+    dailyTicketsOnly: false,
   };
 
   let host;
@@ -47,9 +48,6 @@
     .brand { display: flex; min-width: 0; align-items: center; gap: 22px; }
     .logo { width: 152px; height: 48px; object-fit: contain; }
     .logo-fallback { color: #073b91; font-size: 1.55rem; font-weight: 900; letter-spacing: -.06em; }
-    .brand-copy { display: flex; min-width: 0; flex-direction: column; }
-    .brand-copy span { color: #1752a5; font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-    .brand-copy strong { overflow: hidden; color: #102c52; font-size: 1.04rem; text-overflow: ellipsis; white-space: nowrap; }
     .close {
       display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; padding: 0;
       border: 1px solid #cbd8e8; border-radius: 50%; background: #fff; color: #173b6b;
@@ -61,7 +59,7 @@
     .loading { display: grid; min-height: 320px; place-items: center; color: #55677e; font-size: .96rem; font-weight: 700; text-align: center; }
     .loading.error { color: #a33131; }
     form { display: grid; gap: 28px; margin: 0; }
-    .intro span, .success > span:not(.success-icon) { color: #0b4ca3; font-size: .7rem; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
+    .success > span:not(.success-icon) { color: #0b4ca3; font-size: .7rem; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
     .intro h2, .success h2 { margin: 6px 0 8px; color: #102c52; font-size: clamp(1.45rem, 3vw, 2rem); line-height: 1.16; letter-spacing: -.025em; }
     .intro p, .success p { margin: 0; color: #637287; line-height: 1.55; }
     .fields { display: grid; grid-template-columns: 1.25fr 1fr .85fr; gap: 14px; }
@@ -113,8 +111,6 @@
       .head { min-height: 68px; padding: 10px 10px 10px 15px; }
       .brand { gap: 12px; }
       .logo { width: 112px; height: 37px; }
-      .brand-copy span { display: none; }
-      .brand-copy strong { font-size: .86rem; }
       .content { padding: 23px 16px 32px; }
       .fields, .client-fields { grid-template-columns: 1fr; }
       .slot-grid { grid-template-columns: repeat(2, 1fr); }
@@ -131,14 +127,13 @@
           <div class="brand">
             <img class="logo" alt="Agendae">
             <span class="logo-fallback" hidden>Agendae</span>
-            <div class="brand-copy"><span>Agendamento por Agendae</span><strong id="agendae-widget-title">Agende seu atendimento</strong></div>
           </div>
           <button class="close" type="button" aria-label="Fechar agendamento">&times;</button>
         </header>
         <div class="content">
           <div class="loading" role="status">Carregando serviços e profissionais…</div>
           <form hidden>
-            <div class="intro"><span>Reserva on-line</span><h2>Escolha o melhor horário para você</h2><p class="catalog-message">Os horários são consultados em tempo real.</p></div>
+            <div class="intro"><h2 id="agendae-widget-title">Agendamento e Senha</h2></div>
             <div class="fields">
               <label class="field"><span>Serviço</span><select name="service" required><option value="">Selecione um serviço</option></select></label>
               <label class="field"><span>Profissional</span><select name="professionalFilter"><option value="">Qualquer profissional</option></select></label>
@@ -170,6 +165,14 @@
     const date = new Date(`${localDate()}T12:00:00Z`);
     date.setUTCFullYear(date.getUTCFullYear() + 1);
     return date.toISOString().slice(0, 10);
+  }
+
+  function configureDate() {
+    const today = localDate();
+    elements.date.min = today;
+    elements.date.max = state.dailyTicketsOnly ? today : maximumDate();
+    elements.date.disabled = state.dailyTicketsOnly;
+    if (state.dailyTicketsOnly) elements.date.value = today;
   }
 
   async function request(path, options = {}) {
@@ -224,10 +227,6 @@
       const label = professional.role ? `${professional.name} · ${professional.role}` : professional.name;
       elements.professional.add(new Option(label, professional.name));
     });
-    const establishment = config.establishmentName || catalog.name;
-    elements.catalogMessage.textContent = establishment
-      ? `Os horários são consultados em tempo real na agenda de ${establishment}.`
-      : "Os horários são consultados em tempo real.";
   }
 
   function renderSlots(slots) {
@@ -268,6 +267,8 @@
     elements.success.hidden = true;
     try {
       state.catalog = await request("/catalog");
+      state.dailyTicketsOnly = state.catalog.bookingMode === "daily" || state.catalog.dailyTicketsOnly === true;
+      configureDate();
       renderCatalog(state.catalog);
       elements.loading.hidden = true;
       elements.form.hidden = false;
@@ -328,8 +329,7 @@
 
   function reset() {
     elements.form.reset();
-    elements.date.min = localDate();
-    elements.date.max = maximumDate();
+    configureDate();
     clearSlots("Selecione o serviço e a data para consultar os horários.");
     setMessage();
     elements.success.hidden = true;
@@ -346,7 +346,7 @@
     setMessage();
     try {
       const booking = await request("/appointments", { method: "POST", body: {
-        date: form.get("date"), time: slot.dataset.time, professional: slot.dataset.professional,
+        date: elements.date.value, time: slot.dataset.time, professional: slot.dataset.professional,
         service: form.get("service"), client: String(form.get("client") || "").trim(), phone: String(form.get("phone") || "").trim(),
       } });
       showSuccess(booking);
@@ -388,14 +388,13 @@
       date: root.querySelector('[name="date"]'), slotGrid: root.querySelector(".slot-grid"), empty: root.querySelector(".empty"),
       message: root.querySelector(".message"), submit: root.querySelector(".submit"), success: root.querySelector(".success"),
       successTitle: root.querySelector(".success-title"), successDetails: root.querySelector(".success-details"),
-      checkinCode: root.querySelector(".checkin-code"), newBooking: root.querySelector(".new-booking"), catalogMessage: root.querySelector(".catalog-message"),
+      checkinCode: root.querySelector(".checkin-code"), newBooking: root.querySelector(".new-booking"),
     };
     const logo = root.querySelector(".logo");
     const logoFallback = root.querySelector(".logo-fallback");
     logo.src = config.logoUrl;
     logo.addEventListener("error", () => { logo.hidden = true; logoFallback.hidden = false; });
-    elements.date.min = localDate();
-    elements.date.max = maximumDate();
+    configureDate();
     elements.close.addEventListener("click", close);
     elements.backdrop.addEventListener("click", event => { if (event.target === elements.backdrop) close(); });
     elements.service.addEventListener("change", updateAvailability);

@@ -53,6 +53,8 @@ window.AgendaeBooking.open();
 window.AgendaeBooking.close();
 ```
 
+O catálogo informa `bookingMode: "scheduled"` para estabelecimentos com agendamento e `bookingMode: "daily"` para estabelecimentos que trabalham somente com senhas do dia. No modo diário, o widget preenche a data de hoje e impede sua alteração automaticamente.
+
 ## 3. Configurar a chave nos dois backends
 
 Para um estabelecimento com slug `octn`, use exatamente o mesmo nome e o mesmo valor secreto nos dois serviços do Render:

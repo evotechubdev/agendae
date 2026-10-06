@@ -15,6 +15,10 @@ test("widget distribuível é isolado e não contém segredo", async () => {
   assert.match(widget, /logo_agendae\.png/);
   assert.match(widget, /request\("\/catalog"\)/);
   assert.match(widget, /request\("\/appointments"/);
+  assert.match(widget, /bookingMode === "daily"/);
+  assert.match(widget, /elements\.date\.disabled = state\.dailyTicketsOnly/);
+  assert.match(widget, />Agendamento e Senha</);
+  assert.doesNotMatch(widget, /Agendamento por Agendae|Agende seu atendimento|Reserva on-line|Escolha o melhor horário para você|Os horários são consultados em tempo real/);
   assert.doesNotMatch(widget, /ag_live_[A-Za-z0-9_-]{10,}/);
   assert.match(manual, /API_AGENDAE_\{SLUG/);
   assert.match(manual, /data-agendae-open/);
