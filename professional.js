@@ -554,7 +554,7 @@ function closeSelectedBooking() {
 
 function publicAccessMenu(establishment, authenticated = false) {
   const options = authenticated
-    ? '<button type="button" data-open-settings><strong>Configurações da loja</strong><small>Funcionários, horários e serviços</small></button><button type="button" data-logout><strong>Sair</strong><small>Encerrar sessão</small></button>'
+    ? `<a href="${href(`/${establishment.slug}?admin=1`)}" data-link><strong>Painel administrativo</strong><small>Visão geral e atendimentos</small></a><button type="button" data-open-settings><strong>Configurações da loja</strong><small>Funcionários, horários e serviços</small></button><button type="button" data-logout><strong>Sair</strong><small>Encerrar sessão</small></button>`
     : '<button type="button" data-open-employee-access><strong>Entrar</strong><small>Acesso da equipe</small></button>';
   return `<details class="public-internal-menu" data-internal-menu><summary aria-label="Menu do estabelecimento" title="Menu do estabelecimento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></summary><div class="public-internal-dropdown">${options}</div></details>`;
 }
@@ -1447,8 +1447,8 @@ function renderAdmin(establishment) {
   const currentUser = session();
   const firstName = currentUser?.name?.split(" ")[0] || "gestor";
   app.innerHTML = `<div class="admin-shell">
-    <aside class="sidebar ${state.mobileMenu ? "mobile-open" : ""}"><a href="${href("/")}" data-link>${logo()}</a><div class="workspace"><span class="est-avatar">${escapeHTML(establishment.initials)}</span><span><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.category)}</small></span></div><div class="side-label">Gestão</div><nav class="side-nav"><button class="side-link active"><span class="side-icon">⌂</span>Visão geral</button><button class="side-link" data-coming><span class="side-icon">▣</span>Agenda</button><button class="side-link" data-coming><span class="side-icon">☷</span>Fila de senhas</button><button class="side-link" data-coming><span class="side-icon">♙</span>Clientes</button><button class="side-link" data-coming><span class="side-icon">⌁</span>Relatórios</button></nav><div class="side-spacer"></div><a class="side-link" href="${href(`/${establishment.slug}?public=1`)}" data-link><span class="side-icon">↗</span>Ver página pública</a><button class="side-link" data-logout><span class="side-icon">←</span>Sair</button><div class="sidebar-user"><span class="user-avatar">${initials(currentUser?.name || "Usuário")}</span><span><strong>${escapeHTML(currentUser?.name || "Usuário")}</strong><small>${currentUser?.role === "gerente" ? "Gerente" : "Equipe"}</small></span></div></aside>
-    <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}?public=1#agendar`)}" data-link>+ Novo agendamento</a></div></header>
+    <aside class="sidebar ${state.mobileMenu ? "mobile-open" : ""}"><a href="${href("/")}" data-link>${logo()}</a><div class="workspace"><span class="est-avatar">${escapeHTML(establishment.initials)}</span><span><strong>${escapeHTML(establishment.name)}</strong><small>${escapeHTML(establishment.category)}</small></span></div><div class="side-label">Gestão</div><nav class="side-nav"><button class="side-link active"><span class="side-icon">⌂</span>Visão geral</button><button class="side-link" data-coming><span class="side-icon">▣</span>Agenda</button><button class="side-link" data-coming><span class="side-icon">☷</span>Fila de senhas</button><button class="side-link" data-coming><span class="side-icon">♙</span>Clientes</button><button class="side-link" data-coming><span class="side-icon">⌁</span>Relatórios</button></nav><div class="side-spacer"></div><a class="side-link" href="${href(`/${establishment.slug}`)}" data-link><span class="side-icon">↗</span>Ver página pública</a><button class="side-link" data-logout><span class="side-icon">←</span>Sair</button><div class="sidebar-user"><span class="user-avatar">${initials(currentUser?.name || "Usuário")}</span><span><strong>${escapeHTML(currentUser?.name || "Usuário")}</strong><small>${currentUser?.role === "gerente" ? "Gerente" : "Equipe"}</small></span></div></aside>
+    <main class="admin-main"><header class="admin-topbar"><button class="icon-btn mobile-admin-menu" data-mobile-admin>☰</button><div class="admin-title"><h1>Bom dia, ${escapeHTML(firstName)}</h1><p>${prettyDate(isoDate(),true)} · acompanhe o movimento de hoje.</p></div><div class="admin-actions"><button class="icon-btn" data-notification>♢</button><a class="btn btn-primary btn-sm" href="${href(`/${establishment.slug}#agendar`)}" data-link>+ Novo agendamento</a></div></header>
       <section class="admin-stats"><article class="admin-stat"><div class="admin-stat-head"><span>Atendimentos hoje</span><span class="stat-icon">▣</span></div><strong>${String(today.length).padStart(2,"0")}</strong><em>Agenda atualizada agora</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Horários livres</span><span class="stat-icon">◷</span></div><strong>${String(freeSlots.length).padStart(2,"0")}</strong><em>Próximo às ${freeSlots[0] || "—"}</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Clientes na fila</span><span class="stat-icon">☷</span></div><strong>${String(waiting).padStart(2,"0")}</strong><em>Espera média de ${establishment.averageWaitMinutes} min</em></article><article class="admin-stat"><div class="admin-stat-head"><span>Atendidos</span><span class="stat-icon">✓</span></div><strong>${String(completed).padStart(2,"0")}</strong><em>Hoje até agora</em></article></section>
       ${adminCheckInPanel(establishment, today)}
       ${extraWorkingDatesMarkup(establishment)}
@@ -1464,7 +1464,7 @@ function renderAdmin(establishment) {
   void refreshCloudData(establishment, "admin");
   void loadCheckInConfig(establishment);
   adminRefreshTimer = setInterval(() => {
-    if (route() !== establishment.slug || session()?.slug !== establishment.slug || new URLSearchParams(location.search).get("public") === "1") return;
+    if (route() !== establishment.slug || session()?.slug !== establishment.slug || new URLSearchParams(location.search).get("admin") !== "1") return;
     if (document.activeElement?.closest("[data-lunch-form], [data-work-form], [data-extra-working-form]")) return;
     if (document.querySelector('[data-work-form][data-dirty="true"], [data-lunch-form][data-dirty="true"], [data-extra-working-form][data-dirty="true"]')) return;
     cloudCache.delete(`admin:${establishment.slug}`);
@@ -1567,7 +1567,7 @@ function render() {
   if (routeParams.get("display") === "queue") return renderQueueDisplay(establishment);
   const authenticated = session()?.slug === establishment.slug;
   if (routeParams.get("display") === "checkin" && authenticated) return renderCheckInDisplay(establishment);
-  if (authenticated && routeParams.get("public") !== "1") return renderAdmin(establishment);
+  if (authenticated && routeParams.get("admin") === "1") return renderAdmin(establishment);
   renderEstablishmentPublic(establishment);
 }
 
@@ -2188,7 +2188,7 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-close-queue-display]")) {
     const establishment = activeEstablishment();
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    if (establishment) navigate(`/${establishment.slug}?public=1`);
+    if (establishment) navigate(`/${establishment.slug}`);
     return;
   }
   if (event.target.closest("[data-request-fullscreen]")) {
@@ -2408,7 +2408,7 @@ document.addEventListener("submit", async (event) => {
     try {
       await firebaseApi.changeOwnPassword(password);
       firebaseSession.mustChangePassword = false;
-      if (route() !== firebaseSession.slug) navigate(`/${firebaseSession.slug}`);
+      if (route() !== firebaseSession.slug || new URLSearchParams(location.search).get("admin") !== "1") navigate(`/${firebaseSession.slug}?admin=1`);
       if (establishments[firebaseSession.slug]?.setupComplete === false) {
         state.settingsTab = "store";
         state.settingsOpen = true;
@@ -2693,7 +2693,7 @@ document.addEventListener("submit", async (event) => {
         throw mismatch;
       }
       state.booking = freshBooking();
-      navigate(`/${establishmentSlug}`);
+      navigate(`/${establishmentSlug}?admin=1`);
       if (establishments[establishmentSlug]?.setupComplete === false && firebaseSession.role === "gerente" && !firebaseSession.mustChangePassword) {
         state.settingsTab = "store";
         state.settingsOpen = true;
@@ -2885,7 +2885,7 @@ async function initializeFirebase() {
       if (!profile) { state.settingsOpen = false; state.apiKeySecret = null; state.attendanceOpen = false; state.attendanceSelection = null; state.nextCallProfessional = null; state.systemEstablishments = []; state.systemListLoaded = false; state.systemDeleteSlug = ""; }
       if (error) toast(firebaseApi.firebaseErrorMessage(error), "!");
       if (!profile && route() === SYSTEM_MANAGE_ROUTE) { navigate("/"); return; }
-      if (profile?.role === "gerente" && !profile.mustChangePassword && establishments[route()]?.setupComplete === false && !state.settingsOpen) {
+      if (profile?.role === "gerente" && !profile.mustChangePassword && new URLSearchParams(location.search).get("admin") === "1" && establishments[route()]?.setupComplete === false && !state.settingsOpen) {
         state.settingsTab = "store";
         state.settingsOpen = true;
       }
@@ -2896,7 +2896,7 @@ async function initializeFirebase() {
           void firebaseApi.logout();
           return;
         }
-        navigate(`/${profile.slug}`);
+        navigate(`/${profile.slug}?admin=1`);
         if (profile.role === "gerente" && !profile.mustChangePassword && establishments[profile.slug]?.setupComplete === false) {
           state.settingsTab = "store";
           state.settingsOpen = true;
