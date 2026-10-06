@@ -15,7 +15,7 @@ export function newEstablishment(input) {
       slug, name, active: true, setupComplete: false,
       initials: name.split(" ").map(part => part[0]).slice(0, 2).join("").toLocaleUpperCase("pt-BR"),
       category: "", neighborhood: "", street: "", number: "", zipCode: "", city: "", state: "", complement: "", address: "", street2: "", number2: "", neighborhood2: "", zipCode2: "", city2: "", state2: "", complement2: "", address2: "", mapCoordinates1: null, mapCoordinates2: null, type: "business",
-      openNow: false, averageWaitMinutes: 20, scheduleMode: "employee",
+      openNow: false, averageWaitMinutes: 20, scheduleMode: "employee", bookingMode: "scheduled",
       hours: [], hours2: [], availableTimes: [], professionals: [], services: [], reservedServices: [], serviceDurations: {},
       professionalLunchBreaks: {}, extraWorkingDates: {}, staffClosedDates: {},
     },
