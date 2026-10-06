@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const source = readFileSync(new URL("../frontend/professional.js", import.meta.url), "utf8");
-const start = source.indexOf("function integrationApiVariable(");
+const start = source.indexOf("function supportDownloadCards(");
 const end = source.indexOf("async function loadApiKeyStatus(", start);
 
 function markup(role, secret = null) {
@@ -12,6 +12,7 @@ function markup(role, secret = null) {
     state: { apiKeyStatus: { slug: "demo", loaded: true, active: true, lastFour: "ABCD", variable: "API_AGENDAE_DEMO", externalVariable: "API_AGENDAE_DEMO", automationReady: true, deployRequested: true }, apiKeySecret: secret },
     firebaseApi: { integrationApiBaseUrl: "https://agendae-backend-t5ax.onrender.com" },
     session: () => ({ role }),
+    href: path => path,
     escapeHTML: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"),
   });
   vm.runInContext(source.slice(start, end), context);
@@ -28,6 +29,10 @@ test("aba API reserva geração e detalhes da integração ao administrador", ()
   assert.match(gerente, /Variável no backend do sistema externo/);
   assert.match(gerente, /data-revoke-api-key/);
   assert.match(gerente, /\/v1\/establishments\/demo/);
+  assert.match(gerente, /manual-instalacao-api-agendae\.pdf/);
+  assert.match(gerente, /agendae-booking-widget\.js/);
+  assert.match(gerente, />Baixar PDF</);
+  assert.match(gerente, />Baixar frontend</);
   assert.doesNotMatch(gerente, /ag_live_[A-Za-z0-9_-]{10,}/);
 });
 

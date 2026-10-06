@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Manual de instalação — API Agendae</title>
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #172f50; background: #dfe7f2; font-family: Arial, Helvetica, sans-serif; }
+    .page { position: relative; width: 210mm; height: 296mm; margin: 0 auto; padding: 18mm 18mm 17mm; overflow: hidden; background: #fff; page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+    .cover { display: flex; flex-direction: column; justify-content: space-between; padding: 22mm; color: #fff; background: linear-gradient(145deg,#072955 0%,#0b4ca3 61%,#11716a 100%); }
+    .cover::after { content: ""; position: absolute; right: -40mm; bottom: 35mm; width: 120mm; height: 120mm; border: 22mm solid rgba(255,255,255,.07); border-radius: 50%; }
+    .brand { width: 56mm; padding: 5mm; border-radius: 4mm; background: #fff; }
+    .cover-main { position: relative; z-index: 1; max-width: 150mm; }
+    .eyebrow { display: inline-block; margin-bottom: 8mm; padding: 2.5mm 4mm; border-radius: 20mm; color: #082b58; background: #ffc928; font-size: 9pt; font-weight: 800; letter-spacing: 1.2px; }
+    .cover h1 { margin: 0; font-size: 35pt; line-height: 1.04; letter-spacing: -1.5px; }
+    .cover h1 span { display: block; color: #ffc928; }
+    .cover p { max-width: 130mm; margin: 8mm 0 0; color: #dceaff; font-size: 15pt; line-height: 1.55; }
+    .cover-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: flex-end; color: #dceaff; font-size: 9pt; }
+    .cover-footer strong { display: block; color: #fff; font-size: 11pt; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9mm; padding-bottom: 5mm; border-bottom: 1px solid #dce5f1; }
+    header img { width: 38mm; }
+    header span { color: #718097; font-size: 8.5pt; font-weight: 700; letter-spacing: .7px; }
+    h2 { margin: 0 0 4mm; color: #073b91; font-size: 22pt; line-height: 1.15; letter-spacing: -.5px; }
+    h3 { margin: 7mm 0 2.5mm; color: #12355f; font-size: 13pt; }
+    h4 { margin: 5mm 0 2mm; color: #12355f; font-size: 10.5pt; }
+    p, li { font-size: 9.5pt; line-height: 1.55; }
+    p { margin: 0 0 3.5mm; }
+    ol, ul { margin: 2mm 0 4mm; padding-left: 6mm; }
+    li + li { margin-top: 1.5mm; }
+    code { font-family: Consolas, "Courier New", monospace; }
+    pre { margin: 3mm 0 5mm; padding: 4mm; overflow: hidden; border: 1px solid #cfdaea; border-radius: 3mm; color: #e9f2ff; background: #102b4d; font: 7.6pt/1.52 Consolas, "Courier New", monospace; white-space: pre-wrap; word-break: break-word; }
+    .lead { margin-bottom: 7mm; color: #536984; font-size: 11.5pt; }
+    .callout { margin: 5mm 0; padding: 4mm 5mm; border-left: 1.5mm solid #ffc928; border-radius: 0 3mm 3mm 0; background: #fff9e2; }
+    .callout strong { color: #073b91; }
+    .danger { border-left-color: #d0444d; background: #fff0f1; }
+    .success { border-left-color: #249267; background: #edf9f3; }
+    .flow { display: grid; grid-template-columns: 1fr 8mm 1fr 8mm 1fr 8mm 1fr; align-items: center; margin: 9mm 0; }
+    .flow div { min-height: 32mm; padding: 4mm 2mm; display: grid; place-items: center; border: 1px solid #cfdced; border-radius: 3mm; background: #f6f9fd; text-align: center; font-size: 8.5pt; font-weight: 700; }
+    .flow b { color: #1c65bd; text-align: center; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+    .card { padding: 4mm; border: 1px solid #d6e0ed; border-radius: 3mm; background: #f9fbfe; }
+    .card strong { display: block; margin-bottom: 1.5mm; color: #073b91; font-size: 10pt; }
+    .card p { margin: 0; font-size: 8.8pt; }
+    table { width: 100%; margin: 4mm 0 6mm; border-collapse: collapse; font-size: 8.3pt; }
+    th, td { padding: 2.8mm; border: 1px solid #d8e1ed; vertical-align: top; text-align: left; line-height: 1.4; }
+    th { color: #fff; background: #0b4ca3; }
+    tr:nth-child(even) td { background: #f6f9fd; }
+    .step { display: grid; grid-template-columns: 10mm 1fr; gap: 4mm; margin: 5mm 0; }
+    .step-number { width: 9mm; height: 9mm; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #0b4ca3; font-weight: 800; }
+    .step h3 { margin: 1mm 0 2mm; }
+    .checklist { list-style: none; padding: 0; }
+    .checklist li { position: relative; padding: 2.2mm 2mm 2.2mm 9mm; border-bottom: 1px solid #e3e9f1; }
+    .checklist li::before { content: "✓"; position: absolute; left: 2mm; color: #168458; font-weight: 900; }
+    .page-number { position: absolute; right: 18mm; bottom: 9mm; color: #8794a6; font-size: 8pt; }
+    .mini { color: #687990; font-size: 8pt; }
+  </style>
+</head>
+<body>
+  <section class="page cover">
+    <img class="brand" src="../public/imagens/logo_agendae.png" alt="Agendae">
+    <div class="cover-main">
+      <span class="eyebrow">MANUAL OFICIAL DE INTEGRAÇÃO</span>
+      <h1>API Agendae <span>+ botão de agendamento</span></h1>
+      <p>Instalação da interface independente em sites externos, configuração segura da chave e conexão entre os dois backends.</p>
+    </div>
+    <div class="cover-footer"><div><strong>Agendae</strong>Agendamento e senhas em um só lugar</div><div>Versão 1.0 · Outubro de 2026</div></div>
+  </section>
+
+  <section class="page">
+    <header><img src="../public/imagens/logo_agendae.png" alt="Agendae"><span>VISÃO GERAL</span></header>
+    <h2>Como a integração funciona</h2>
+    <p class="lead">O site cliente exibe a interface, mas toda a agenda, disponibilidade e criação de reservas continuam centralizadas no AGENDAE.</p>
+    <div class="flow"><div>Botão no<br>site cliente</div><b>→</b><div>Widget<br>Agendae</div><b>→</b><div>Backend<br>do cliente</div><b>→</b><div>API e dados<br>do Agendae</div></div>
+    <div class="callout danger"><strong>A chave nunca vai para o navegador.</strong><p>O arquivo do frontend chama apenas o backend do cliente. Somente os dois backends conhecem o valor <code>ag_live_...</code>.</p></div>
+    <h3>Arquivos do kit</h3>
+    <div class="grid">
+      <div class="card"><strong>agendae-booking-widget.js</strong><p>Interface autônoma com HTML, CSS e JavaScript em Shadow DOM. Pode ser usada em qualquer site.</p></div>
+      <div class="card"><strong>manual-instalacao-api-agendae.pdf</strong><p>Este documento, com o processo completo de instalação, publicação e validação.</p></div>
+    </div>
+    <h3>Pré-requisitos</h3>
+    <ul>
+      <li>Estabelecimento cadastrado e publicado no AGENDAE.</li>
+      <li>Acesso de gerente à aba <strong>API</strong> do estabelecimento.</li>
+      <li>Acesso às variáveis de ambiente dos dois backends no Render.</li>
+      <li>Uma rota pública no backend do site cliente para funcionar como proxy.</li>
+    </ul>
+    <h3>Responsabilidade de cada sistema</h3>
+    <table><thead><tr><th>Componente</th><th>Responsabilidade</th></tr></thead><tbody>
+      <tr><td>AGENDAE</td><td>Cadastro da loja, serviços, profissionais, horários, modalidade e reservas.</td></tr>
+      <tr><td>Backend AGENDAE</td><td>Autentica a chave e disponibiliza catálogo, horários e criação de agendamento.</td></tr>
+      <tr><td>Backend do cliente</td><td>Protege a chave e encaminha somente as rotas necessárias ao frontend.</td></tr>
+      <tr><td>Widget</td><td>Apresenta a interface e conversa com o proxy do cliente.</td></tr>
+    </tbody></table>
+    <span class="page-number">2</span>
+  </section>
+
+  <section class="page">
+    <header><img src="../public/imagens/logo_agendae.png" alt="Agendae"><span>CHAVE E BACKENDS</span></header>
+    <h2>1. Gerar e configurar a chave</h2>
+    <div class="step"><span class="step-number">1</span><div><h3>Abra a aba API</h3><p>No painel do estabelecimento, entre em <strong>Configurações da loja → API</strong> e use <strong>Gerar e salvar chave</strong>.</p></div></div>
+    <div class="step"><span class="step-number">2</span><div><h3>Copie nome e valor</h3><p>A chave é mostrada uma única vez. Guarde o nome da variável e o valor secreto em local seguro.</p></div></div>
+    <div class="step"><span class="step-number">3</span><div><h3>Cadastre nos dois backends</h3><p>Use exatamente o mesmo nome e o mesmo valor no backend AGENDAE e no backend do cliente.</p></div></div>
+    <pre>API_AGENDAE_{SLUG_EM_MAIÚSCULAS}=ag_live_...</pre>
+    <p>Exemplo para um estabelecimento com slug <code>octn</code>:</p>
+    <pre>API_AGENDAE_OCTN=ag_live_...</pre>
+    <div class="callout"><strong>Após alterar variáveis no Render:</strong><p>faça o deploy de cada backend. O plano gratuito não exige Shell; use <strong>Manual Deploy → Deploy latest commit</strong>.</p></div>
+    <h3>Nomes para outros estabelecimentos</h3>
+    <table><thead><tr><th>Slug</th><th>Variável</th></tr></thead><tbody>
+      <tr><td><code>octn</code></td><td><code>API_AGENDAE_OCTN</code></td></tr>
+      <tr><td><code>salao-bela</code></td><td><code>API_AGENDAE_SALAO_BELA</code></td></tr>
+      <tr><td><code>clinica-centro</code></td><td><code>API_AGENDAE_CLINICA_CENTRO</code></td></tr>
+    </tbody></table>
+    <h3>URL privada da loja no AGENDAE</h3>
+    <pre>https://agendae-backend-t5ax.onrender.com/v1/establishments/{slug}</pre>
+    <p class="mini">O frontend não deve chamar essa URL diretamente, porque isso exigiria expor a chave. Ele chama o proxy do backend cliente.</p>
+    <span class="page-number">3</span>
+  </section>
+
+  <section class="page">
+    <header><img src="../public/imagens/logo_agendae.png" alt="Agendae"><span>PROXY SEGURO</span></header>
+    <h2>2. Preparar o backend do cliente</h2>
+    <p class="lead">Crie um proxy com três rotas públicas. Em cada chamada servidor a servidor, acrescente o cabeçalho de autorização.</p>
+    <table><thead><tr><th>Rota no cliente</th><th>Destino no AGENDAE</th><th>Método</th></tr></thead><tbody>
+      <tr><td><code>/api/agenda/catalog</code></td><td><code>/catalog</code></td><td>GET</td></tr>
+      <tr><td><code>/api/agenda/availability?...</code></td><td><code>/availability?...</code></td><td>GET</td></tr>
+      <tr><td><code>/api/agenda/appointments</code></td><td><code>/appointments</code></td><td>POST</td></tr>
+    </tbody></table>
+    <h3>Exemplo de função no Node.js</h3>
+    <pre>const AGENDAE_BASE =
+  "https://agendae-backend-t5ax.onrender.com/v1/establishments/SEU_SLUG";
+const API_KEY = process.env.API_AGENDAE_SEU_SLUG;
+
+async function agendaeRequest(path, options = {}) {
+  const response = await fetch(`${AGENDAE_BASE}${path}`, {
+    method: options.method || "GET",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${API_KEY}`,
+      ...(options.body ? { "Content-Type": "application/json" } : {})
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || "Falha no Agendae");
+  return data;
+}</pre>
+    <h3>Campos permitidos no POST</h3>
+    <pre>{ "date", "time", "professional", "service", "client", "phone" }</pre>
+    <div class="callout success"><strong>Recomendação:</strong><p>valide formato e tamanho dos campos, limite o corpo JSON, defina timeout para a API e permita CORS somente para o domínio público do cliente.</p></div>
+    <div class="callout danger"><strong>Não faça:</strong><p>não devolva a chave no JSON, não registre o cabeçalho Authorization em logs e não aceite uma chave enviada pelo navegador.</p></div>
+    <span class="page-number">4</span>
+  </section>
+
+  <section class="page">
+    <header><img src="../public/imagens/logo_agendae.png" alt="Agendae"><span>FRONTEND E BOTÃO</span></header>
+    <h2>3. Instalar a interface no site</h2>
+    <div class="step"><span class="step-number">1</span><div><h3>Copie o arquivo</h3><p>Coloque o arquivo baixado em uma pasta pública do site:</p><pre>&lt;raiz-pública&gt;/integracoes/agendae-booking-widget.js</pre></div></div>
+    <div class="step"><span class="step-number">2</span><div><h3>Adicione o botão</h3><p>O botão pode ficar no cabeçalho, menu ou conteúdo. O atributo abaixo é obrigatório:</p><pre>&lt;button type="button" data-agendae-open&gt;
+  Agendamento
+&lt;/button&gt;</pre></div></div>
+    <div class="step"><span class="step-number">3</span><div><h3>Carregue o widget</h3><p>Inclua antes de <code>&lt;/body&gt;</code>. A URL deve apontar para o backend do cliente:</p><pre>&lt;script
+  src="/integracoes/agendae-booking-widget.js"
+  data-agendae-api="https://BACKEND-DO-CLIENTE/api/agenda"
+  data-agendae-establishment="NOME DO ESTABELECIMENTO"
+  defer
+&gt;&lt;/script&gt;</pre></div></div>
+    <h3>Configurações disponíveis</h3>
+    <table><thead><tr><th>Atributo</th><th>Uso</th></tr></thead><tbody>
+      <tr><td><code>data-agendae-api</code></td><td>Obrigatório. URL pública do proxy, sem barra final.</td></tr>
+      <tr><td><code>data-agendae-establishment</code></td><td>Nome opcional. Se omitido, usa o catálogo.</td></tr>
+      <tr><td><code>data-agendae-logo</code></td><td>URL alternativa para a logomarca do AGENDAE.</td></tr>
+      <tr><td><code>data-agendae-open-selector</code></td><td>Seletor alternativo; o padrão é <code>[data-agendae-open]</code>.</td></tr>
+    </tbody></table>
+    <p>A abertura também pode ser controlada por código:</p>
+    <pre>window.AgendaeBooking.open();
+window.AgendaeBooking.close();</pre>
+    <span class="page-number">5</span>
+  </section>
+
+  <section class="page">
+    <header><img src="../public/imagens/logo_agendae.png" alt="Agendae"><span>CONFIGURAÇÕES E VALIDAÇÃO</span></header>
+    <h2>4. Modalidades vindas do AGENDAE</h2>
+    <p class="lead">O site cliente não escolhe o funcionamento da agenda. O widget recebe essas configurações no catálogo da API.</p>
+    <table><thead><tr><th>Campo</th><th>Valor</th><th>Comportamento</th></tr></thead><tbody>
+      <tr><td rowspan="2"><code>bookingMode</code></td><td><code>scheduled</code></td><td>Agendamentos e senhas com escolha de datas futuras.</td></tr>
+      <tr><td><code>daily</code></td><td>Somente senhas diárias; usa hoje e bloqueia a troca da data.</td></tr>
+      <tr><td rowspan="2"><code>scheduleMode</code></td><td><code>employee</code></td><td>Cada profissional possui seus próprios horários.</td></tr>
+      <tr><td><code>establishment</code></td><td>Uma única grade é compartilhada pela equipe.</td></tr>
+    </tbody></table>
+    <div class="callout"><strong>Onde alterar:</strong><p><code>bookingMode</code> é escolhido em <strong>Configurações da loja → Dados do estabelecimento → Modalidade de atendimento</strong>. É necessário clicar em <strong>Salvar dados da loja</strong>.</p></div>
+    <h3>Checklist antes da entrega</h3>
+    <ul class="checklist">
+      <li>O mesmo nome e valor da variável existem nos dois backends.</li>
+      <li>Os dois serviços foram publicados depois da configuração.</li>
+      <li>A chave não aparece no HTML, JavaScript ou repositório público.</li>
+      <li>O widget está em <code>/integracoes/agendae-booking-widget.js</code>.</li>
+      <li>O botão possui <code>data-agendae-open</code>.</li>
+      <li><code>data-agendae-api</code> aponta para o backend do cliente.</li>
+      <li>Catálogo, horários e confirmação foram testados no ambiente online.</li>
+    </ul>
+    <h3>Teste rápido</h3>
+    <ol>
+      <li>Abra o site cliente e clique em <strong>Agendamento</strong>.</li>
+      <li>Confirme logomarca, serviços e data esperada.</li>
+      <li>Escolha um horário, informe nome e telefone e finalize.</li>
+      <li>Verifique se a reserva apareceu no painel do estabelecimento no AGENDAE.</li>
+    </ol>
+    <span class="page-number">6</span>
+  </section>
+
+  <section class="page">
+    <header><img src="../public/imagens/logo_agendae.png" alt="Agendae"><span>SOLUÇÃO DE PROBLEMAS</span></header>
+    <h2>Diagnóstico rápido</h2>
+    <table><thead><tr><th>Mensagem ou sintoma</th><th>O que conferir</th></tr></thead><tbody>
+      <tr><td>“Integração ainda não está configurada”</td><td>Nome da variável, formato <code>ag_live_...</code> e deploy dos dois backends.</td></tr>
+      <tr><td>Erro 401 ou 403</td><td>Os valores da chave são idênticos e a rota contém o slug correto.</td></tr>
+      <tr><td>Erro 502 ou 504</td><td>O Render gratuito pode estar despertando. Aguarde alguns segundos e tente novamente.</td></tr>
+      <tr><td>Botão não abre</td><td>Arquivo carregado sem erro, atributo <code>data-agendae-open</code> e caminho do script.</td></tr>
+      <tr><td>Serviços ou horários não aparecem</td><td>Loja publicada, serviços ativos, escalas e expediente configurados no AGENDAE.</td></tr>
+      <tr><td>Data está bloqueada em hoje</td><td><code>bookingMode</code> está como <code>daily</code>. Isso é esperado para senhas diárias.</td></tr>
+    </tbody></table>
+    <h3>Ordem segura para trocar uma chave</h3>
+    <ol>
+      <li>Gere a nova chave na aba API do estabelecimento.</li>
+      <li>Atualize o backend do cliente com o novo valor.</li>
+      <li>Publique os dois backends e confirme o catálogo.</li>
+      <li>Nunca mantenha a chave em arquivos do frontend.</li>
+    </ol>
+    <div class="callout success"><strong>Integração concluída</strong><p>Quando o catálogo carregar, os horários forem consultados e uma reserva de teste aparecer no AGENDAE, o site cliente já está operando pela API.</p></div>
+    <h3>Endereços de referência</h3>
+    <p><strong>Backend AGENDAE:</strong><br><code>https://agendae-backend-t5ax.onrender.com</code></p>
+    <p><strong>Site AGENDAE:</strong><br><code>https://evotechubdev.github.io/agendae/</code></p>
+    <p class="mini">Documento preparado para distribuição junto com o arquivo oficial do widget. Não inclua chaves reais neste manual.</p>
+    <span class="page-number">7</span>
+  </section>
+</body>
+</html>

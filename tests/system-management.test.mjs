@@ -19,7 +19,7 @@ function fixture(profile = null, contactWhatsapp = "") {
   };
   const context = vm.createContext({
     app, state, document: { title: "" }, location: { origin: "https://example.test" }, URL,
-    SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", session: () => profile, firebaseApi: { contactWhatsapp },
+    SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", SYSTEM_MATERIALS_ROUTE: "materiais-de-apoio", session: () => profile, firebaseApi: { contactWhatsapp },
     logo: () => "Agendae", footer: () => "", href: path => path,
     escapeHTML: value => String(value), initials: name => name.slice(0, 2).toUpperCase(), establishmentSlug: value => String(value || "").toLowerCase(),
     establishments: {}, catalogLoaded: true, storeOpenNow: () => false,
@@ -70,6 +70,7 @@ test("administrador vê as abas e uma tela com lista e cadastro", () => {
   context.renderSystemManagement();
   assert.match(app.innerHTML, />Home<\/a>/);
   assert.match(app.innerHTML, /aria-current="page">Gerenciar Estabelecimentos<\/a>/);
+  assert.match(app.innerHTML, />Materiais de Apoio<\/a>/);
   assert.match(app.innerHTML, /Barbearia/);
   assert.match(app.innerHTML, /Nova Loja/);
   assert.match(app.innerHTML, /Em configuração/);
@@ -92,12 +93,22 @@ test("administrador vê as abas e uma tela com lista e cadastro", () => {
   assert.match(app.innerHTML, /Página: https:\/\/example\.test\/novaloja/);
 });
 
+test("administrador acessa os materiais oficiais de integração", () => {
+  const { app, context } = fixture({ role: "system_admin", name: "Sistema" });
+  context.renderSystemMaterials();
+  assert.match(app.innerHTML, /aria-current="page">Materiais de Apoio<\/a>/);
+  assert.match(app.innerHTML, /manual-instalacao-api-agendae\.pdf/);
+  assert.match(app.innerHTML, /agendae-booking-widget\.js/);
+  assert.match(app.innerHTML, />Baixar PDF<\/a>/);
+  assert.match(app.innerHTML, />Baixar frontend<\/a>/);
+});
+
 test("loja recém-criada abre a página padrão de agendamento", () => {
   const store = { slug: "graziellematos", name: "Grazielle Matos", initials: "GM", address: "", services: [], setupComplete: false };
   const rendered = [];
   const routeContext = vm.createContext({
     state: {}, location: { search: "" }, URLSearchParams,
-    SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", catalogLoaded: true,
+    SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", SYSTEM_MATERIALS_ROUTE: "materiais-de-apoio", catalogLoaded: true,
     establishments: { graziellematos: store },
     scheduleTurnTimer: null, adminRefreshTimer: null, monitorClockTimer: null, serviceCarouselTimer: null,
     clearTimeout() {}, clearInterval() {}, session: () => null, route: () => "graziellematos",
@@ -153,17 +164,20 @@ test("agenda recém-criada não libera horários antes da publicação", () => {
 test("rota de gestão abre a Home sem sessão administrativa", () => {
   const rendered = [];
   let profile = null;
+  let currentRoute = "gerenciar-estabelecimentos";
   const context = vm.createContext({
-    SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", state: {},
+    SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", SYSTEM_MATERIALS_ROUTE: "materiais-de-apoio", state: {},
     scheduleTurnTimer: null, adminRefreshTimer: null, monitorClockTimer: null, serviceCarouselTimer: null,
-    clearTimeout() {}, clearInterval() {}, session: () => profile, route: () => "gerenciar-estabelecimentos",
-    renderHome: () => rendered.push("home"), renderSystemManagement: () => rendered.push("manage"),
+    clearTimeout() {}, clearInterval() {}, session: () => profile, route: () => currentRoute,
+    renderHome: () => rendered.push("home"), renderSystemManagement: () => rendered.push("manage"), renderSystemMaterials: () => rendered.push("materials"),
   });
   vm.runInContext(source.slice(source.indexOf("function render() {"), source.indexOf("function activeEstablishment()")), context);
   context.render();
   profile = { role: "system_admin" };
   context.render();
-  assert.deepEqual(rendered, ["home", "manage"]);
+  currentRoute = "materiais-de-apoio";
+  context.render();
+  assert.deepEqual(rendered, ["home", "manage", "materials"]);
 });
 
 test("login da loja abre o painel e o modo incorporado permanece restrito ao estabelecimento", () => {
@@ -173,12 +187,12 @@ test("login da loja abre o painel e o modo incorporado permanece restrito ao est
   let currentRoute = "octn";
   let profile = { slug: "octn", role: "gerente" };
   const context = vm.createContext({
-    location, URLSearchParams, SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", state: {}, catalogLoaded: true,
+    location, URLSearchParams, SYSTEM_MANAGE_ROUTE: "gerenciar-estabelecimentos", SYSTEM_MATERIALS_ROUTE: "materiais-de-apoio", state: {}, catalogLoaded: true,
     establishments: { octn: store }, scheduleTurnTimer: null, adminRefreshTimer: null, monitorClockTimer: null, serviceCarouselTimer: null,
     clearTimeout() {}, clearInterval() {}, session: () => profile, route: () => currentRoute,
     renderAdmin: value => rendered.push(["admin", value.slug]),
     renderEstablishmentPublic: value => rendered.push(["public", value.slug]),
-    renderHome: () => rendered.push(["home"]), renderSystemManagement: () => rendered.push(["system"]),
+    renderHome: () => rendered.push(["home"]), renderSystemManagement: () => rendered.push(["system"]), renderSystemMaterials: () => rendered.push(["materials"]),
     renderNotFound: () => rendered.push(["not-found"]),
   });
   vm.runInContext(source.slice(source.indexOf("function render() {"), source.indexOf("function activeEstablishment()")), context);
